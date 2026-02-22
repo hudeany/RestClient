@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="build_jar" name="Create all Jars for Project RestClient">
+	<target name="build_jar" depends="download_build_dependencies, build_setup, cleanup_before, create_jar, cleanup_after" />
+
+	<target name="probe-proxy">
+		<condition property="proxy.enabled">
+			<and>
+				<isset property="proxy.host" />
+				<isreachable host="${proxy.host}" />
+			</and>
+		</condition>
+	</target>
+
+	<target name="proxy" depends="probe-proxy" if="proxy.enabled">
+		<property name="proxy.port" value="80" />
+		<property name="proxy.user" value="" />
+		<property name="proxy.pass" value="" />
+		<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
+	</target>
+
+	<available file="lib_ant" property="libAntAvailable" />
+	<target name="download_build_dependencies" unless="libAntAvailable" depends="proxy">
+		<mkdir dir="lib_ant/" />
+		<get src="https://repo1.maven.org/maven2/ant-contrib/ant-contrib/1.0b3/ant-contrib-1.0b3.jar" dest="lib_ant/" />
+	</target>
+
+	<target name="build_setup" depends="download_build_dependencies">
+		<echo>Java/JVM HOME: ${java.home}</echo>
+		<echo>Java/JVM version: ${ant.java.version}</echo>
+		<echo>Java/JVM detailed version: ${java.version}</echo>
+
+		<loadfile property="build.version" srcFile="build.version" failonerror="false" />
+		<property name="build.version" value="26.0.0" />
+		<echo message="build.version: ${build.version}" />
+
+		<!-- Default: https://soderer.de/index.php?download=Versions.json -->
+		<!-- Override for GitHub: https://api.github.com/repos/hudeany/RestClient/releases/latest -->
+		<property name="VersionsUrl" value = "https://api.github.com/repos/hudeany/RestClient/releases/latest" />
+		<property file="${user.home}/git/codeSigning.properties" />
+
+		<property environment="env"/>
+
+		<tstamp>
+			<format property="buildTime" pattern="yyyy-MM-dd HH:mm:ss" locale="en" />
+		</tstamp>
+		<echo message="buildTime: ${buildTime}" />
+
+		<property file="${user.home}/git/codeSigning.properties" />
+
+		<property name="buildPath" value="build" />
+		<echo message="buildPath: ${buildPath}" />
+
+		<taskdef resource="net/sf/antcontrib/antlib.xml">
+			<classpath>
+				<pathelement location="lib_ant/ant-contrib-1.0b3.jar" />
+			</classpath>
+		</taskdef>
+
+		<if>
+			<and>
+				<isset property="user.home" />
+				<available file="${user.home}" type="dir" />
+			</and>
+			<then>
+				<property name="HOME" value="${user.home}" />
+			</then>
+			<else>
+				<if>
+					<and>
+						<isset property="env.HOME" />
+						<available file="${env.HOME}" type="dir" />
+					</and>
+					<then>
+						<property name="HOME" value="${env.HOME}" />
+					</then>
+					<else>
+						<fail message="Property &quot;env.HOME&quot; or &quot;user.home&quot; was not set properly" />
+					</else>
+				</if>
+			</else>
+		</if>
+
+		<if>
+			<and>
+				<isset property="env.SodererGitProjects" />
+				<available file="${env.SodererGitProjects}" type="dir" />
+			</and>
+			<then>
+				<property name="projectsPath" value="${env.SodererGitProjects}" />
+			</then>
+			<else>
+				<property name="projectsPath" value="${HOME}/git" />
+			</else>
+		</if>
+		<echo message="projectsPath: ${projectsPath}" />
+	</target>
+
+	<target name="cleanup_before">
+		<delete dir="${buildPath}" />
+		<mkdir dir="${buildPath}" />
+		<mkdir dir="${buildPath}/bin" />
+	</target>
+
+	<available file="lib" property="libsAvailable" />
+	<target name="download_dependencies" unless="libsAvailable" depends="proxy">
+		<mkdir dir="lib/" />
+
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.24.0/commons-compress-1.24.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/commons-io/commons-io/2.14.0/commons-io-2.14.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-1.2-api/2.20.0/log4j-1.2-api-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-api/2.20.0/log4j-api-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/2.20.0/log4j-core-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi/5.2.4/poi-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/5.2.4/poi-ooxml-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml-full/5.2.4/poi-ooxml-full-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/xmlbeans/xmlbeans/5.1.1/xmlbeans-5.1.1.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.11/commons-lang3-3.11.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-text/1.9/commons-text-1.9.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/2.0.1/mailapi-2.0.1.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.6.0/jna-5.6.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar" dest="lib/" />
+
+		<get src="https://github.com/hudeany/csv/releases/download/25.1.1/csv-25.1.1.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/json/releases/download/26.1.29/json-26.1.29.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/25.1.8/proxyautoconfig-25.1.8.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/network/releases/download/25.1.13/network-25.1.13.jar" dest="lib/" />
+
+		<property name="soderer-utilities.version" value="26.1.22" />
+		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}.jar" dest="lib/" />
+		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}-sources.jar" dest="lib/" />
+
+		<!-- SWT Windows: JarInJarLoader decides by OS type which SWT jar to load-->
+		<!-- https://archive.eclipse.org/eclipse/downloads/ -->
+		<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
+		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/R-4.38-202512010920/swt-4.38-win32-win32-x86_64.zip" dest="lib/swt_win.zip" />
+		<unzip src="lib/swt_win.zip" dest="lib/swt_win" />
+		<move file="lib/swt_win/swt.jar" tofile="lib/swt-4.38-win32-win32-x86_64.jar" />
+		<delete dir="lib/swt_win" />
+		<delete file="lib/swt_win.zip" />
+
+		<!-- SWT Linux: JarInJarLoader decides by OS type which SWT jar to load-->
+		<!-- https://archive.eclipse.org/eclipse/downloads/ -->
+		<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
+		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/R-4.38-202512010920/swt-4.38-gtk-linux-x86_64.zip" dest="lib/swt_linux.zip" />
+		<unzip src="lib/swt_linux.zip" dest="lib/swt_linux" />
+		<move file="lib/swt_linux/swt.jar" tofile="lib/swt-4.38-gtk-linux-x86_64.jar" />
+		<delete dir="lib/swt_linux" />
+		<delete file="lib/swt_linux.zip" />
+	</target>
+
+	<target name="compile" depends="download_dependencies">
+		<path id="build.classpath">
+			<fileset dir="lib">
+				<include name="*.jar" />
+			</fileset>
+		</path>
+
+		<javac debug="true" nowarn="true" deprecation="false" destdir="${buildPath}/bin" fork="yes" source="17" target="17" srcdir="src" includeantruntime="false" encoding="UTF-8" classpath="lib/*">
+			<classpath refid="build.classpath" />
+			<compilerarg value="-Xlint:unchecked" />
+			<compilerarg value="-parameters" />
+		</javac>
+
+		<copy todir="${buildPath}/bin">
+			<fileset dir="src/main/resources">
+				<include name="**/LanguageProperties*.properties" />
+				<include name="**/*.txt" />
+				<include name="**/*.pem" />
+				<include name="**/*.png" />
+				<include name="**/*.ico" />
+			</fileset>
+		</copy>
+
+		<replace file="${buildPath}/bin/VersionInfo.txt" token="$${build.version}" value="${build.version}"/>
+	</target>
+
+	<target name="create_versionfile">
+		<basename property="CaPublicKeyFileName" file="${CaPublicKey}"/>
+		<basename property="CaPublicKeyFileNameOld" file="${CaPublicKeyOld}"/>
+
+		<delete file="${buildPath}/bin/application_version.txt" />
+		<echo file="${buildPath}/bin/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
+		<delete file="src/main/resources/application_version.txt" />
+		<echo file="src/main/resources/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
+	</target>
+
+	<target name="create_jar" depends="create_versionfile, compile">
+		<jar destfile="${buildPath}/RestClient.jar">
+			<manifest>
+				<attribute name="Main-Class" value="de.soderer.RestClient" />
+				<attribute name="Rsrc-Main-Class" value="de.soderer.restclient.RestClient" />
+				<attribute name="Class-Path" value="." />
+			</manifest>
+
+			<fileset dir="${buildPath}/bin" />
+
+			<zipfileset file="${CaPublicKey}" />
+			<zipfileset file="${CaPublicKeyOld}" />
+			<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
+		</jar>
+
+		<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
+			<path>
+				<fileset dir="${buildPath}" includes="RestClient.jar" />
+			</path>
+		</signjar>
+
+		<copy file="${buildPath}/RestClient.jar" tofile="${buildPath}/RestClient-${build.version}.jar" />
+	</target>
+
+	<macrodef name="unsignjar">
+		<attribute name="jar" />
+		<sequential>
+			<!-- Remove any existing signatures from a JAR file. -->
+			<tempfile prefix="unsignjar-" destdir="${java.io.tmpdir}" property="temp.file" />
+			<echo message="Removing signatures from JAR: @{jar}" />
+			<mkdir dir="${temp.file}" />
+			<unjar src="@{jar}" dest="${temp.file}">
+				<patternset>
+					<include name="**" />
+					<exclude name="META-INF/*.SF" />
+					<exclude name="META-INF/*.DSA" />
+					<exclude name="META-INF/*.RSA" />
+				</patternset>
+			</unjar>
+			<delete file="@{jar}" failonerror="true" />
+			<!-- Touch META-INF/MANIFEST.MF in case the jar file didn't have a manifest. Otherwise the JAR task below will fail if the manifest file doesn't exist. -->
+			<mkdir dir="${temp.file}/META-INF" />
+			<touch file="${temp.file}/META-INF/MANIFEST.MF" />
+			<jar destfile="@{jar}" basedir="${temp.file}" includes="**" manifest="${temp.file}/META-INF/MANIFEST.MF" />
+			<delete dir="${temp.file}" failonerror="true" />
+		</sequential>
+	</macrodef>
+
+	<target name="cleanup_after">
+		<delete dir="${buildPath}/bin" />
+	</target>
+</project>

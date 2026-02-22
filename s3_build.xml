@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="build_jar" name="Create all Jars for Project S3DataDigger">
+	<target name="build_jar" depends="download_build_dependencies, build_setup, cleanup_before, create_jar, cleanup_after" />
+
+	<target name="probe-proxy">
+		<condition property="proxy.enabled">
+			<and>
+				<isset property="proxy.host" />
+			</and>
+		</condition>
+	</target>
+
+	<target name="proxy" depends="probe-proxy" if="proxy.enabled">
+		<property name="proxy.port" value="80" />
+		<property name="proxy.user" value="" />
+		<property name="proxy.pass" value="" />
+		<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
+	</target>
+
+	<available file="lib_ant" property="libAntAvailable" />
+	<target name="download_build_dependencies" unless="libAntAvailable" depends="proxy">
+		<mkdir dir="lib_ant/" />
+		<get src="https://repo1.maven.org/maven2/ant-contrib/ant-contrib/1.0b3/ant-contrib-1.0b3.jar" dest="lib_ant/" />
+	</target>
+
+	<target name="build_setup" depends="download_build_dependencies">
+		<echo>Java/JVM HOME: ${java.home}</echo>
+		<echo>Java/JVM version: ${ant.java.version}</echo>
+		<echo>Java/JVM detailed version: ${java.version}</echo>
+
+		<loadfile property="build.version" srcFile="build.version" failonerror="false" />
+		<property name="build.version" value="1.0.0" />
+		<echo message="build.version: ${build.version}" />
+		<property name="VersionsUrl" value = "file://///kd32-csssrv1.ext.dslocal.com/Transfer/css-tools/Versions.json" />
+
+		<property environment="env"/>
+
+		<tstamp>
+			<format property="buildTime" pattern="yyyy-MM-dd HH:mm:ss" locale="en" />
+		</tstamp>
+		<echo message="buildTime: ${buildTime}" />
+
+		<property file="${user.home}/git/codeSigning.properties" />
+
+		<property name="buildPath" value="build" />
+		<echo message="buildPath: ${buildPath}" />
+
+		<taskdef resource="net/sf/antcontrib/antlib.xml">
+			<classpath>
+				<pathelement location="lib_ant/ant-contrib-1.0b3.jar" />
+			</classpath>
+		</taskdef>
+
+		<if>
+			<and>
+				<isset property="user.home" />
+				<available file="${user.home}" type="dir" />
+			</and>
+			<then>
+				<property name="HOME" value="${user.home}" />
+			</then>
+			<else>
+				<if>
+					<and>
+						<isset property="env.HOME" />
+						<available file="${env.HOME}" type="dir" />
+					</and>
+					<then>
+						<property name="HOME" value="${env.HOME}" />
+					</then>
+					<else>
+						<fail message="Property &quot;env.HOME&quot; or &quot;user.home&quot; was not set properly" />
+					</else>
+				</if>
+			</else>
+		</if>
+		<echo message="projectsPath: ${projectsPath}" />
+	</target>
+
+	<target name="cleanup_before">
+		<delete dir="${buildPath}" />
+		<mkdir dir="${buildPath}" />
+		<mkdir dir="${buildPath}/bin" />
+	</target>
+
+	<available file="lib" property="libsAvailable" />
+	<target name="download_dependencies" unless="libsAvailable" depends="proxy">
+		<mkdir dir="lib/" />
+
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.24.0/commons-compress-1.24.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/commons-io/commons-io/2.14.0/commons-io-2.14.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-1.2-api/2.20.0/log4j-1.2-api-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-api/2.20.0/log4j-api-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/2.20.0/log4j-core-2.20.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi/5.2.4/poi-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/5.2.4/poi-ooxml-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml-full/5.2.4/poi-ooxml-full-5.2.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/xmlbeans/xmlbeans/5.1.1/xmlbeans-5.1.1.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.11/commons-lang3-3.11.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-text/1.9/commons-text-1.9.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/2.0.1/mailapi-2.0.1.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.6.0/jna-5.6.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar" dest="lib/" />
+
+		<get src="https://github.com/hudeany/csv/releases/download/25.1.1/csv-25.1.1.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/json/releases/download/26.1.29/json-26.1.29.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/26.0.0/proxyautoconfig-26.0.0.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/network/releases/download/25.1.13/network-25.1.13.jar" dest="lib/" />
+
+		<property name="soderer.utilities.version" value="26.1.22" />
+		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer.utilities.version}/soderer-utilities-${soderer.utilities.version}.jar" dest="lib/" />
+		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer.utilities.version}/soderer-utilities-${soderer.utilities.version}-sources.jar" dest="lib/" />
+
+		<property name="aws.sdk.version" value="2.41.21" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/s3/${aws.sdk.version}/s3-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/aws-core/${aws.sdk.version}/aws-core-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/auth/${aws.sdk.version}/auth-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/regions/${aws.sdk.version}/regions-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/apache-client/${aws.sdk.version}/apache-client-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/protocol-core/${aws.sdk.version}/protocol-core-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/aws-xml-protocol/${aws.sdk.version}/aws-xml-protocol-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/profiles/${aws.sdk.version}/profiles-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/utils/${aws.sdk.version}/utils-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/http-client-spi/${aws.sdk.version}/http-client-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/sts/${aws.sdk.version}/sts-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/sdk-core/${aws.sdk.version}/sdk-core-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/identity-spi/${aws.sdk.version}/identity-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/retries/${aws.sdk.version}/retries-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/retries-spi/${aws.sdk.version}/retries-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/endpoints-spi/${aws.sdk.version}/endpoints-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/http-auth-spi/${aws.sdk.version}/http-auth-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/http-auth-aws/${aws.sdk.version}/http-auth-aws-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/http-auth/${aws.sdk.version}/http-auth-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/metrics-spi/${aws.sdk.version}/metrics-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/aws-query-protocol/${aws.sdk.version}/aws-query-protocol-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/checksums/${aws.sdk.version}/checksums-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/checksums-spi/${aws.sdk.version}/checksums-spi-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/aws-json-protocol/${aws.sdk.version}/aws-json-protocol-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/json-utils/${aws.sdk.version}/json-utils-${aws.sdk.version}.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/software/amazon/awssdk/third-party-jackson-core/${aws.sdk.version}/third-party-jackson-core-${aws.sdk.version}.jar" dest="lib/" />
+		
+		<get src="https://repo1.maven.org/maven2/org/reactivestreams/reactive-streams/1.0.4/reactive-streams-1.0.4.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/httpcomponents/httpclient/4.5.14/httpclient-4.5.14.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/apache/httpcomponents/httpcore/4.4.16/httpcore-4.4.16.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/commons-logging/commons-logging/1.3.5/commons-logging-1.3.5.jar" dest="lib/" />
+		
+		<get src="https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.21.0/jackson-core-2.21.0.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.21.0/jackson-databind-2.21.0.jar" dest="lib/" />
+		
+		<get src="https://repo1.maven.org/maven2/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar" dest="lib/" />
+		<get src="https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/1.7.36/slf4j-simple-1.7.36.jar" dest="lib/" />
+		
+		<!-- SWT Windows: JarInJarLoader decides by OS type which SWT jar to load-->
+		<!-- https://archive.eclipse.org/eclipse/downloads/ -->
+		<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
+		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/R-4.38-202512010920/swt-4.38-win32-win32-x86_64.zip" dest="lib/swt_win.zip" />
+		<unzip src="lib/swt_win.zip" dest="lib/swt_win" />
+		<move file="lib/swt_win/swt.jar" tofile="lib/swt-4.38-win32-win32-x86_64.jar" />
+		<delete dir="lib/swt_win" />
+		<delete file="lib/swt_win.zip" />
+
+		<!-- SWT Linux: JarInJarLoader decides by OS type which SWT jar to load-->
+		<!-- https://archive.eclipse.org/eclipse/downloads/ -->
+		<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
+		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/R-4.38-202512010920/swt-4.38-gtk-linux-x86_64.zip" dest="lib/swt_linux.zip" />
+		<unzip src="lib/swt_linux.zip" dest="lib/swt_linux" />
+		<move file="lib/swt_linux/swt.jar" tofile="lib/swt-4.38-gtk-linux-x86_64.jar" />
+		<delete dir="lib/swt_linux" />
+		<delete file="lib/swt_linux.zip" />
+	</target>
+
+	<target name="compile" depends="download_dependencies">
+		<path id="build.classpath">
+			<fileset dir="lib">
+				<include name="*.jar" />
+			</fileset>
+		</path>
+
+		<javac debug="true" nowarn="true" deprecation="false" destdir="${buildPath}/bin" fork="yes" source="1.8" target="1.8" srcdir="src/main/java" includeantruntime="false" encoding="UTF-8" classpath="lib/*">
+			<classpath refid="build.classpath" />
+			<compilerarg value="-Xlint:unchecked" />
+			<compilerarg value="-parameters" />
+		</javac>
+
+		<copy todir="${buildPath}/bin">
+			<fileset dir="src/main/java">
+				<include name="**/*.png" />
+				<include name="**/*.ico" />
+			</fileset>
+			<fileset dir="src/main/resources">
+				<include name="**/LanguageProperties*.properties" />
+				<include name="**/*.txt" />
+				<include name="**/*.pem" />
+				<include name="**/*.json" />
+				<include name="**/*.json.encrypted" />
+			</fileset>
+		</copy>
+
+		<replace file="${buildPath}/bin/VersionInfo.txt" token="$${build.version}" value="${build.version}"/>
+	</target>
+
+	<target name="create_versionfile">
+		<delete file="${buildPath}/bin/application_version.txt" />
+		<echo file="${buildPath}/bin/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${line.separator}</echo>
+		<delete file="src/main/resources/application_version.txt" />
+		<echo file="src/main/resources/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${line.separator}</echo>
+	</target>
+
+	<target name="create_jar" depends="create_versionfile, compile">
+		<jar destfile="${buildPath}/S3DataDigger.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.fja.S3DataDigger" />
+				<attribute name="Rsrc-Main-Class" value="com.fja.s3datadigger.S3DataDigger" />
+				<attribute name="Class-Path" value="." />
+			</manifest>
+
+			<fileset dir="${buildPath}/bin" />
+
+			<zipfileset file="${CaPublicKey}" />
+			<zipfileset file="${CaPublicKeyOld}" />
+			<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
+		</jar>
+
+		<touch file="${buildPath}/S3DataDigger_current-version_${build.version}.txt" />
+	</target>
+
+	<macrodef name="unsignjar">
+		<attribute name="jar" />
+		<sequential>
+			<!-- Remove any existing signatures from a JAR file. -->
+			<tempfile prefix="unsignjar-" destdir="${java.io.tmpdir}" property="temp.file" />
+			<echo message="Removing signatures from JAR: @{jar}" />
+			<mkdir dir="${temp.file}" />
+			<unjar src="@{jar}" dest="${temp.file}">
+				<patternset>
+					<include name="**" />
+					<exclude name="META-INF/*.SF" />
+					<exclude name="META-INF/*.DSA" />
+					<exclude name="META-INF/*.RSA" />
+				</patternset>
+			</unjar>
+			<delete file="@{jar}" failonerror="true" />
+			<!-- Touch META-INF/MANIFEST.MF in case the jar file didn't have a manifest. Otherwise the JAR task below will fail if the manifest file doesn't exist. -->
+			<mkdir dir="${temp.file}/META-INF" />
+			<touch file="${temp.file}/META-INF/MANIFEST.MF" />
+			<jar destfile="@{jar}" basedir="${temp.file}" includes="**" manifest="${temp.file}/META-INF/MANIFEST.MF" />
+			<delete dir="${temp.file}" failonerror="true" />
+		</sequential>
+	</macrodef>
+
+	<target name="cleanup_after">
+		<delete dir="${buildPath}/bin" />
+	</target>
+</project>

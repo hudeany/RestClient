@@ -1,0 +1,7 @@
+Usage:
+	java -jar RestClient.jar
+
+Global standalone parameters
+	help: Show this help manual
+	version: Show current local version of this tool
+	update: Check for online update and ask, whether an available update shell be installed. [username [password]]

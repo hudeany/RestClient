@@ -1,0 +1,11 @@
+RestClient
+
+Helper for Argo Workflow Scheduler
+
+1. Disclaimer
+
+RestClient ist ein Hilfstool zum Senden von REST requests.
+Dieses Tool dient dabei ausschließlich der experimentellen Verarbeitung von Daten.
+Jede Verwendung findet auf eigene Gefahr statt.
+Der Entwickler übernimmt KEINERLEI GEWÄHRLEISTUNG, sowohl der korrekten Funktion, sowie für Schäden die aus der Verwendung des Programms entstehen.
+Verbesserungsvorschläge oder Bughinweise bitte an: restclient@soderer.de
