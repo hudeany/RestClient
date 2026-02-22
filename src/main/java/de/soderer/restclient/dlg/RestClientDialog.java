@@ -3,14 +3,11 @@ package de.soderer.restclient.dlg;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.net.Proxy;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import javax.net.ssl.X509TrustManager;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
@@ -36,31 +33,30 @@ import de.soderer.json.exception.DuplicateKeyException;
 import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
-import de.soderer.network.HttpUtilities;
 import de.soderer.network.NetworkUtilities;
-import de.soderer.network.TrustManagerUtilities;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
 import de.soderer.restclient.image.ImageManager;
+import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.swt.ApplicationConfigurationDialog;
 import de.soderer.utilities.swt.ErrorDialog;
+import de.soderer.utilities.swt.ProgressDialog;
 import de.soderer.utilities.swt.QuestionDialog;
 import de.soderer.utilities.swt.ShowDataDialog;
 import de.soderer.utilities.swt.SwtColor;
 import de.soderer.utilities.swt.SwtUtilities;
 import de.soderer.utilities.swt.UpdateableGuiApplication;
+import de.soderer.utilities.worker.WorkerSimple;
 
 /**
  * TODO:
- * - Worker for execution
- * - Button Basic auth
- * - Button Token auth
  * - Button Create Html Form Body
  * - Application Icon
  */
@@ -458,26 +454,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					httpRequest.addUrlParameter(urlParametersEntry.getKey(), urlParametersEntry.getValue());
 				}
 
-				Proxy proxy = null;
-				if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
-					if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
-						proxy = Proxy.NO_PROXY;
-					} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
-						final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
-						proxy = requestProxyConfiguration.getProxy(NetworkUtilities.getHostnameFromRequestString(requestPart.getServiceUrl()));
-					} else {
-						proxy = HttpUtilities.getProxyFromString(requestPart.getProxyUrl());
-					}
-				}
-
+				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, requestPart.getProxyUrl(), requestPart.getTlsCheck());
 				HttpResponse httpResponse;
-				if (!requestPart.getTlsCheck()) {
-					final X509TrustManager trustManager = TrustManagerUtilities.createTrustAllTrustManager();
-					httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager);
+				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
+				final Result dialogResult = progressDialog.open();
+				if (dialogResult == Result.CANCELED) {
+					showErrorMessage(LangResources.get("sendRequest"), LangResources.get("canceledByUser"));
+					return;
 				} else {
-					httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy);
+					httpResponse = worker.get();
 				}
-
 				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());

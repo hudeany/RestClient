@@ -19,7 +19,13 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 
+import de.soderer.network.HttpConstants;
+import de.soderer.network.HttpUtilities;
+import de.soderer.restclient.RestClient;
+import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.swt.CredentialsDialog;
+import de.soderer.utilities.swt.SimpleInputDialog;
 
 public class RequestComponent extends Composite {
 	private Combo presetNameCombo;
@@ -236,6 +242,43 @@ public class RequestComponent extends Composite {
 		serviceMethodText = createLabeledText(LangResources.get("serviceMethod"), LangResources.get("serviceMethodHint"));
 
 		createKeyValueSection(LangResources.get("httpRequestHeader"), true);
+
+		final Composite authButtonRegion = new Composite(content, SWT.NONE);
+		authButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		authButtonRegion.setLayout(new GridLayout(2, true));
+
+		final Button addBasicAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		addBasicAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		addBasicAuthButton.setText(LangResources.get("addBasicAuth"));
+		addBasicAuthButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				final CredentialsDialog credentialsDialog = new CredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterBasicAuthCredentials"), true, true);
+				final Credentials credentials = credentialsDialog.open();
+				if (credentials != null) {
+					final Map<String, String> httpHeadersMap = getHttpHeaders();
+					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpUtilities.createBasicAuthenticationHeaderValue(credentials.getUsername(), new String(credentials.getPassword())));
+					setHttpHeaders(httpHeadersMap);
+				}
+			}
+		});
+
+		final Button addTokenAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		addTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		addTokenAuthButton.setText(LangResources.get("addTokenAuth"));
+		addTokenAuthButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent ev) {
+				final SimpleInputDialog inputDialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterAuthToken"));
+				final String token = inputDialog.open();
+				if (token != null) {
+					final Map<String, String> httpHeadersMap = getHttpHeaders();
+					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + token);
+					setHttpHeaders(httpHeadersMap);
+				}
+			}
+		});
+
 		createKeyValueSection(LangResources.get("urlParameter"), false);
 
 		createRequestBodySection();
