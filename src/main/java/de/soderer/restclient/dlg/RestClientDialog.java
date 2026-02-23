@@ -282,7 +282,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		public void widgetSelected(final SelectionEvent e) {
 			try {
 				byte[] iconData;
-				try (InputStream inputStream = ImageManager.class.getResourceAsStream("RestClient.ico")) {
+				try (InputStream inputStream = ImageManager.class.getResourceAsStream("/images/icons/RestClient.ico")) {
 					iconData = IoUtilities.toByteArray(inputStream);
 				}
 
