@@ -8,7 +8,6 @@ import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
@@ -172,36 +171,6 @@ public class ResponseComponent extends Composite {
 
 		headerContainer = container;
 		headerScrolled = scrolled;
-	}
-
-	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled) {
-		final Composite row = new Composite(parent, SWT.NONE);
-
-		final GridLayout gl = new GridLayout(3, false);
-		gl.marginWidth = 0;
-		gl.marginHeight = 0;
-		gl.verticalSpacing = 2;
-		gl.horizontalSpacing = 5;
-		row.setLayout(gl);
-		row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		final Text nameText = new Text(row, SWT.BORDER);
-		nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		nameText.setMessage(LangResources.get("nameHint"));
-
-		final Text valueText = new Text(row, SWT.BORDER);
-		valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		valueText.setMessage(LangResources.get("valueHint"));
-
-		final Button removeButton = new Button(row, SWT.PUSH);
-		removeButton.setText("-");
-		removeButton.addListener(SWT.Selection, e -> {
-			row.dispose();
-			refreshScrolledArea(parent, scrolled);
-		});
-
-		refreshScrolledArea(parent, scrolled);
-		return row;
 	}
 
 	private void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
