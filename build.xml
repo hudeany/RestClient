@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project default="build_jar" name="Create all Jars for Project RestClient">
-	<target name="build_jar" depends="download_build_dependencies, build_setup, cleanup_before, create_jar, cleanup_after" />
+	<target name="build_jar" depends="download_build_dependencies, build_setup, cleanup_before, create_jar, sign_jar, cleanup_after" />
 
 	<target name="probe-proxy">
 		<condition property="proxy.enabled">
@@ -17,6 +17,8 @@
 		<property name="proxy.pass" value="" />
 		<setproxy proxyhost="${proxy.host}" proxyport="${proxy.port}" proxyuser="${proxy.user}" proxypassword="${proxy.pass}" />
 	</target>
+	
+	<available file="${user.home}/git/codeSigning.properties" property="codeSigningPropertiesAvailable" />
 
 	<available file="lib_ant" property="libAntAvailable" />
 	<target name="download_build_dependencies" unless="libAntAvailable" depends="proxy">
@@ -185,7 +187,7 @@
 		<echo file="src/main/resources/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
 	</target>
 
-	<target name="create_jar" depends="create_versionfile, compile">
+	<target name="create_jar" depends="create_versionfile, compile" if="codeSigningPropertiesAvailable">
 		<jar destfile="${buildPath}/RestClient.jar">
 			<manifest>
 				<attribute name="Main-Class" value="de.soderer.RestClient" />
@@ -199,7 +201,9 @@
 			<zipfileset file="${CaPublicKeyOld}" />
 			<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
 		</jar>
+	</target>
 
+	<target name="sign_jar" depends="create_versionfile, compile, create_jar">
 		<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
 			<path>
 				<fileset dir="${buildPath}" includes="RestClient.jar" />
