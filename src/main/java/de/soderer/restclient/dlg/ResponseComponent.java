@@ -173,7 +173,7 @@ public class ResponseComponent extends Composite {
 		headerScrolled = scrolled;
 	}
 
-	private void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
+	private static void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
 		refreshScrolledAreaParent.layout(true, true);
 
 		final int width = scrolled.getClientArea().width;
