@@ -8,6 +8,7 @@ import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
@@ -35,14 +36,16 @@ public class ResponseComponent extends Composite {
 	}
 
 	public void setResponseHeaders(final Map<String, String> headers) {
-		for (final Control c : headerContainer.getChildren()) c.dispose();
+		for (final Control c : headerContainer.getChildren()) {
+			c.dispose();
+		}
+
 		if (headers != null) {
 			for (final Map.Entry<String, String> entry : headers.entrySet()) {
 				addHeaderRow(entry.getKey(), entry.getValue());
 			}
 		}
-		headerContainer.layout(true, true);
-		headerScrolled.setMinSize(headerContainer.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+		refreshScrolledArea(headerContainer, headerScrolled);
 	}
 
 	private void addHeaderRow(final String name, final String value) {
@@ -89,17 +92,7 @@ public class ResponseComponent extends Composite {
 		httpCodeText = new Text(this, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
 		httpCodeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-		final Label headerLabel = new Label(this, SWT.NONE);
-		headerLabel.setText(LangResources.get("httpResponseHeader"));
-
-		headerScrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
-		headerScrolled.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-		headerScrolled.setExpandHorizontal(true);
-		headerScrolled.setExpandVertical(true);
-
-		headerContainer = new Composite(headerScrolled, SWT.NONE);
-		headerContainer.setLayout(new GridLayout(2, false));
-		headerScrolled.setContent(headerContainer);
+		createKeyValueSection(LangResources.get("httpResponseHeader"));
 
 		final Label bodyLabel = new Label(this, SWT.NONE);
 		bodyLabel.setText(LangResources.get("responseBody"));
@@ -115,7 +108,7 @@ public class ResponseComponent extends Composite {
 	}
 
 	private void updateHeaderMinSize() {
-		headerContainer.layout(true, true);
+		headerContainer.setLayout(new GridLayout(2, false));
 		final Point size = headerContainer.computeSize(SWT.DEFAULT, SWT.DEFAULT);
 		headerScrolled.setMinSize(size);
 	}
@@ -155,5 +148,69 @@ public class ResponseComponent extends Composite {
 		}
 
 		layout(true, true);
+	}
+
+	private void createKeyValueSection(final String title) {
+		final Composite sectionHeader = new Composite(this, SWT.NONE);
+		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		sectionHeader.setLayout(new GridLayout(2, false));
+
+		final Label label = new Label(this, SWT.NONE);
+		label.setText(title);
+		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+
+		final ScrolledComposite scrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
+		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
+		gd.heightHint = 75;
+		scrolled.setLayoutData(gd);
+		scrolled.setExpandHorizontal(true);
+		scrolled.setExpandVertical(true);
+
+		final Composite container = new Composite(scrolled, SWT.NONE);
+		container.setLayout(new GridLayout(1, false));
+		scrolled.setContent(container);
+
+		headerContainer = container;
+		headerScrolled = scrolled;
+	}
+
+	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled) {
+		final Composite row = new Composite(parent, SWT.NONE);
+
+		final GridLayout gl = new GridLayout(3, false);
+		gl.marginWidth = 0;
+		gl.marginHeight = 0;
+		gl.verticalSpacing = 2;
+		gl.horizontalSpacing = 5;
+		row.setLayout(gl);
+		row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		final Text nameText = new Text(row, SWT.BORDER);
+		nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		nameText.setMessage(LangResources.get("nameHint"));
+
+		final Text valueText = new Text(row, SWT.BORDER);
+		valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		valueText.setMessage(LangResources.get("valueHint"));
+
+		final Button removeButton = new Button(row, SWT.PUSH);
+		removeButton.setText("-");
+		removeButton.addListener(SWT.Selection, e -> {
+			row.dispose();
+			refreshScrolledArea(parent, scrolled);
+		});
+
+		refreshScrolledArea(parent, scrolled);
+		return row;
+	}
+
+	private void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
+		refreshScrolledAreaParent.layout(true, true);
+
+		final int width = scrolled.getClientArea().width;
+		final int height = Math.max(refreshScrolledAreaParent.computeSize(SWT.DEFAULT, SWT.DEFAULT).y, 80);
+		scrolled.setMinSize(width, height);
+
+		scrolled.layout(true, true);
 	}
 }

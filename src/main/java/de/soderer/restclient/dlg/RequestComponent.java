@@ -383,7 +383,7 @@ public class RequestComponent extends Composite {
 		refreshScrolledAreaParent.layout(true, true);
 
 		final int width = scrolled.getClientArea().width;
-		final int height = Math.max(refreshScrolledAreaParent.computeSize(SWT.DEFAULT, SWT.DEFAULT).y, 140);
+		final int height = Math.max(refreshScrolledAreaParent.computeSize(SWT.DEFAULT, SWT.DEFAULT).y, 80);
 		scrolled.setMinSize(width, height);
 
 		scrolled.layout(true, true);
