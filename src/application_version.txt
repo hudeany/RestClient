@@ -1,4 +1,0 @@
-25.0.0
-2026-02-22 12:14:26
-https://api.github.com/repos/hudeany/RestClient/releases/latest
-soderer-ca-2025-certificate.pem, soderer-ca-2024_v1-certificate.pem
