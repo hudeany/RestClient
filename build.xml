@@ -187,7 +187,7 @@
 		<echo file="src/main/resources/application_version.txt" append="false">${build.version}${line.separator}${buildTime}${line.separator}${VersionsUrl}${line.separator}${CaPublicKeyFileName}, ${CaPublicKeyFileNameOld}${line.separator}</echo>
 	</target>
 
-	<target name="create_jar" depends="create_versionfile, compile" if="codeSigningPropertiesAvailable">
+	<target name="create_jar" depends="create_versionfile, compile">
 		<jar destfile="${buildPath}/RestClient.jar">
 			<manifest>
 				<attribute name="Main-Class" value="de.soderer.RestClient" />
@@ -203,7 +203,7 @@
 		</jar>
 	</target>
 
-	<target name="sign_jar" depends="create_versionfile, compile, create_jar">
+	<target name="sign_jar" depends="create_versionfile, compile, create_jar" if="codeSigningPropertiesAvailable">
 		<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
 			<path>
 				<fileset dir="${buildPath}" includes="RestClient.jar" />
