@@ -7,7 +7,6 @@ import javax.net.ssl.X509TrustManager;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
-import de.soderer.network.NetworkUtilities;
 import de.soderer.network.TrustManagerUtilities;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
@@ -46,7 +45,7 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 					proxy = Proxy.NO_PROXY;
 				} else if ("WPAD".equalsIgnoreCase(proxyURL)) {
 					final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
-					proxy = requestProxyConfiguration.getProxy(NetworkUtilities.getHostnameFromRequestString(httpRequest.getUrl()));
+					proxy = requestProxyConfiguration.getProxy(httpRequest.getUrl());
 				} else {
 					proxy = HttpUtilities.getProxyFromString(proxyURL);
 				}

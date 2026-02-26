@@ -125,7 +125,7 @@
 
 		<get src="https://github.com/hudeany/csv/releases/download/25.1.1/csv-25.1.1.jar" dest="lib/" />
 		<get src="https://github.com/hudeany/json/releases/download/26.1.29/json-26.1.29.jar" dest="lib/" />
-		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/25.1.8/proxyautoconfig-25.1.8.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/26.0.0/proxyautoconfig-26.0.0.jar" dest="lib/" />
 		<get src="https://github.com/hudeany/network/releases/download/25.1.13/network-25.1.13.jar" dest="lib/" />
 
 		<property name="soderer-utilities.version" value="26.1.22" />
