@@ -33,6 +33,7 @@ import de.soderer.json.exception.DuplicateKeyException;
 import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
+import de.soderer.network.HttpUtilities;
 import de.soderer.network.NetworkUtilities;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
@@ -55,11 +56,6 @@ import de.soderer.utilities.swt.SwtUtilities;
 import de.soderer.utilities.swt.UpdateableGuiApplication;
 import de.soderer.utilities.worker.WorkerSimple;
 
-/**
- * TODO:
- * - Button Create Html Form Body
- * - Application Icon
- */
 public class RestClientDialog extends UpdateableGuiApplication {
 	private final ProxyConfiguration proxyConfiguration;
 
@@ -110,7 +106,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		createRightPart(sashForm);
 
-		setSize(1000, 700);
+		setSize(1000, 850);
 		setMinimumSize(450, 450);
 
 		addListener(SWT.Close, new Listener() {
@@ -202,6 +198,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						}
 						showMessage(RestClient.APPLICATION_NAME, LangResources.get("deletedRequestPreset", presetName));
 						requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
+						
+						checkButtonStatus();
 					}
 				} catch (final Exception e) {
 					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
@@ -227,6 +225,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		});
 
 		loadPresets();
+		
+		checkButtonStatus();
 	}
 
 	private void createRightPart(final SashForm parent) throws Exception {
@@ -373,18 +373,31 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setServiceMethod((String) jsonObject.getSimpleValue("serviceMethod"));
 
 			final Map<String, String> httpHeaders = new LinkedHashMap<>();
-			for (final JsonNode httpHeaderJsonNode : ((JsonArray) jsonObject.get("httpRequestHeaders")).items()) {
-				final JsonObject httpHeaderJsonObject = (JsonObject) httpHeaderJsonNode;
-				httpHeaders.put((String) httpHeaderJsonObject.getSimpleValue("name"), (String) httpHeaderJsonObject.getSimpleValue("value"));
+			if (jsonObject.containsKey("httpRequestHeaders")) {
+				for (final JsonNode httpHeaderJsonNode : ((JsonArray) jsonObject.get("httpRequestHeaders")).items()) {
+					final JsonObject httpHeaderJsonObject = (JsonObject) httpHeaderJsonNode;
+					httpHeaders.put((String) httpHeaderJsonObject.getSimpleValue("name"), (String) httpHeaderJsonObject.getSimpleValue("value"));
+				}
 			}
 			requestPart.setHttpHeaders(httpHeaders);
 
 			final Map<String, String> urlParameters = new LinkedHashMap<>();
-			for (final JsonNode urlParameterJsonNode : ((JsonArray) jsonObject.get("urlParameters")).items()) {
-				final JsonObject urlParameterJsonObject = (JsonObject) urlParameterJsonNode;
-				urlParameters.put((String) urlParameterJsonObject.getSimpleValue("name"), (String) urlParameterJsonObject.getSimpleValue("value"));
+			if (jsonObject.containsKey("urlParameters")) {
+				for (final JsonNode urlParameterJsonNode : ((JsonArray) jsonObject.get("urlParameters")).items()) {
+					final JsonObject urlParameterJsonObject = (JsonObject) urlParameterJsonNode;
+					urlParameters.put((String) urlParameterJsonObject.getSimpleValue("name"), (String) urlParameterJsonObject.getSimpleValue("value"));
+				}
 			}
 			requestPart.setUrlParameters(urlParameters);
+
+			final Map<String, String> htmlFormParameters = new LinkedHashMap<>();
+			if (jsonObject.containsKey("htmlFormParameters")) {
+				for (final JsonNode htmlFormParameterJsonNode : ((JsonArray) jsonObject.get("htmlFormParameters")).items()) {
+					final JsonObject htmlFormParameterJsonObject = (JsonObject) htmlFormParameterJsonNode;
+					htmlFormParameters.put((String) htmlFormParameterJsonObject.getSimpleValue("name"), (String) htmlFormParameterJsonObject.getSimpleValue("value"));
+				}
+			}
+			requestPart.setHtmlFormParameters(htmlFormParameters);
 
 			requestPart.setRequestBody((String) jsonObject.getSimpleValue("requestBody"));
 		} else {
@@ -400,8 +413,13 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			final Map<String, String> urlParameters = new LinkedHashMap<>();
 			requestPart.setUrlParameters(urlParameters);
 
+			final Map<String, String> htmlFormParameters = new LinkedHashMap<>();
+			requestPart.setHtmlFormParameters(htmlFormParameters);
+
 			requestPart.setRequestBody("");
 		}
+		
+		checkButtonStatus();
 	}
 
 	private JsonObject createRequestPresetJsonObject() throws DuplicateKeyException {
@@ -431,6 +449,15 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		}
 		requestPresetJsonObject.add("urlParameters", urlParametersJsonArray);
 
+		final JsonArray htmlFromParametersJsonArray = new JsonArray();
+		for (final Entry<String, String> htmlFormParametersEntry : requestPart.getHtmlFormParameters().entrySet()) {
+			final JsonObject htmlFormParameterJsonObject = new JsonObject();
+			htmlFormParameterJsonObject.add("name", htmlFormParametersEntry.getKey());
+			htmlFormParameterJsonObject.add("value", htmlFormParametersEntry.getValue());
+			htmlFromParametersJsonArray.add(htmlFormParameterJsonObject);
+		}
+		requestPresetJsonObject.add("htmlFormParameters", htmlFromParametersJsonArray);
+
 		requestPresetJsonObject.add("requestBody", requestPart.getRequestBody());
 
 		return requestPresetJsonObject;
@@ -442,9 +469,6 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			try {
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
-				if (Utilities.isNotBlank(requestPart.getRequestBody())) {
-					httpRequest.setRequestBody(requestPart.getRequestBody());
-				}
 
 				for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
 					httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());
@@ -452,6 +476,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				for (final Entry<String, String> urlParametersEntry : requestPart.getUrlParameters().entrySet()) {
 					httpRequest.addUrlParameter(urlParametersEntry.getKey(), urlParametersEntry.getValue());
+				}
+
+				for (final Entry<String, String> htmlFormParametersEntry : requestPart.getHtmlFormParameters().entrySet()) {
+					httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
+				}
+				
+				if (requestPart.getHtmlFormParameters().size() == 0) {
+					if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+						httpRequest.setRequestBody(requestPart.getRequestBody());
+					}
 				}
 
 				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, requestPart.getProxyUrl(), requestPart.getTlsCheck());
@@ -464,6 +498,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				} else {
 					httpResponse = worker.get();
 				}
+				
+				if (httpRequest.getPostParameters() != null && httpRequest.getPostParameters().size() > 0) {
+					String requestBody = HttpUtilities.convertToParameterString(httpRequest.getPostParameters(), null);
+					requestPart.setRequestBody(requestBody);
+				}
+				
 				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());

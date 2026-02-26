@@ -40,10 +40,12 @@ public class RequestComponent extends Composite {
 	private Text requestBodyText;
 
 	private Composite headerContainer;
-	private Composite paramContainer;
+	private Composite urlParamContainer;
+	private Composite htmlFormParamContainer;
 
 	private ScrolledComposite headerScrolled;
-	private ScrolledComposite paramScrolled;
+	private ScrolledComposite urlParamScrolled;
+	private ScrolledComposite htmlFormParamScrolled;
 
 	private Composite content;
 	private ScrolledComposite outerScrolled;
@@ -81,7 +83,8 @@ public class RequestComponent extends Composite {
 	public boolean getTlsCheck() { return tlsCheckBox.getSelection(); }
 
 	public Map<String, String> getHttpHeaders() { return extractKeyValuePairs(headerContainer); }
-	public Map<String, String> getUrlParameters() { return extractKeyValuePairs(paramContainer); }
+	public Map<String, String> getUrlParameters() { return extractKeyValuePairs(urlParamContainer); }
+	public Map<String, String> getHtmlFormParameters() { return extractKeyValuePairs(htmlFormParamContainer); }
 
 	public void setPresetNames(final List<String> presets) {
 		presetNameCombo.removeAll();
@@ -129,7 +132,7 @@ public class RequestComponent extends Composite {
 
 		if (headers != null) {
 			for (final Map.Entry<String, String> entry : headers.entrySet()) {
-				final Composite row = addKeyValueRow(headerContainer, headerScrolled);
+				final Composite row = addKeyValueRow(headerContainer, headerScrolled, true);
 				final Control[] children = row.getChildren();
 				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
 					name.setText(entry.getKey());
@@ -140,14 +143,14 @@ public class RequestComponent extends Composite {
 		refreshScrolledArea(headerContainer, headerScrolled);
 	}
 
-	public void setUrlParameters(final Map<String, String> params) {
-		for (final Control c : paramContainer.getChildren()) {
+	public void setUrlParameters(final Map<String, String> urlParams) {
+		for (final Control c : urlParamContainer.getChildren()) {
 			c.dispose();
 		}
 
-		if (params != null) {
-			for (final Map.Entry<String, String> entry : params.entrySet()) {
-				final Composite row = addKeyValueRow(paramContainer, paramScrolled);
+		if (urlParams != null) {
+			for (final Map.Entry<String, String> entry : urlParams.entrySet()) {
+				final Composite row = addKeyValueRow(urlParamContainer, urlParamScrolled, true);
 				final Control[] children = row.getChildren();
 				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
 					name.setText(entry.getKey());
@@ -155,7 +158,25 @@ public class RequestComponent extends Composite {
 				}
 			}
 		}
-		refreshScrolledArea(paramContainer, paramScrolled);
+		refreshScrolledArea(urlParamContainer, urlParamScrolled);
+	}
+
+	public void setHtmlFormParameters(final Map<String, String> htmlFormParams) {
+		for (final Control c : htmlFormParamContainer.getChildren()) {
+			c.dispose();
+		}
+
+		if (htmlFormParams != null) {
+			for (final Map.Entry<String, String> entry : htmlFormParams.entrySet()) {
+				final Composite row = addKeyValueRow(htmlFormParamContainer, htmlFormParamScrolled, true);
+				final Control[] children = row.getChildren();
+				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
+					name.setText(entry.getKey());
+					value.setText(entry.getValue());
+				}
+			}
+		}
+		refreshScrolledArea(htmlFormParamContainer, htmlFormParamScrolled);
 	}
 
 	private void createOuterScrollArea() {
@@ -210,6 +231,12 @@ public class RequestComponent extends Composite {
 		httpMethodCombo.setItems(new String[] {"GET", "POST", "PUT", "DELETE", "HEAD"});
 		httpMethodCombo.select(0);
 		httpMethodCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		httpMethodCombo.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				checkRequestContentStatus();
+			}
+		});
 
 		final Composite urlCol = new Composite(methodUrlRow, SWT.NONE);
 		urlCol.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
@@ -241,7 +268,7 @@ public class RequestComponent extends Composite {
 
 		serviceMethodText = createLabeledText(LangResources.get("serviceMethod"), LangResources.get("serviceMethodHint"));
 
-		createKeyValueSection(LangResources.get("httpRequestHeader"), true);
+		createKeyValueSectionForHeader(LangResources.get("httpRequestHeader"));
 
 		final Composite authButtonRegion = new Composite(content, SWT.NONE);
 		authButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -279,7 +306,9 @@ public class RequestComponent extends Composite {
 			}
 		});
 
-		createKeyValueSection(LangResources.get("urlParameter"), false);
+		createKeyValueSectionForUrlParams(LangResources.get("urlParameter"));
+		
+		createKeyValueSectionForHtmlFormParams(LangResources.get("htmlFormParameter"));
 
 		createRequestBodySection();
 	}
@@ -312,7 +341,7 @@ public class RequestComponent extends Composite {
 		return text;
 	}
 
-	private void createKeyValueSection(final String title, final boolean isHeaderSection) {
+	private void createKeyValueSectionForHeader(final String title) {
 		final Composite sectionHeader = new Composite(content, SWT.NONE);
 		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		sectionHeader.setLayout(new GridLayout(2, false));
@@ -335,21 +364,81 @@ public class RequestComponent extends Composite {
 		container.setLayout(new GridLayout(1, false));
 		scrolled.setContent(container);
 
-		if (isHeaderSection) {
-			headerContainer = container;
-			headerScrolled = scrolled;
-		} else {
-			paramContainer = container;
-			paramScrolled = scrolled;
-		}
+		scrolled.setAlwaysShowScrollBars(true);
 
-		addKeyValueRow(container, scrolled);
-		addKeyValueRow(container, scrolled);
+		addKeyValueRow(container, scrolled, true);
 
-		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled));
+		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+
+		headerContainer = container;
+		headerScrolled = scrolled;
 	}
 
-	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled) {
+	private void createKeyValueSectionForUrlParams(final String title) {
+		final Composite sectionHeader = new Composite(content, SWT.NONE);
+		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		sectionHeader.setLayout(new GridLayout(2, false));
+
+		final Label label = new Label(sectionHeader, SWT.NONE);
+		label.setText(title);
+		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+
+		final Button addButton = new Button(sectionHeader, SWT.PUSH);
+		addButton.setText("+");
+
+		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
+		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
+		gd.heightHint = 75;
+		scrolled.setLayoutData(gd);
+		scrolled.setExpandHorizontal(true);
+		scrolled.setExpandVertical(true);
+
+		final Composite container = new Composite(scrolled, SWT.NONE);
+		container.setLayout(new GridLayout(1, false));
+		scrolled.setContent(container);
+
+		scrolled.setAlwaysShowScrollBars(true);
+
+		addKeyValueRow(container, scrolled, true);
+
+		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+
+		urlParamContainer = container;
+		urlParamScrolled = scrolled;
+	}
+
+	private void createKeyValueSectionForHtmlFormParams(final String title) {
+		final Composite sectionHeader = new Composite(content, SWT.NONE);
+		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		sectionHeader.setLayout(new GridLayout(2, false));
+
+		final Label label = new Label(sectionHeader, SWT.NONE);
+		label.setText(title);
+		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+
+		final Button addButton = new Button(sectionHeader, SWT.PUSH);
+		addButton.setText("+");
+
+		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
+		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
+		gd.heightHint = 75;
+		scrolled.setLayoutData(gd);
+		scrolled.setExpandHorizontal(true);
+		scrolled.setExpandVertical(true);
+
+		final Composite container = new Composite(scrolled, SWT.NONE);
+		container.setLayout(new GridLayout(1, false));
+		scrolled.setContent(container);
+
+		scrolled.setAlwaysShowScrollBars(true);
+		
+		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+
+		htmlFormParamContainer = container;
+		htmlFormParamScrolled = scrolled;
+	}
+
+	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled, boolean checkRequestContentStatus) {
 		final Composite row = new Composite(parent, SWT.NONE);
 
 		final GridLayout gl = new GridLayout(3, false);
@@ -376,9 +465,16 @@ public class RequestComponent extends Composite {
 		removeButton.addListener(SWT.Selection, e -> {
 			row.dispose();
 			refreshScrolledArea(parent, scrolled);
+			
+			checkRequestContentStatus();
 		});
 
 		refreshScrolledArea(parent, scrolled);
+		
+		if (checkRequestContentStatus) {
+			checkRequestContentStatus();
+		}
+		
 		return row;
 	}
 
@@ -433,5 +529,32 @@ public class RequestComponent extends Composite {
 			}
 		}
 		return map;
+	}
+
+	private void checkRequestContentStatus() {
+		if (requestBodyText != null && htmlFormParamContainer != null) {
+			if (htmlFormParamContainer.getChildren().length > 0) {
+				requestBodyText.setEnabled(false);
+				
+				boolean contentTypeHeaderFound = false;
+				for (String headerName : getHttpHeaders().keySet()) {
+					if ("Content-Type".equalsIgnoreCase(headerName)) {
+						contentTypeHeaderFound = true;
+						break;
+					}
+				}
+				
+				if (!contentTypeHeaderFound) {
+					final Composite row = addKeyValueRow(headerContainer, headerScrolled, false);
+					final Control[] children = row.getChildren();
+					if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
+						name.setText("Content-Type");
+						value.setText("multipart/form-data");
+					}
+				}
+			} else {
+				requestBodyText.setEnabled(true);
+			}
+		}
 	}
 }
