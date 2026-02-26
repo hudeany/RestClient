@@ -22,7 +22,7 @@
 	<classpathentry kind="lib" path="lib/log4j-api-2.20.0.jar"/>
 	<classpathentry kind="lib" path="lib/log4j-core-2.20.0.jar"/>
 	<classpathentry kind="lib" path="lib/mailapi-2.0.1.jar"/>
-	<classpathentry kind="lib" path="lib/network-26.0.0.jar"/>
+	<classpathentry kind="lib" path="lib/network-26.0.2.jar"/>
 	<classpathentry kind="lib" path="lib/poi-5.2.4.jar"/>
 	<classpathentry kind="lib" path="lib/poi-ooxml-5.2.4.jar"/>
 	<classpathentry kind="lib" path="lib/poi-ooxml-full-5.2.4.jar"/>
