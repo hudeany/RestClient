@@ -50,11 +50,14 @@ public class ResponseComponent extends Composite {
 	private void addHeaderRow(final String name, final String value) {
 		final Text nameText = new Text(headerContainer, SWT.BORDER | SWT.READ_ONLY);
 		nameText.setText(name != null ? name : "");
-		nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridData gridDataName = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+		gridDataName.widthHint = 150;
+		nameText.setLayoutData(gridDataName);
 
 		final Text valueText = new Text(headerContainer, SWT.BORDER | SWT.READ_ONLY);
 		valueText.setText(value != null ? value : "");
-		valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridData gridDataValue = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		valueText.setLayoutData(gridDataValue);
 
 		updateHeaderMinSize();
 	}

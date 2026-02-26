@@ -361,11 +361,14 @@ public class RequestComponent extends Composite {
 		row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		final Text nameText = new Text(row, SWT.BORDER);
-		nameText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridData gridDataName = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+		gridDataName.widthHint = 150;
+		nameText.setLayoutData(gridDataName);
 		nameText.setMessage(LangResources.get("nameHint"));
 
 		final Text valueText = new Text(row, SWT.BORDER);
-		valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridData gridDataValue = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		valueText.setLayoutData(gridDataValue);
 		valueText.setMessage(LangResources.get("valueHint"));
 
 		final Button removeButton = new Button(row, SWT.PUSH);
