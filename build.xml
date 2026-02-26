@@ -6,7 +6,6 @@
 		<condition property="proxy.enabled">
 			<and>
 				<isset property="proxy.host" />
-				<isreachable host="${proxy.host}" />
 			</and>
 		</condition>
 	</target>
