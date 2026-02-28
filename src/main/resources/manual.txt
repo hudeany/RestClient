@@ -1,6 +1,6 @@
 RestClient
 
-Helper for Argo Workflow Scheduler
+Rest webservice client
 
 1. Disclaimer
 

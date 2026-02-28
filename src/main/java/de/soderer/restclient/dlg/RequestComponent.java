@@ -54,6 +54,8 @@ public class RequestComponent extends Composite {
 		super(parent, style);
 
 		createOuterScrollArea();
+
+		checkRequestContentStatus();
 	}
 
 	public String getHttpMethod() {
@@ -65,6 +67,8 @@ public class RequestComponent extends Composite {
 			final int index = httpMethodCombo.indexOf(method);
 			if (index >= 0) httpMethodCombo.select(index);
 		}
+
+		checkRequestContentStatus();
 	}
 
 	public String getCheckTlsCert() {
@@ -307,7 +311,7 @@ public class RequestComponent extends Composite {
 		});
 
 		createKeyValueSectionForUrlParams(LangResources.get("urlParameter"));
-		
+
 		createKeyValueSectionForHtmlFormParams(LangResources.get("htmlFormParameter"));
 
 		createRequestBodySection();
@@ -431,14 +435,14 @@ public class RequestComponent extends Composite {
 		scrolled.setContent(container);
 
 		scrolled.setAlwaysShowScrollBars(true);
-		
+
 		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
 
 		htmlFormParamContainer = container;
 		htmlFormParamScrolled = scrolled;
 	}
 
-	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled, boolean checkRequestContentStatus) {
+	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled, final boolean checkRequestContentStatus) {
 		final Composite row = new Composite(parent, SWT.NONE);
 
 		final GridLayout gl = new GridLayout(3, false);
@@ -465,16 +469,16 @@ public class RequestComponent extends Composite {
 		removeButton.addListener(SWT.Selection, e -> {
 			row.dispose();
 			refreshScrolledArea(parent, scrolled);
-			
+
 			checkRequestContentStatus();
 		});
 
 		refreshScrolledArea(parent, scrolled);
-		
+
 		if (checkRequestContentStatus) {
 			checkRequestContentStatus();
 		}
-		
+
 		return row;
 	}
 
@@ -533,17 +537,17 @@ public class RequestComponent extends Composite {
 
 	private void checkRequestContentStatus() {
 		if (requestBodyText != null && htmlFormParamContainer != null) {
-			if (htmlFormParamContainer.getChildren().length > 0) {
+			if (htmlFormParamContainer.getChildren().length > 0 || "GET".equalsIgnoreCase(getHttpMethod())) {
 				requestBodyText.setEnabled(false);
-				
+
 				boolean contentTypeHeaderFound = false;
-				for (String headerName : getHttpHeaders().keySet()) {
+				for (final String headerName : getHttpHeaders().keySet()) {
 					if ("Content-Type".equalsIgnoreCase(headerName)) {
 						contentTypeHeaderFound = true;
 						break;
 					}
 				}
-				
+
 				if (!contentTypeHeaderFound) {
 					final Composite row = addKeyValueRow(headerContainer, headerScrolled, false);
 					final Control[] children = row.getChildren();
