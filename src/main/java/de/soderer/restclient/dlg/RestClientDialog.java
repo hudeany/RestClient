@@ -3,6 +3,8 @@ package de.soderer.restclient.dlg;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.Proxy;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,6 +43,7 @@ import de.soderer.restclient.RestClient;
 import de.soderer.restclient.image.ImageManager;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.ConfigurationProperties;
+import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
@@ -64,6 +67,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 	private Button clearRequestDataButton;
 	private Button sendRequestButton;
+	private Button multipleRequestButton;
 	private Button closeButton;
 
 	private final ConfigurationProperties applicationConfiguration;
@@ -198,7 +202,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						}
 						showMessage(RestClient.APPLICATION_NAME, LangResources.get("deletedRequestPreset", presetName));
 						requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
-						
+
 						checkButtonStatus();
 					}
 				} catch (final Exception e) {
@@ -225,7 +229,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		});
 
 		loadPresets();
-		
+
 		checkButtonStatus();
 	}
 
@@ -251,6 +255,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
 				executeRequest();
+			}
+		});
+
+		multipleRequestButton = new Button(buttonRegion, SWT.PUSH);
+		multipleRequestButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		multipleRequestButton.setText(LangResources.get("multipleRequest"));
+		multipleRequestButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				executeMultipleRequest();
 			}
 		});
 
@@ -418,7 +432,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			requestPart.setRequestBody("");
 		}
-		
+
 		checkButtonStatus();
 	}
 
@@ -481,14 +495,26 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				for (final Entry<String, String> htmlFormParametersEntry : requestPart.getHtmlFormParameters().entrySet()) {
 					httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
 				}
-				
+
 				if (requestPart.getHtmlFormParameters().size() == 0) {
 					if (Utilities.isNotBlank(requestPart.getRequestBody())) {
 						httpRequest.setRequestBody(requestPart.getRequestBody());
 					}
 				}
 
-				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, requestPart.getProxyUrl(), requestPart.getTlsCheck());
+				Proxy proxy = null;
+				if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
+					if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
+						proxy = Proxy.NO_PROXY;
+					} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
+						final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
+						proxy = requestProxyConfiguration.getProxy(httpRequest.getUrl());
+					} else {
+						proxy = HttpUtilities.getProxyFromString(requestPart.getProxyUrl());
+					}
+				}
+
+				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheck());
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();
@@ -498,15 +524,94 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				} else {
 					httpResponse = worker.get();
 				}
-				
+
 				if (httpRequest.getPostParameters() != null && httpRequest.getPostParameters().size() > 0) {
-					String requestBody = HttpUtilities.convertToParameterString(httpRequest.getPostParameters(), null);
+					final String requestBody = HttpUtilities.convertToParameterString(httpRequest.getPostParameters(), null);
 					requestPart.setRequestBody(requestBody);
 				}
-				
+
 				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
+			} catch (final Exception e) {
+				responsePart.setHttpCode("");
+				final Map<String, String> responseHeaders = new LinkedHashMap<>();
+				responsePart.setResponseHeaders(responseHeaders);
+				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
+			}
+
+			responsePart.showResponse();
+		} catch (final Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void executeMultipleRequest() {
+		try {
+			responsePart.clearResponse();
+
+			try {
+				final MultipleWorkerConfigurationDialog configurationDialog = new MultipleWorkerConfigurationDialog(getShell(), LangResources.get("multipleWorkerSettings"));
+				final Boolean result = configurationDialog.open();
+				if (result != null && result) {
+					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
+
+					for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
+						httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());
+					}
+
+					for (final Entry<String, String> urlParametersEntry : requestPart.getUrlParameters().entrySet()) {
+						httpRequest.addUrlParameter(urlParametersEntry.getKey(), urlParametersEntry.getValue());
+					}
+
+					for (final Entry<String, String> htmlFormParametersEntry : requestPart.getHtmlFormParameters().entrySet()) {
+						httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
+					}
+
+					if (requestPart.getHtmlFormParameters().size() == 0) {
+						if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+							httpRequest.setRequestBody(requestPart.getRequestBody());
+						}
+					}
+
+					if (httpRequest.getPostParameters() != null && httpRequest.getPostParameters().size() > 0) {
+						final String requestBody = HttpUtilities.convertToParameterString(httpRequest.getPostParameters(), null);
+						requestPart.setRequestBody(requestBody);
+					}
+
+					Proxy proxy = null;
+					if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
+						if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
+							proxy = Proxy.NO_PROXY;
+						} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
+							final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
+							proxy = requestProxyConfiguration.getProxy(httpRequest.getUrl());
+						} else {
+							proxy = HttpUtilities.getProxyFromString(requestPart.getProxyUrl());
+						}
+					}
+
+					responsePart.setHttpCode("");
+					final Map<String, String> responseHeaders = new LinkedHashMap<>();
+					responsePart.setResponseHeaders(responseHeaders);
+					responsePart.setResponseBody("");
+
+					final int tasksPerWorker = "∞".equals(configurationDialog.getRepetitions()) ? -1 : Integer.parseInt(configurationDialog.getRepetitions());
+
+					final String dialogText = LangResources.get("multipleRequestText", tasksPerWorker >= 0 ? tasksPerWorker : LangResources.get("unlimited"), DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getPauseSeconds()), true, false));
+
+					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(getShell(), LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheck());
+					dialog.setParallelWorkerAmount(configurationDialog.getWorkerCount());
+					dialog.setRepetitionsPerWorker(tasksPerWorker);
+					dialog.setSleepTime(Duration.ofSeconds(configurationDialog.getPauseSeconds()));
+					final Boolean dialogResult = dialog.open();
+
+					if (dialogResult != null && dialogResult) {
+						responsePart.setResponseBody(dialog.getResultsCSV());
+					} else {
+						responsePart.setResponseBody("CANCELLED\n\n" + dialog.getResultsCSV());
+					}
+				}
 			} catch (final Exception e) {
 				responsePart.setHttpCode("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();

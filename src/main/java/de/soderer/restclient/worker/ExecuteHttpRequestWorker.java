@@ -8,63 +8,49 @@ import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
 import de.soderer.network.TrustManagerUtilities;
-import de.soderer.pac.utilities.ProxyConfiguration;
-import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
-import de.soderer.utilities.Utilities;
 import de.soderer.utilities.worker.WorkerParentSimple;
 import de.soderer.utilities.worker.WorkerSimple;
 
 public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final HttpRequest httpRequest;
-	private final String proxyURL;
+	private final Proxy proxy;
 	private final boolean tlsCheck;
 
-	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final String proxyURL, final boolean tlsCheck) {
+	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final boolean tlsCheck) {
 		super(parent);
 
 		this.httpRequest = httpRequest;
-		this.proxyURL = proxyURL;
+		this.proxy = proxy;
 		this.tlsCheck = tlsCheck;
 	}
 
 	@Override
 	public HttpResponse work() throws Exception {
-		parent.changeTitle("HTTP Request");
+		if (parent != null) {
+			parent.changeTitle("HTTP Request");
+		}
 
 		HttpResponse httpResponse = null;
 
 		try {
-			itemsToDo = 2;
+			itemsToDo = 1;
 			itemsDone = 0;
 
-			signalUnlimitedProgress();
-
-			Proxy proxy = null;
-			if (Utilities.isNotBlank(proxyURL)) {
-				if ("DIRECT".equalsIgnoreCase(proxyURL)) {
-					proxy = Proxy.NO_PROXY;
-				} else if ("WPAD".equalsIgnoreCase(proxyURL)) {
-					final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
-					proxy = requestProxyConfiguration.getProxy(httpRequest.getUrl());
-				} else {
-					proxy = HttpUtilities.getProxyFromString(proxyURL);
-				}
-			}
-
-			itemsDone++;
-			signalProgress(true);
-
+			final X509TrustManager trustManager;
 			if (!tlsCheck) {
-				final X509TrustManager trustManager = TrustManagerUtilities.createTrustAllTrustManager();
-				httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager);
+				trustManager = TrustManagerUtilities.createTrustAllTrustManager();
 			} else {
-				httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy);
+				trustManager = null;
 			}
+
+			httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager);
+			itemsDone++;
+
+			signalProgress(true);
 		} catch (final Exception e) {
 			throw new Exception("Error: " + e.getMessage(), e);
 		}
 
-		itemsDone++;
 		signalProgress(true);
 
 		if (cancel) {
