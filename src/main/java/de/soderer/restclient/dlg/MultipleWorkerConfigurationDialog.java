@@ -28,9 +28,10 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 		parentShell.setLayout(new GridLayout(2, false));
 
 		final Label lblWorkers = new Label(parentShell, SWT.NONE);
-		lblWorkers.setText(LangResources.get("numberOfParallelWorkers") + " (≥1):");
+		lblWorkers.setText(LangResources.get("numberOfParallelWorkers") + " (1 ≤ x ≤ 100):");
 		final Spinner spnWorkers = new Spinner(parentShell, SWT.BORDER);
 		spnWorkers.setMinimum(1);
+		spnWorkers.setMaximum(100);
 		spnWorkers.setSelection(1);
 		spnWorkers.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -45,7 +46,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 		cmbReps.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		final Label lblPause = new Label(parentShell, SWT.NONE);
-		lblPause.setText(LangResources.get("workerSleepTime") + " (" + LangResources.get("seconds") + ", ≥0):");
+		lblPause.setText(LangResources.get("workerSleepTime") + " (" + LangResources.get("seconds") + ", 0 ≤ x):");
 		final Spinner spnPause = new Spinner(parentShell, SWT.BORDER);
 		spnPause.setMinimum(0);
 		spnPause.setMaximum(Integer.MAX_VALUE);
