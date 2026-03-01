@@ -313,7 +313,7 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		try (PrintWriter writer = new PrintWriter(path, "UTF-8")) {
 			writer.println("WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration");
 			for (final WorkerStats ws : workerStatsList) {
-				writer.printf("%d;%d;%d;%s;%s;%s%n",
+				writer.printf("%d;%d;%d;%s;%s;%s;%s;%s%n",
 						ws.getWorkerId(),
 						ws.getSuccessCount(),
 						ws.getErrorCount(),
@@ -334,7 +334,7 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		final StringBuilder result = new StringBuilder();
 		result.append("WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration\n");
 		for (final WorkerStats ws : workerStatsList) {
-			result.append(String.format("%d;%d;%d;%s;%s;%s%n",
+			result.append(String.format("%d;%d;%d;%s;%s;%s;%s;%s%n",
 					ws.getWorkerId(),
 					ws.getSuccessCount(),
 					ws.getErrorCount(),
