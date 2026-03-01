@@ -313,11 +313,11 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 							ws.getWorkerId(),
 							ws.getSuccessCount(),
 							ws.getErrorCount(),
-							(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, true)),
+							(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, false)),
 							(ws.getLatestStatusWasSuccess() == null ? "" : (ws.getLatestStatusWasSuccess() ? "success" : "error")),
-							(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, true)),
-							(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, true)),
-							(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, true)));
+							(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, false)),
+							(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, false)),
+							(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, false)));
 				}
 			} catch (final Exception ex) {
 				final MessageBox box = new MessageBox(getParent(), SWT.ICON_ERROR);
@@ -335,11 +335,11 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 					ws.getWorkerId(),
 					ws.getSuccessCount(),
 					ws.getErrorCount(),
-					(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, true)),
+					(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, false)),
 					(ws.getLatestStatusWasSuccess() == null ? "" : (ws.getLatestStatusWasSuccess() ? "success" : "error")),
-					(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, true)),
-					(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, true)),
-					(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, true))));
+					(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, false)),
+					(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, false)),
+					(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, false))));
 		}
 		return result.toString();
 	}
