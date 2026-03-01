@@ -112,15 +112,9 @@
 		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-1.2-api/2.20.0/log4j-1.2-api-2.20.0.jar" dest="lib/" />
 		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-api/2.20.0/log4j-api-2.20.0.jar" dest="lib/" />
 		<get src="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/2.20.0/log4j-core-2.20.0.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi/5.2.4/poi-5.2.4.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/5.2.4/poi-ooxml-5.2.4.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml-full/5.2.4/poi-ooxml-full-5.2.4.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/org/apache/xmlbeans/xmlbeans/5.1.1/xmlbeans-5.1.1.jar" dest="lib/" />
 		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.11/commons-lang3-3.11.jar" dest="lib/" />
 		<get src="https://repo1.maven.org/maven2/org/apache/commons/commons-text/1.9/commons-text-1.9.jar" dest="lib/" />
 		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/2.0.1/mailapi-2.0.1.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.6.0/jna-5.6.0.jar" dest="lib/" />
-		<get src="https://repo1.maven.org/maven2/net/java/dev/jna/jna-platform/5.6.0/jna-platform-5.6.0.jar" dest="lib/" />
 
 		<get src="https://github.com/hudeany/csv/releases/download/25.1.1/csv-25.1.1.jar" dest="lib/" />
 		<get src="https://github.com/hudeany/json/releases/download/26.1.31/json-26.1.31.jar" dest="lib/" />
