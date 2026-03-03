@@ -21,11 +21,17 @@ import org.eclipse.swt.widgets.Text;
 
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpUtilities;
+import de.soderer.pac.utilities.ProxyConfiguration;
+import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
+import de.soderer.restclient.helper.IdpHelper;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.Utilities;
 import de.soderer.utilities.swt.CredentialsDialog;
+import de.soderer.utilities.swt.QuestionDialog;
 import de.soderer.utilities.swt.SimpleInputDialog;
+import de.soderer.utilities.swt.SwtColor;
 
 public class RequestComponent extends Composite {
 	private Combo presetNameCombo;
@@ -38,6 +44,12 @@ public class RequestComponent extends Composite {
 	private Text serviceMethodText;
 	private Text proxyUrlText;
 	private Text requestBodyText;
+
+	private String idpUrl = null;
+	private String idpRealm = null;
+	private String idpUsername = null;
+	private String idpPassword = null;
+	private boolean storeIdpCredentials = false;
 
 	private Composite headerContainer;
 	private Composite urlParamContainer;
@@ -86,6 +98,12 @@ public class RequestComponent extends Composite {
 	public String getRequestBody() { return requestBodyText.getText(); }
 	public boolean getTlsCheck() { return tlsCheckBox.getSelection(); }
 
+	public String getIdpUrl() { return idpUrl; }
+	public String getIdpRealm() { return idpRealm; }
+	public String getIdpUsername() { return idpUsername; }
+	public String getIdpPassword() { return idpPassword; }
+	public boolean isStoreIdpCredentials() { return storeIdpCredentials; }
+
 	public Map<String, String> getHttpHeaders() { return extractKeyValuePairs(headerContainer); }
 	public Map<String, String> getUrlParameters() { return extractKeyValuePairs(urlParamContainer); }
 	public Map<String, String> getHtmlFormParameters() { return extractKeyValuePairs(htmlFormParamContainer); }
@@ -128,6 +146,12 @@ public class RequestComponent extends Composite {
 	public void setServiceMethod(final String value) { serviceMethodText.setText(value != null ? value : ""); }
 	public void setProxyUrl(final String value) { proxyUrlText.setText(value != null ? value : ""); }
 	public void setRequestBody(final String value) { requestBodyText.setText(value != null ? value : ""); }
+
+	public void setIdpUrl(final String idpUrl) { this.idpUrl = idpUrl; }
+	public void setIdpRealm(final String idpRealm) { this.idpRealm = idpRealm; }
+	public void setIdpUsername(final String idpUsername) { this.idpUsername = idpUsername; }
+	public void setIdpPassword(final String idpPassword) { this.idpPassword = idpPassword; }
+	public void setStoreIdpCredentials(final boolean storeIdpCredentials) { this.storeIdpCredentials = storeIdpCredentials; }
 
 	public void setHttpHeaders(final Map<String, String> headers) {
 		for (final Control c : headerContainer.getChildren()) {
@@ -276,7 +300,7 @@ public class RequestComponent extends Composite {
 
 		final Composite authButtonRegion = new Composite(content, SWT.NONE);
 		authButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		authButtonRegion.setLayout(new GridLayout(2, true));
+		authButtonRegion.setLayout(new GridLayout(3, false));
 
 		final Button addBasicAuthButton = new Button(authButtonRegion, SWT.PUSH);
 		addBasicAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -306,6 +330,53 @@ public class RequestComponent extends Composite {
 					final Map<String, String> httpHeadersMap = getHttpHeaders();
 					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + token);
 					setHttpHeaders(httpHeadersMap);
+				}
+			}
+		});
+
+		final Button createTokenAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		createTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		createTokenAuthButton.setText(LangResources.get("fetchIdpToken"));
+		createTokenAuthButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent ev) {
+				try {
+					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), null, null);
+					final Credentials credentials = inputDialog.open();
+					if (credentials != null) {
+						idpUrl = inputDialog.getIdpUrl();
+						idpRealm = inputDialog.getIdpRealm();
+						idpUsername = credentials.getUsername();
+						idpPassword = new String(credentials.getPassword());
+						storeIdpCredentials = inputDialog.isRememberCredentials();
+
+						ProxyConfiguration idpProxyConfiguration = null;
+						if (Utilities.isNotBlank(getProxyUrl())) {
+							if ("DIRECT".equalsIgnoreCase(getProxyUrl()) || Utilities.isBlank(getProxyUrl())) {
+								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.None);
+							} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
+								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+							} else {
+								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.ProxyURL, getProxyUrl());
+							}
+						}
+
+						String idpToken = null;
+						if (idpUrl.endsWith("/token")) {
+							idpToken = IdpHelper.aquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+						} else {
+							final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(idpUrl, idpRealm, idpProxyConfiguration);
+							idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, idpUsername, idpPassword, null, idpProxyConfiguration);
+						}
+
+						if (idpToken != null) {
+							final Map<String, String> httpHeadersMap = getHttpHeaders();
+							httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
+							setHttpHeaders(httpHeadersMap);
+						}
+					}
+				} catch (final Exception e) {
+					new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
 				}
 			}
 		});
@@ -537,7 +608,9 @@ public class RequestComponent extends Composite {
 
 	private void checkRequestContentStatus() {
 		if (requestBodyText != null && htmlFormParamContainer != null) {
-			if (htmlFormParamContainer.getChildren().length > 0 || "GET".equalsIgnoreCase(getHttpMethod())) {
+			if ("GET".equalsIgnoreCase(getHttpMethod())) {
+				requestBodyText.setEnabled(false);
+			} else if (htmlFormParamContainer.getChildren().length > 0) {
 				requestBodyText.setEnabled(false);
 
 				boolean contentTypeHeaderFound = false;

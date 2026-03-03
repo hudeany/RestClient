@@ -379,6 +379,23 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	private void setRequestPreset(final JsonObject jsonObject) {
+		// Clear HtmlFormParameters first to prevent refill of HTTP header Content-Type
+		requestPart.setHtmlFormParameters(new LinkedHashMap<>());
+
+		requestPart.setProxyUrl("");
+		requestPart.setHttpMethod("");
+		requestPart.setServiceUrl("");
+		requestPart.setTlsCheck(true);
+		requestPart.setServiceMethod("");
+		requestPart.setHttpHeaders(new LinkedHashMap<>());
+		requestPart.setUrlParameters(new LinkedHashMap<>());
+		requestPart.setRequestBody("");
+
+		requestPart.setIdpUrl("");
+		requestPart.setIdpRealm("");
+		requestPart.setIdpUsername("");
+		requestPart.setIdpPassword("");
+
 		if (jsonObject != null) {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
@@ -414,23 +431,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setHtmlFormParameters(htmlFormParameters);
 
 			requestPart.setRequestBody((String) jsonObject.getSimpleValue("requestBody"));
-		} else {
-			requestPart.setProxyUrl("");
-			requestPart.setHttpMethod("");
-			requestPart.setServiceUrl("");
-			requestPart.setTlsCheck(true);
-			requestPart.setServiceMethod("");
 
-			final Map<String, String> httpHeaders = new LinkedHashMap<>();
-			requestPart.setHttpHeaders(httpHeaders);
-
-			final Map<String, String> urlParameters = new LinkedHashMap<>();
-			requestPart.setUrlParameters(urlParameters);
-
-			final Map<String, String> htmlFormParameters = new LinkedHashMap<>();
-			requestPart.setHtmlFormParameters(htmlFormParameters);
-
-			requestPart.setRequestBody("");
+			requestPart.setIdpUrl((String) jsonObject.getSimpleValue("idpUrl"));
+			requestPart.setIdpRealm((String) jsonObject.getSimpleValue("idpRealm"));
+			requestPart.setIdpUsername((String) jsonObject.getSimpleValue("idpUsername"));
+			requestPart.setIdpPassword((String) jsonObject.getSimpleValue("idpPassword"));
 		}
 
 		checkButtonStatus();
@@ -474,6 +479,15 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		requestPresetJsonObject.add("requestBody", requestPart.getRequestBody());
 
+		if (Utilities.isNotBlank(requestPart.getIdpUrl())) {
+			requestPresetJsonObject.add("idpUrl", requestPart.getIdpUrl());
+			requestPresetJsonObject.add("idpRealm", requestPart.getIdpRealm());
+			if (requestPart.isStoreIdpCredentials()) {
+				requestPresetJsonObject.add("idpUsername", requestPart.getIdpUsername());
+				requestPresetJsonObject.add("idpPassword", requestPart.getIdpPassword());
+			}
+		}
+
 		return requestPresetJsonObject;
 	}
 
@@ -507,7 +521,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
 						proxy = Proxy.NO_PROXY;
 					} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
-						final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD, null);
+						final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
 						proxy = requestProxyConfiguration.getProxy(httpRequest.getUrl());
 					} else {
 						proxy = HttpUtilities.getProxyFromString(requestPart.getProxyUrl());
