@@ -436,6 +436,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpRealm((String) jsonObject.getSimpleValue("idpRealm"));
 			requestPart.setIdpUsername((String) jsonObject.getSimpleValue("idpUsername"));
 			requestPart.setIdpPassword((String) jsonObject.getSimpleValue("idpPassword"));
+
+			if (Utilities.isNotBlank(requestPart.getIdpPassword())) {
+				requestPart.setStoreIdpCredentials(true);
+			}
 		}
 
 		checkButtonStatus();

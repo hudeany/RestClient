@@ -341,13 +341,15 @@ public class RequestComponent extends Composite {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
 				try {
-					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), null, null);
+					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), idpUrl, idpRealm, idpUsername, (idpPassword == null ? null : idpPassword.toCharArray()));
+					inputDialog.setRememberCredentials(storeIdpCredentials);
 					final Credentials credentials = inputDialog.open();
 					if (credentials != null) {
-						idpUrl = inputDialog.getIdpUrl();
-						idpRealm = inputDialog.getIdpRealm();
-						idpUsername = credentials.getUsername();
-						idpPassword = new String(credentials.getPassword());
+						final String tempIdpUrl = inputDialog.getIdpUrl();
+						final String tempIdpRealm = inputDialog.getIdpRealm();
+						final String tempIdpUsername = credentials.getUsername();
+						final String tempIdpPassword = new String(credentials.getPassword());
+
 						storeIdpCredentials = inputDialog.isRememberCredentials();
 
 						ProxyConfiguration idpProxyConfiguration = null;
@@ -362,11 +364,11 @@ public class RequestComponent extends Composite {
 						}
 
 						String idpToken = null;
-						if (idpUrl.endsWith("/token")) {
-							idpToken = IdpHelper.aquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+						if (tempIdpUrl.endsWith("/token")) {
+							idpToken = IdpHelper.aquireAccessToken(tempIdpUrl, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
 						} else {
-							final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(idpUrl, idpRealm, idpProxyConfiguration);
-							idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, idpUsername, idpPassword, null, idpProxyConfiguration);
+							final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(tempIdpUrl, tempIdpRealm, idpProxyConfiguration);
+							idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
 						}
 
 						if (idpToken != null) {
@@ -374,6 +376,11 @@ public class RequestComponent extends Composite {
 							httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
 							setHttpHeaders(httpHeadersMap);
 						}
+
+						idpUrl = tempIdpUrl;
+						idpRealm = tempIdpRealm;
+						idpUsername = tempIdpUsername;
+						idpPassword = tempIdpPassword;
 					}
 				} catch (final Exception e) {
 					new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();

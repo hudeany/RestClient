@@ -29,17 +29,19 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 
 	private String idpUrl = null;
 	private String idpRealm = null;
-	private String username = null;
-	private char[] password = null;
+	private String idpUsername = null;
+	private char[] idpPassword = null;
 
 	private boolean rememberCredentials = false;
 
-	public IdpCredentialsDialog(final Shell shell, final String title, final String text, final String idpUrl, final String idpRealm) {
+	public IdpCredentialsDialog(final Shell shell, final String title, final String text, final String idpUrl, final String idpRealm, final String idpUsername, final char[] idpPassword) {
 		super(shell, title);
 
 		this.text = text;
 		this.idpUrl = idpUrl;
 		this.idpRealm = idpRealm;
+		this.idpUsername = idpUsername;
+		this.idpPassword = idpPassword;
 	}
 
 	@Override
@@ -124,11 +126,11 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		gridDataUsername.widthHint = 200;
 		usernameTextField.setLayoutData(gridDataUsername);
 
-		usernameTextField.setText("");
+		usernameTextField.setText(Utilities.isNotBlank(idpUsername) ? idpUsername : "");
 		usernameTextField.addModifyListener(new ModifyListener() {
 			@Override
 			public void modifyText(final ModifyEvent event) {
-				username = ((Text) event.widget).getText();
+				idpUsername = ((Text) event.widget).getText();
 				checkButtonStatus();
 			}
 		});
@@ -152,12 +154,11 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		gridDataPassword.widthHint = 200;
 		passwordTextField.setLayoutData(gridDataPassword);
 
-		passwordTextField.setText("");
-		password = "".toCharArray();
+		passwordTextField.setText(idpPassword != null ? new String(idpPassword) : "");
 		passwordTextField.addModifyListener(new ModifyListener() {
 			@Override
 			public void modifyText(final ModifyEvent event) {
-				password = ((Text) event.widget).getTextChars();
+				idpPassword = ((Text) event.widget).getTextChars();
 				checkButtonStatus();
 			}
 		});
@@ -174,6 +175,7 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		final Button rememberCredentialsButton = new Button(shell, SWT.CHECK);
 		rememberCredentialsButton.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, true));
 		rememberCredentialsButton.setText(LangResources.get("rememberIdpCredentials"));
+		rememberCredentialsButton.setSelection(rememberCredentials);
 		rememberCredentialsButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent event) {
@@ -213,7 +215,12 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 	}
 
 	private void checkButtonStatus() {
-		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(username) && Utilities.isNotEmpty(password));
+		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(idpUsername) && Utilities.isNotEmpty(idpPassword));
+	}
+
+	public IdpCredentialsDialog setRememberCredentials(final boolean rememberCredentials) {
+		this.rememberCredentials = rememberCredentials;
+		return this;
 	}
 
 	public boolean isRememberCredentials() {
@@ -221,8 +228,8 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 	}
 
 	public Credentials getCredentials() {
-		if (username != null) {
-			return new Credentials(username, password);
+		if (idpUsername != null) {
+			return new Credentials(idpUsername, idpPassword);
 		} else {
 			return null;
 		}
