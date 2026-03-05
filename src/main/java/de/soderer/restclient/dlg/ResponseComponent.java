@@ -13,7 +13,12 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 
+import de.soderer.json.JsonReader;
+import de.soderer.json.JsonWriter;
+import de.soderer.network.HttpConstants;
+import de.soderer.network.HttpContentType;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.collection.CaseInsensitiveMap;
 
 public class ResponseComponent extends Composite {
 	private Text httpCodeText;
@@ -31,7 +36,21 @@ public class ResponseComponent extends Composite {
 	}
 
 	public void setResponseBody(final String body) {
-		responseBodyText.setText(body != null ? body : "");
+		String contentType = new CaseInsensitiveMap<>(getResponseHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
+		if (body != null && contentType != null && (
+				contentType.equals(HttpContentType.Json.getStringRepresentation())
+				|| contentType.startsWith(HttpContentType.Json.getStringRepresentation() + ";")
+				|| contentType.equals(HttpContentType.TextJson.getStringRepresentation())
+				|| contentType.startsWith(HttpContentType.TextJson.getStringRepresentation() + ";"))) {
+			try {
+				String jsonBody = JsonWriter.getJsonItemString(JsonReader.readJsonItemString(body));
+				responseBodyText.setText(jsonBody != null ? jsonBody : "");
+			} catch (Exception e) {
+				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" +  (body != null ? body : ""));
+			}
+		} else {
+			responseBodyText.setText(body != null ? body : "");
+		}
 	}
 
 	public void setResponseHeaders(final Map<String, String> headers) {

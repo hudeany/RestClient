@@ -1,5 +1,6 @@
 package de.soderer.restclient.dlg;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.swt.CredentialsDialog;
 import de.soderer.utilities.swt.QuestionDialog;
+import de.soderer.utilities.swt.SelectionDialog;
 import de.soderer.utilities.swt.SimpleInputDialog;
 import de.soderer.utilities.swt.SwtColor;
 
@@ -303,11 +305,11 @@ public class RequestComponent extends Composite {
 
 		createKeyValueSectionForHeader(LangResources.get("httpRequestHeader"));
 
-		final Composite authButtonRegion = new Composite(content, SWT.NONE);
-		authButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		authButtonRegion.setLayout(new GridLayout(3, false));
+		final Composite headerButtonRegion = new Composite(content, SWT.NONE);
+		headerButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		headerButtonRegion.setLayout(new GridLayout(3, false));
 
-		final Button addBasicAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		final Button addBasicAuthButton = new Button(headerButtonRegion, SWT.PUSH);
 		addBasicAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		addBasicAuthButton.setText(LangResources.get("addBasicAuth"));
 		addBasicAuthButton.addSelectionListener(new SelectionAdapter() {
@@ -323,7 +325,7 @@ public class RequestComponent extends Composite {
 			}
 		});
 
-		final Button addTokenAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		final Button addTokenAuthButton = new Button(headerButtonRegion, SWT.PUSH);
 		addTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		addTokenAuthButton.setText(LangResources.get("addTokenAuth"));
 		addTokenAuthButton.addSelectionListener(new SelectionAdapter() {
@@ -339,7 +341,7 @@ public class RequestComponent extends Composite {
 			}
 		});
 
-		final Button createTokenAuthButton = new Button(authButtonRegion, SWT.PUSH);
+		final Button createTokenAuthButton = new Button(headerButtonRegion, SWT.PUSH);
 		createTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		createTokenAuthButton.setText(LangResources.get("fetchIdpToken"));
 		createTokenAuthButton.addSelectionListener(new SelectionAdapter() {
@@ -389,6 +391,58 @@ public class RequestComponent extends Composite {
 					}
 				} catch (final Exception e) {
 					new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
+				}
+			}
+		});
+
+		final Button contentTypeButton = new Button(headerButtonRegion, SWT.PUSH);
+		contentTypeButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		contentTypeButton.setText(LangResources.get("addContentType"));
+		contentTypeButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent ev) {
+				List<String> contentTypes = new ArrayList<String>();
+				for (HttpContentType contentTypeItem : HttpContentType.values()) {
+					contentTypes.add(contentTypeItem.getStringRepresentation());
+				}
+				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addContentType"), contentTypes);
+				final String contentType = selectionDialog.open();
+				if (contentType != null) {
+					final Map<String, String> httpHeadersMap = getHttpHeaders();
+					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, contentType);
+					setHttpHeaders(httpHeadersMap);
+				}
+			}
+		});
+
+		final Button standardHeaderButton = new Button(headerButtonRegion, SWT.PUSH);
+		standardHeaderButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		standardHeaderButton.setText(LangResources.get("addStandardHeader"));
+		standardHeaderButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent ev) {
+				List<String> standardHeaders = new ArrayList<String>();
+
+				standardHeaders.add("Accept");
+				standardHeaders.add("Authorization");
+				standardHeaders.add("Cache-Control");
+				standardHeaders.add("Content-Encoding");
+				standardHeaders.add("Content-Length");
+				standardHeaders.add("Content-Type");
+				standardHeaders.add("Cookie");
+				standardHeaders.add("Date");
+				standardHeaders.add("Pragma");
+				standardHeaders.add("Proxy-Authorization");
+				standardHeaders.add("Referer");
+				standardHeaders.add("User-Agent");
+				standardHeaders.add("Proxy-Connection");
+				
+				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addStandardHeader"), standardHeaders);
+				final String standardHeader = selectionDialog.open();
+				if (standardHeader != null) {
+					final Map<String, String> httpHeadersMap = getHttpHeaders();
+					httpHeadersMap.put(standardHeader, "");
+					setHttpHeaders(httpHeadersMap);
 				}
 			}
 		});

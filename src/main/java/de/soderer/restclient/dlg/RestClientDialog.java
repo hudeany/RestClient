@@ -110,8 +110,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		createRightPart(sashForm);
 
-		setSize(1000, 850);
-		setMinimumSize(450, 450);
+		setSize(1200, 900);
+		setMinimumSize(500, 450);
 
 		addListener(SWT.Close, new Listener() {
 			@Override
