@@ -379,24 +379,24 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	private void setRequestPreset(final JsonObject jsonObject) {
-		// Clear HtmlFormParameters first to prevent refill of HTTP header Content-Type
-		requestPart.setHtmlFormParameters(new LinkedHashMap<>());
-
-		requestPart.setProxyUrl("");
-		requestPart.setHttpMethod("");
-		requestPart.setServiceUrl("");
-		requestPart.setTlsCheck(true);
-		requestPart.setServiceMethod("");
-		requestPart.setHttpHeaders(new LinkedHashMap<>());
-		requestPart.setUrlParameters(new LinkedHashMap<>());
-		requestPart.setRequestBody("");
-
-		requestPart.setIdpUrl("");
-		requestPart.setIdpRealm("");
-		requestPart.setIdpUsername("");
-		requestPart.setIdpPassword("");
-
-		if (jsonObject != null) {
+		if (jsonObject == null) {
+			// Clear HtmlFormParameters first to prevent refill of HTTP header Content-Type
+			requestPart.setHtmlFormParameters(new LinkedHashMap<>());
+	
+			requestPart.setProxyUrl("");
+			requestPart.setHttpMethod("GET");
+			requestPart.setServiceUrl("");
+			requestPart.setTlsCheck(true);
+			requestPart.setServiceMethod("");
+			requestPart.setHttpHeaders(new LinkedHashMap<>());
+			requestPart.setUrlParameters(new LinkedHashMap<>());
+			requestPart.setRequestBody("");
+	
+			requestPart.setIdpUrl("");
+			requestPart.setIdpRealm("");
+			requestPart.setIdpUsername("");
+			requestPart.setIdpPassword("");
+		} else {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
 			requestPart.setServiceUrl((String) jsonObject.getSimpleValue("serviceUrl"));

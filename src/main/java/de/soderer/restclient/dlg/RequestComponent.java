@@ -20,6 +20,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 
 import de.soderer.network.HttpConstants;
+import de.soderer.network.HttpContentType;
 import de.soderer.network.HttpUtilities;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
@@ -54,6 +55,7 @@ public class RequestComponent extends Composite {
 	private Composite headerContainer;
 	private Composite urlParamContainer;
 	private Composite htmlFormParamContainer;
+	private Button htmlFormAddButton;
 
 	private ScrolledComposite headerScrolled;
 	private ScrolledComposite urlParamScrolled;
@@ -160,7 +162,7 @@ public class RequestComponent extends Composite {
 
 		if (headers != null) {
 			for (final Map.Entry<String, String> entry : headers.entrySet()) {
-				final Composite row = addKeyValueRow(headerContainer, headerScrolled, true);
+				final Composite row = addKeyValueRow(headerContainer, headerScrolled);
 				final Control[] children = row.getChildren();
 				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
 					name.setText(entry.getKey());
@@ -168,6 +170,7 @@ public class RequestComponent extends Composite {
 				}
 			}
 		}
+		checkRequestContentStatus();
 		refreshScrolledArea(headerContainer, headerScrolled);
 	}
 
@@ -178,7 +181,7 @@ public class RequestComponent extends Composite {
 
 		if (urlParams != null) {
 			for (final Map.Entry<String, String> entry : urlParams.entrySet()) {
-				final Composite row = addKeyValueRow(urlParamContainer, urlParamScrolled, true);
+				final Composite row = addKeyValueRow(urlParamContainer, urlParamScrolled);
 				final Control[] children = row.getChildren();
 				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
 					name.setText(entry.getKey());
@@ -186,6 +189,7 @@ public class RequestComponent extends Composite {
 				}
 			}
 		}
+		checkRequestContentStatus();
 		refreshScrolledArea(urlParamContainer, urlParamScrolled);
 	}
 
@@ -196,7 +200,7 @@ public class RequestComponent extends Composite {
 
 		if (htmlFormParams != null) {
 			for (final Map.Entry<String, String> entry : htmlFormParams.entrySet()) {
-				final Composite row = addKeyValueRow(htmlFormParamContainer, htmlFormParamScrolled, true);
+				final Composite row = addKeyValueRow(htmlFormParamContainer, htmlFormParamScrolled);
 				final Control[] children = row.getChildren();
 				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
 					name.setText(entry.getKey());
@@ -204,6 +208,7 @@ public class RequestComponent extends Composite {
 				}
 			}
 		}
+		checkRequestContentStatus();
 		refreshScrolledArea(htmlFormParamContainer, htmlFormParamScrolled);
 	}
 
@@ -448,9 +453,15 @@ public class RequestComponent extends Composite {
 
 		scrolled.setAlwaysShowScrollBars(true);
 
-		addKeyValueRow(container, scrolled, true);
+		addKeyValueRow(container, scrolled);
 
-		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+		addButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				addKeyValueRow(container, scrolled);
+				checkRequestContentStatus();
+			}
+		});
 
 		headerContainer = container;
 		headerScrolled = scrolled;
@@ -481,9 +492,15 @@ public class RequestComponent extends Composite {
 
 		scrolled.setAlwaysShowScrollBars(true);
 
-		addKeyValueRow(container, scrolled, true);
+		addKeyValueRow(container, scrolled);
 
-		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+		addButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				addKeyValueRow(container, scrolled);
+				checkRequestContentStatus();
+			}
+		});
 
 		urlParamContainer = container;
 		urlParamScrolled = scrolled;
@@ -498,8 +515,8 @@ public class RequestComponent extends Composite {
 		label.setText(title);
 		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
 
-		final Button addButton = new Button(sectionHeader, SWT.PUSH);
-		addButton.setText("+");
+		htmlFormAddButton = new Button(sectionHeader, SWT.PUSH);
+		htmlFormAddButton.setText("+");
 
 		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
 		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
@@ -514,13 +531,19 @@ public class RequestComponent extends Composite {
 
 		scrolled.setAlwaysShowScrollBars(true);
 
-		addButton.addListener(SWT.Selection, e -> addKeyValueRow(container, scrolled, true));
+		htmlFormAddButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent arg0) {
+				addKeyValueRow(container, scrolled);
+				checkRequestContentStatus();
+			}
+		});
 
 		htmlFormParamContainer = container;
 		htmlFormParamScrolled = scrolled;
 	}
 
-	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled, final boolean checkRequestContentStatus) {
+	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled) {
 		final Composite row = new Composite(parent, SWT.NONE);
 
 		final GridLayout gl = new GridLayout(3, false);
@@ -552,10 +575,6 @@ public class RequestComponent extends Composite {
 		});
 
 		refreshScrolledArea(parent, scrolled);
-
-		if (checkRequestContentStatus) {
-			checkRequestContentStatus();
-		}
 
 		return row;
 	}
@@ -615,29 +634,54 @@ public class RequestComponent extends Composite {
 
 	private void checkRequestContentStatus() {
 		if (requestBodyText != null && htmlFormParamContainer != null) {
-			if ("GET".equalsIgnoreCase(getHttpMethod())) {
+			boolean isGet = "GET".equalsIgnoreCase(getHttpMethod());
+			
+			setCompositeEnabled(htmlFormParamContainer, !isGet);
+			if (htmlFormAddButton != null) {
+				htmlFormAddButton.setEnabled(!isGet);
+			}
+			if (isGet) {
+				htmlFormParamScrolled.setToolTipText(LangResources.get("deactivationHtmlFormParams"));
+				if (htmlFormAddButton != null) {
+					htmlFormAddButton.setToolTipText(LangResources.get("deactivationHtmlFormParams"));
+				}
+			} else {
+				htmlFormParamScrolled.setToolTipText(null);
+				if (htmlFormAddButton != null) {
+					htmlFormAddButton.setToolTipText(null);
+				}
+			}
+			
+			if (isGet) {
 				requestBodyText.setEnabled(false);
 			} else if (htmlFormParamContainer.getChildren().length > 0) {
 				requestBodyText.setEnabled(false);
 
 				boolean contentTypeHeaderFound = false;
-				for (final String headerName : getHttpHeaders().keySet()) {
-					if ("Content-Type".equalsIgnoreCase(headerName)) {
+				Map<String, String> httpHeaders = getHttpHeaders();
+				for (final String headerName : httpHeaders.keySet()) {
+					if (HttpConstants.HTTPHEADERNAME_CONTENTTYPE.equalsIgnoreCase(headerName)) {
 						contentTypeHeaderFound = true;
 						break;
 					}
 				}
 
 				if (!contentTypeHeaderFound) {
-					final Composite row = addKeyValueRow(headerContainer, headerScrolled, false);
-					final Control[] children = row.getChildren();
-					if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
-						name.setText("Content-Type");
-						value.setText("multipart/form-data");
-					}
+					httpHeaders.put(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, HttpContentType.HtmlForm.getStringRepresentation());
+					setHttpHeaders(httpHeaders);
 				}
 			} else {
 				requestBodyText.setEnabled(true);
+			}
+		}
+	}
+	
+	private void setCompositeEnabled(Composite composite, boolean enabled) {
+		composite.setEnabled(enabled);
+		for (Control child : composite.getChildren()) {
+			child.setEnabled(enabled);
+			if (child instanceof Composite) {
+				setCompositeEnabled((Composite) child, enabled);
 			}
 		}
 	}

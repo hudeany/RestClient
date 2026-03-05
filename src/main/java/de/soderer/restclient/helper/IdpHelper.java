@@ -5,6 +5,8 @@ import java.net.UnknownHostException;
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonObject;
 import de.soderer.json.JsonReader;
+import de.soderer.network.HttpConstants;
+import de.soderer.network.HttpContentType;
 import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
@@ -37,6 +39,7 @@ public class IdpHelper {
 	public static String aquireAccessToken(final String idpTokenEndpointUrl, final String clientID, final String clientSecret, final String scope, final ProxyConfiguration proxyConfiguration) throws Exception {
 		try {
 			final HttpRequest request = new HttpRequest(HttpMethod.POST, idpTokenEndpointUrl);
+			request.addHeader(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, HttpContentType.HtmlForm.getStringRepresentation());
 			request.addPostParameter("grant_type", "client_credentials");
 			request.addPostParameter("client_id", clientID);
 			request.addPostParameter("client_secret", clientSecret);
