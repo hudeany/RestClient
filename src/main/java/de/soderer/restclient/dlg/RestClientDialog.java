@@ -1,5 +1,6 @@
 package de.soderer.restclient.dlg;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -37,6 +38,8 @@ import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
 import de.soderer.network.NetworkUtilities;
+import de.soderer.network.TlsCheckConfiguration;
+import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
@@ -382,16 +385,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (jsonObject == null) {
 			// Clear HtmlFormParameters first to prevent refill of HTTP header Content-Type
 			requestPart.setHtmlFormParameters(new LinkedHashMap<>());
-	
+
 			requestPart.setProxyUrl("");
 			requestPart.setHttpMethod("GET");
 			requestPart.setServiceUrl("");
-			requestPart.setTlsCheck(true);
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
 			requestPart.setServiceMethod("");
 			requestPart.setHttpHeaders(new LinkedHashMap<>());
 			requestPart.setUrlParameters(new LinkedHashMap<>());
 			requestPart.setRequestBody("");
-	
+
 			requestPart.setIdpUrl("");
 			requestPart.setIdpRealm("");
 			requestPart.setIdpUsername("");
@@ -400,7 +403,37 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
 			requestPart.setServiceUrl((String) jsonObject.getSimpleValue("serviceUrl"));
-			requestPart.setTlsCheck((Boolean) jsonObject.getSimpleValue("tlsCheck"));
+
+			final Object tlsCheckConfigurationObject = jsonObject.getSimpleValue("tlsCheck");
+			if (tlsCheckConfigurationObject == null) {
+				requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
+			} else if (tlsCheckConfigurationObject instanceof Boolean) {
+				if ((Boolean) tlsCheckConfigurationObject) {
+					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
+				} else {
+					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.NoCheck));
+				}
+			} else {
+				final JsonObject tlsCheckConfigurationJsonObject = (JsonObject) tlsCheckConfigurationObject;
+				TlsCheckConfiguration tlsCheckConfiguration;
+				try {
+					final TlsCheckConfigurationType tlsCheckConfigurationType = TlsCheckConfigurationType.getTlsCheckConfigurationByName((String) tlsCheckConfigurationJsonObject.getSimpleValue("type"));
+
+					final String filePath = (String) tlsCheckConfigurationJsonObject.getSimpleValue("file");
+					final String trustorePassword = (String) tlsCheckConfigurationJsonObject.getSimpleValue("trustorePassword");
+
+					tlsCheckConfiguration = new TlsCheckConfiguration(
+							tlsCheckConfigurationType,
+							(filePath == null ? null : new File(filePath)),
+							(trustorePassword == null ? null : trustorePassword.toCharArray())
+							);
+				} catch (@SuppressWarnings("unused") final Exception e) {
+					tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore);
+				}
+
+				requestPart.setTlsCheckConfiguration(tlsCheckConfiguration);
+			}
+
 			requestPart.setServiceMethod((String) jsonObject.getSimpleValue("serviceMethod"));
 
 			final Map<String, String> httpHeaders = new LinkedHashMap<>();
@@ -451,7 +484,20 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPresetJsonObject.add("proxyUrl", requestPart.getProxyUrl());
 		requestPresetJsonObject.add("httpMethod", requestPart.getHttpMethod());
 		requestPresetJsonObject.add("serviceUrl", requestPart.getServiceUrl());
-		requestPresetJsonObject.add("tlsCheck", requestPart.getTlsCheck());
+
+		final TlsCheckConfiguration tlsCheckConfiguration = requestPart.getTlsCheckConfiguration();
+		if (tlsCheckConfiguration != null) {
+			final JsonObject tlsCheckConfigurationJsonObject = new JsonObject();
+			tlsCheckConfigurationJsonObject.add("type", tlsCheckConfiguration.getType().name());
+			if (tlsCheckConfiguration.getTrustoreOrPemFile() != null) {
+				tlsCheckConfigurationJsonObject.add("file", Utilities.replaceUsersHome(tlsCheckConfiguration.getTrustoreOrPemFile().getAbsolutePath()));
+			}
+			if (tlsCheckConfiguration.getTrustorePassword() != null) {
+				tlsCheckConfigurationJsonObject.add("trustorePassword", new String(tlsCheckConfiguration.getTrustorePassword()));
+			}
+			requestPresetJsonObject.add("tlsCheck", tlsCheckConfigurationJsonObject);
+		}
+
 		requestPresetJsonObject.add("serviceMethod", requestPart.getServiceMethod());
 
 		final JsonArray httpRequestHeadersJsonArray = new JsonArray();
@@ -532,7 +578,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 				}
 
-				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheck());
+				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager());
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();
@@ -618,7 +664,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 					final String dialogText = LangResources.get("multipleRequestText", tasksPerWorker >= 0 ? tasksPerWorker : LangResources.get("unlimited"), DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getPauseSeconds()), true, false));
 
-					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(getShell(), LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheck());
+					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(getShell(), LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheckConfiguration());
 					dialog.setParallelWorkerAmount(configurationDialog.getWorkerCount());
 					dialog.setRepetitionsPerWorker(tasksPerWorker);
 					dialog.setSleepTime(Duration.ofSeconds(configurationDialog.getPauseSeconds()));

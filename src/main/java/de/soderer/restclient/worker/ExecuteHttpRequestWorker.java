@@ -2,26 +2,25 @@ package de.soderer.restclient.worker;
 
 import java.net.Proxy;
 
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.TrustManager;
 
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
-import de.soderer.network.TrustManagerUtilities;
 import de.soderer.utilities.worker.WorkerParentSimple;
 import de.soderer.utilities.worker.WorkerSimple;
 
 public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final HttpRequest httpRequest;
 	private final Proxy proxy;
-	private final boolean tlsCheck;
+	private final TrustManager trustManager;
 
-	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final boolean tlsCheck) {
+	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final TrustManager trustManager) {
 		super(parent);
 
 		this.httpRequest = httpRequest;
 		this.proxy = proxy;
-		this.tlsCheck = tlsCheck;
+		this.trustManager = trustManager;
 	}
 
 	@Override
@@ -35,13 +34,6 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		try {
 			itemsToDo = 1;
 			itemsDone = 0;
-
-			final X509TrustManager trustManager;
-			if (!tlsCheck) {
-				trustManager = TrustManagerUtilities.createTrustAllTrustManager();
-			} else {
-				trustManager = null;
-			}
 
 			httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager);
 			itemsDone++;

@@ -6,26 +6,31 @@ import org.eclipse.swt.widgets.Shell;
 
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
+import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.worker.WorkerSimple;
 
 public class HttpRequestWorkerPoolDialog extends WorkerPoolDialog {
 	private final HttpRequest httpRequest;
 	private final Proxy proxy;
-	private final boolean checkTlsCertificate;
+	private final TlsCheckConfiguration tlsCheckConfiguration;
 
-	public HttpRequestWorkerPoolDialog(final Shell parent, final String title, final String text, final HttpRequest httpRequest, final Proxy proxy, final boolean checkTlsCertificate) {
+	public HttpRequestWorkerPoolDialog(final Shell parent, final String title, final String text, final HttpRequest httpRequest, final Proxy proxy, final TlsCheckConfiguration tlsCheckConfiguration) {
 		super(parent, title, text);
 
 		this.httpRequest = httpRequest;
 		this.proxy = proxy;
-		this.checkTlsCertificate = checkTlsCertificate;
+		this.tlsCheckConfiguration = tlsCheckConfiguration;
 	}
 
 	@Override
 	protected WorkerSimple<?> createWorker() {
-		final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, checkTlsCertificate);
-		return worker;
+		try {
+			final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, tlsCheckConfiguration.getTrustManager());
+			return worker;
+		} catch (final Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override

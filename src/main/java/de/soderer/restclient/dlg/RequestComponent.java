@@ -23,6 +23,8 @@ import org.eclipse.swt.widgets.Text;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
 import de.soderer.network.HttpUtilities;
+import de.soderer.network.TlsCheckConfiguration;
+import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
@@ -43,7 +45,7 @@ public class RequestComponent extends Composite {
 
 	private Combo httpMethodCombo;
 	private Text serviceUrlText;
-	private Button tlsCheckBox;
+	private Button tlsCheckButton;
 	private Text serviceMethodText;
 	private Text proxyUrlText;
 	private Text requestBodyText;
@@ -66,8 +68,12 @@ public class RequestComponent extends Composite {
 	private Composite content;
 	private ScrolledComposite outerScrolled;
 
-	public RequestComponent(final Composite parent, final int style) {
+	private TlsCheckConfiguration tlsCheckConfiguration;
+
+	public RequestComponent(final Composite parent, final int style) throws Exception {
 		super(parent, style);
+
+		tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore);
 
 		createOuterScrollArea();
 
@@ -87,12 +93,12 @@ public class RequestComponent extends Composite {
 		checkRequestContentStatus();
 	}
 
-	public String getCheckTlsCert() {
-		return httpMethodCombo.getText();
+	public void setTlsCheckConfiguration(final TlsCheckConfiguration tlsCheckConfiguration) {
+		this.tlsCheckConfiguration = tlsCheckConfiguration;
 	}
 
-	public void setTlsCheck(final boolean check) {
-		tlsCheckBox.setSelection(check);
+	public TlsCheckConfiguration getTlsCheckConfiguration() {
+		return tlsCheckConfiguration;
 	}
 
 	public String getPresetName() { return presetNameCombo.getText(); }
@@ -100,7 +106,6 @@ public class RequestComponent extends Composite {
 	public String getServiceMethod() { return serviceMethodText.getText(); }
 	public String getProxyUrl() { return proxyUrlText.getText(); }
 	public String getRequestBody() { return requestBodyText.getText(); }
-	public boolean getTlsCheck() { return tlsCheckBox.getSelection(); }
 
 	public String getIdpUrl() { return idpUrl; }
 	public String getIdpRealm() { return idpRealm; }
@@ -288,18 +293,34 @@ public class RequestComponent extends Composite {
 		serviceUrlText.setMessage(LangResources.get("serviceUrlHint"));
 
 		final Composite tlsCheckCol = new Composite(methodUrlRow, SWT.NONE);
-		tlsCheckCol.setLayoutData(new GridData(SWT.RIGHT, SWT.FILL, false, false));
+		final GridData tlsColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
+		tlsColData.minimumWidth = 300;
+		tlsCheckCol.setLayoutData(tlsColData);
+		tlsCheckCol.setLayoutData(tlsColData);
 		final GridLayout tlsCheckLayout = new GridLayout(1, false);
-		urlLayout.marginWidth = 0;
-		urlLayout.marginHeight = 0;
+		tlsCheckLayout.marginWidth = 0;
+		tlsCheckLayout.marginHeight = 0;
 		tlsCheckCol.setLayout(tlsCheckLayout);
 
 		final Label tlsCheckLabel = new Label(tlsCheckCol, SWT.NONE);
 		tlsCheckLabel.setText(LangResources.get("tlsCheck"));
 
-		tlsCheckBox = new Button(tlsCheckCol, SWT.CHECK);
-		tlsCheckBox.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-		tlsCheckBox.setSelection(true);
+		tlsCheckButton = new Button(tlsCheckCol, SWT.NONE);
+		final GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		gd.widthHint = 100;
+		tlsCheckButton.setLayoutData(gd);
+		tlsCheckButton.setText("JVM Truststore");
+		tlsCheckButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, null, null, null);
+				final TlsCheckConfiguration result = dialog.open();
+				if (result != null) {
+					tlsCheckConfiguration = result;
+					checkRequestContentStatus();
+				}
+			}
+		});
 
 		serviceMethodText = createLabeledText(LangResources.get("serviceMethod"), LangResources.get("serviceMethodHint"));
 
@@ -401,8 +422,8 @@ public class RequestComponent extends Composite {
 		contentTypeButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
-				List<String> contentTypes = new ArrayList<String>();
-				for (HttpContentType contentTypeItem : HttpContentType.values()) {
+				final List<String> contentTypes = new ArrayList<>();
+				for (final HttpContentType contentTypeItem : HttpContentType.values()) {
 					contentTypes.add(contentTypeItem.getStringRepresentation());
 				}
 				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addContentType"), contentTypes);
@@ -421,7 +442,7 @@ public class RequestComponent extends Composite {
 		standardHeaderButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
-				List<String> standardHeaders = new ArrayList<String>();
+				final List<String> standardHeaders = new ArrayList<>();
 
 				standardHeaders.add("Accept");
 				standardHeaders.add("Authorization");
@@ -436,7 +457,7 @@ public class RequestComponent extends Composite {
 				standardHeaders.add("Referer");
 				standardHeaders.add("User-Agent");
 				standardHeaders.add("Proxy-Connection");
-				
+
 				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addStandardHeader"), standardHeaders);
 				final String standardHeader = selectionDialog.open();
 				if (standardHeader != null) {
@@ -511,7 +532,7 @@ public class RequestComponent extends Composite {
 
 		addButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(SelectionEvent arg0) {
+			public void widgetSelected(final SelectionEvent arg0) {
 				addKeyValueRow(container, scrolled);
 				checkRequestContentStatus();
 			}
@@ -550,7 +571,7 @@ public class RequestComponent extends Composite {
 
 		addButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(SelectionEvent arg0) {
+			public void widgetSelected(final SelectionEvent arg0) {
 				addKeyValueRow(container, scrolled);
 				checkRequestContentStatus();
 			}
@@ -587,7 +608,7 @@ public class RequestComponent extends Composite {
 
 		htmlFormAddButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(SelectionEvent arg0) {
+			public void widgetSelected(final SelectionEvent arg0) {
 				addKeyValueRow(container, scrolled);
 				checkRequestContentStatus();
 			}
@@ -688,8 +709,8 @@ public class RequestComponent extends Composite {
 
 	private void checkRequestContentStatus() {
 		if (requestBodyText != null && htmlFormParamContainer != null) {
-			boolean isGet = "GET".equalsIgnoreCase(getHttpMethod());
-			
+			final boolean isGet = "GET".equalsIgnoreCase(getHttpMethod());
+
 			setCompositeEnabled(htmlFormParamContainer, !isGet);
 			if (htmlFormAddButton != null) {
 				htmlFormAddButton.setEnabled(!isGet);
@@ -705,14 +726,14 @@ public class RequestComponent extends Composite {
 					htmlFormAddButton.setToolTipText(null);
 				}
 			}
-			
+
 			if (isGet) {
 				requestBodyText.setEnabled(false);
 			} else if (htmlFormParamContainer.getChildren().length > 0) {
 				requestBodyText.setEnabled(false);
 
 				boolean contentTypeHeaderFound = false;
-				Map<String, String> httpHeaders = getHttpHeaders();
+				final Map<String, String> httpHeaders = getHttpHeaders();
 				for (final String headerName : httpHeaders.keySet()) {
 					if (HttpConstants.HTTPHEADERNAME_CONTENTTYPE.equalsIgnoreCase(headerName)) {
 						contentTypeHeaderFound = true;
@@ -727,12 +748,37 @@ public class RequestComponent extends Composite {
 			} else {
 				requestBodyText.setEnabled(true);
 			}
+
+			switch (tlsCheckConfiguration.getType()) {
+				case AdditionalTrustStoreFile:
+					tlsCheckButton.setText(LangResources.get("AdditionalTrustStoreFile"));
+					break;
+				case NoCheck:
+					tlsCheckButton.setText(LangResources.get("NoCheck"));
+					break;
+				case RecordingSingleCertificate:
+					tlsCheckButton.setText(LangResources.get("RecordingSingleCertificate"));
+					break;
+				case RecordingToTrustStoreFile:
+					tlsCheckButton.setText(LangResources.get("RecordingToTrustStoreFile"));
+					break;
+				case SingleCertificate:
+					tlsCheckButton.setText(LangResources.get("SingleCertificate"));
+					break;
+				case TrustStoreFile:
+					tlsCheckButton.setText(LangResources.get("TrustStoreFile"));
+					break;
+				case SystemTrustStore:
+				default:
+					tlsCheckButton.setText(LangResources.get("SystemTrustStore"));
+					break;
+			}
 		}
 	}
-	
-	private void setCompositeEnabled(Composite composite, boolean enabled) {
+
+	private void setCompositeEnabled(final Composite composite, final boolean enabled) {
 		composite.setEnabled(enabled);
-		for (Control child : composite.getChildren()) {
+		for (final Control child : composite.getChildren()) {
 			child.setEnabled(enabled);
 			if (child instanceof Composite) {
 				setCompositeEnabled((Composite) child, enabled);
