@@ -113,7 +113,7 @@
 		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/26.0.0/proxyautoconfig-26.0.0.jar" dest="lib/" />
 		<get src="https://github.com/hudeany/network/releases/download/26.0.10/network-26.0.10.jar" dest="lib/" />
 
-		<property name="soderer-utilities.version" value="26.1.23" />
+		<property name="soderer-utilities.version" value="26.1.24" />
 		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}.jar" dest="lib/" />
 		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}-sources.jar" dest="lib/" />
 
