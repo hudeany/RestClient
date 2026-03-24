@@ -36,17 +36,17 @@ public class ResponseComponent extends Composite {
 	}
 
 	public void setResponseBody(final String body) {
-		String contentType = new CaseInsensitiveMap<>(getResponseHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
+		final String contentType = new CaseInsensitiveMap<>(getResponseHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
 		if (body != null && contentType != null && (
 				contentType.equals(HttpContentType.Json.getStringRepresentation())
 				|| contentType.startsWith(HttpContentType.Json.getStringRepresentation() + ";")
 				|| contentType.equals(HttpContentType.TextJson.getStringRepresentation())
 				|| contentType.startsWith(HttpContentType.TextJson.getStringRepresentation() + ";"))) {
 			try {
-				String jsonBody = JsonWriter.getJsonItemString(JsonReader.readJsonItemString(body));
+				final String jsonBody = JsonWriter.getJsonItemString(JsonReader.readJsonItemString(body));
 				responseBodyText.setText(jsonBody != null ? jsonBody : "");
-			} catch (Exception e) {
-				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" +  (body != null ? body : ""));
+			} catch (final Exception e) {
+				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body);
 			}
 		} else {
 			responseBodyText.setText(body != null ? body : "");
