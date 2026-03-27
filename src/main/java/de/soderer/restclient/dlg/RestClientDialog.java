@@ -560,9 +560,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
 				}
 
-				if (requestPart.getHtmlFormParameters().size() == 0) {
-					if (Utilities.isNotBlank(requestPart.getRequestBody())) {
-						httpRequest.setRequestBody(requestPart.getRequestBody());
+				if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
+					if (requestPart.getHtmlFormParameters().size() == 0) {
+						if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+							httpRequest.setRequestBody(requestPart.getRequestBody());
+						}
 					}
 				}
 
@@ -632,9 +634,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
 					}
 
-					if (requestPart.getHtmlFormParameters().size() == 0) {
-						if (Utilities.isNotBlank(requestPart.getRequestBody())) {
-							httpRequest.setRequestBody(requestPart.getRequestBody());
+					if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
+						if (requestPart.getHtmlFormParameters().size() == 0) {
+							if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+								httpRequest.setRequestBody(requestPart.getRequestBody());
+							}
 						}
 					}
 
