@@ -1,9 +1,13 @@
 package de.soderer.restclient.dlg;
 
+import java.io.ByteArrayInputStream;
+import java.net.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
@@ -22,6 +26,9 @@ import org.eclipse.swt.widgets.Text;
 
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
+import de.soderer.network.HttpMethod;
+import de.soderer.network.HttpRequest;
+import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
@@ -29,14 +36,22 @@ import de.soderer.pac.utilities.ProxyConfiguration;
 import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
 import de.soderer.restclient.helper.IdpHelper;
+import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.swt.CredentialsDialog;
+import de.soderer.utilities.swt.ProgressDialog;
 import de.soderer.utilities.swt.QuestionDialog;
 import de.soderer.utilities.swt.SelectionDialog;
 import de.soderer.utilities.swt.SimpleInputDialog;
 import de.soderer.utilities.swt.SwtColor;
+import de.soderer.utilities.worker.WorkerSimple;
+import de.soderer.yaml.YamlReader;
+import de.soderer.yaml.data.YamlDocument;
+import de.soderer.yaml.data.YamlMapping;
+import de.soderer.yaml.data.YamlNode;
 
 public class RequestComponent extends Composite {
 	private Combo presetNameCombo;
@@ -246,7 +261,100 @@ public class RequestComponent extends Composite {
 	private void createUI() {
 		createPresetNameSection();
 
-		proxyUrlText = createLabeledText(LangResources.get("proxyURL"), LangResources.get("proxyUrlHint"));
+		final Composite proxyRow = new Composite(content, SWT.NONE);
+		proxyRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		final GridLayout proxyRowLayout = new GridLayout(2, false);
+		proxyRowLayout.marginWidth = 0;
+		proxyRowLayout.marginHeight = 0;
+		proxyRowLayout.horizontalSpacing = 7;
+		proxyRow.setLayout(proxyRowLayout);
+
+		final Composite proxyUrlCol = new Composite(proxyRow, SWT.NONE);
+		proxyUrlCol.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+		final GridLayout proxyUrlLayout = new GridLayout(1, false);
+		proxyUrlLayout.marginWidth = 0;
+		proxyUrlLayout.marginHeight = 0;
+		proxyUrlCol.setLayout(proxyUrlLayout);
+
+		final Label proxyUrlLabel = new Label(proxyUrlCol, SWT.NONE);
+		proxyUrlLabel.setText(LangResources.get("proxyURL"));
+
+		proxyUrlText = new Text(proxyUrlCol, SWT.BORDER);
+		proxyUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		proxyUrlText.setMessage(LangResources.get("proxyUrlHint"));
+
+		final Composite openApiCol = new Composite(proxyRow, SWT.NONE);
+		final GridData openApiColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
+		openApiColData.minimumWidth = 300;
+		openApiCol.setLayoutData(openApiColData);
+		openApiCol.setLayoutData(openApiColData);
+		final GridLayout openApiLayout = new GridLayout(1, false);
+		openApiLayout.marginWidth = 0;
+		openApiLayout.marginHeight = 0;
+		openApiCol.setLayout(openApiLayout);
+
+		final Label openApiLabel = new Label(openApiCol, SWT.NONE);
+		openApiLabel.setText("");
+
+		final Button openApiButton = new Button(openApiCol, SWT.NONE);
+		final GridData openApiGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		openApiGridData.widthHint = 100;
+		openApiButton.setLayoutData(openApiGridData);
+		openApiButton.setText("OpenAPI");
+		openApiButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent ev) {
+				final SimpleInputDialog dialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, "OpenAPI URL");
+				final String result = dialog.open();
+				if (result != null) {
+					try {
+						final HttpRequest openApiRequest = new HttpRequest(HttpMethod.GET, result);
+
+						Proxy proxy = null;
+						if (Utilities.isNotBlank(getProxyUrl())) {
+							if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
+								proxy = Proxy.NO_PROXY;
+							} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
+								final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+								proxy = requestProxyConfiguration.getProxy(openApiRequest.getUrl());
+							} else {
+								proxy = HttpUtilities.getProxyFromString(getProxyUrl());
+							}
+						}
+
+						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager());
+						HttpResponse httpResponse;
+						final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
+						final Result dialogResult = progressDialog.open();
+						if (dialogResult == Result.CANCELED) {
+							return;
+						} else {
+							httpResponse = worker.get();
+						}
+
+						if (httpResponse != null && httpResponse.getHttpCode() == 200) {
+							try (YamlReader reader = new YamlReader(new ByteArrayInputStream(httpResponse.getContent().trim().getBytes(StandardCharsets.UTF_8)))) {
+								final YamlDocument document = reader.readDocument();
+								final YamlNode rootNode = document.getRoot();
+								final YamlMapping pathsYamlMapping = (YamlMapping) ((YamlMapping) rootNode).get("paths");
+								String pathsText = "";
+								for (final Entry<String, Object> pathEntry : pathsYamlMapping.simpleEntrySet()) {
+									pathsText += pathEntry.getKey() + "\n";
+								}
+								new QuestionDialog(getShell(), "OpenAPI paths", pathsText, LangResources.get("ok")).open();
+							}
+						} else {
+							throw new Exception("Cannot read OpenAPI data. HTTP code: " + (httpResponse == null ? "None" : httpResponse.getHttpCode()));
+						}
+
+						checkRequestContentStatus();
+					} catch (final Exception e) {
+						new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
+					}
+				}
+			}
+		});
 
 		final Composite methodUrlRow = new Composite(content, SWT.NONE);
 		methodUrlRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -306,14 +414,14 @@ public class RequestComponent extends Composite {
 		tlsCheckLabel.setText(LangResources.get("tlsCheck"));
 
 		tlsCheckButton = new Button(tlsCheckCol, SWT.NONE);
-		final GridData gd = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		gd.widthHint = 100;
-		tlsCheckButton.setLayoutData(gd);
+		final GridData tlsCheckGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		tlsCheckGridData.widthHint = 100;
+		tlsCheckButton.setLayoutData(tlsCheckGridData);
 		tlsCheckButton.setText("JVM Truststore");
 		tlsCheckButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
-				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, null, null, null);
+				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword());
 				final TlsCheckConfiguration result = dialog.open();
 				if (result != null) {
 					tlsCheckConfiguration = result;
