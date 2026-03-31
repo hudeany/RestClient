@@ -22,6 +22,7 @@ import de.soderer.utilities.collection.CaseInsensitiveMap;
 
 public class ResponseComponent extends Composite {
 	private Text httpCodeText;
+	private Text timeText;
 	private Composite headerContainer;
 	private ScrolledComposite headerScrolled;
 	private Text responseBodyText;
@@ -33,6 +34,10 @@ public class ResponseComponent extends Composite {
 
 	public void setHttpCode(final String code) {
 		httpCodeText.setText(code != null ? code : "");
+	}
+
+	public void setTime(final String duration) {
+		timeText.setText(duration);
 	}
 
 	public void setResponseBody(final String body) {
@@ -85,6 +90,10 @@ public class ResponseComponent extends Composite {
 		return httpCodeText.getText();
 	}
 
+	public String getTime() {
+		return timeText.getText();
+	}
+
 	public String getResponseBody() {
 		return responseBodyText.getText();
 	}
@@ -107,11 +116,21 @@ public class ResponseComponent extends Composite {
 	private void createUI() {
 		setLayout(new GridLayout(1, false));
 
-		final Label codeLabel = new Label(this, SWT.NONE);
+		final Composite sectionCodeAndTime = new Composite(this, SWT.NONE);
+		sectionCodeAndTime.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		sectionCodeAndTime.setLayout(new GridLayout(2, false));
+
+		final Label codeLabel = new Label(sectionCodeAndTime, SWT.NONE);
 		codeLabel.setText(LangResources.get("httpResponseCode"));
 
-		httpCodeText = new Text(this, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
+		final Label timeLabel = new Label(sectionCodeAndTime, SWT.NONE);
+		timeLabel.setText(LangResources.get("httpResponseTime"));
+
+		httpCodeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
 		httpCodeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		timeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
+		timeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		createKeyValueSection(LangResources.get("httpResponseHeader"));
 
@@ -136,9 +155,11 @@ public class ResponseComponent extends Composite {
 
 	public void clearResponse() {
 		httpCodeText.setText("");
+		timeText.setText("");
 		responseBodyText.setText("");
 
 		httpCodeText.setVisible(false);
+		timeText.setVisible(false);
 
 		headerContainer.setVisible(false);
 		headerScrolled.setVisible(false);
@@ -156,6 +177,7 @@ public class ResponseComponent extends Composite {
 
 	public void showResponse() {
 		httpCodeText.setVisible(true);
+		timeText.setVisible(true);
 
 		headerContainer.setVisible(true);
 		headerScrolled.setVisible(true);
@@ -173,7 +195,7 @@ public class ResponseComponent extends Composite {
 
 	private void createKeyValueSection(final String title) {
 		final Composite sectionHeader = new Composite(this, SWT.NONE);
-		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 		sectionHeader.setLayout(new GridLayout(2, false));
 
 		final Label label = new Label(this, SWT.NONE);

@@ -580,6 +580,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 				}
 
+				final LocalDateTime start = LocalDateTime.now();
+
 				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager());
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
@@ -591,16 +593,21 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					httpResponse = worker.get();
 				}
 
+				final LocalDateTime end = LocalDateTime.now();
+				final Duration responseDuration = Duration.between(start, end);
+
 				if (httpRequest.getPostParameters() != null && httpRequest.getPostParameters().size() > 0) {
 					final String requestBody = HttpUtilities.convertToParameterString(httpRequest.getPostParameters(), null);
 					requestPart.setRequestBody(requestBody);
 				}
 
 				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
+				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
 			} catch (final Exception e) {
 				responsePart.setHttpCode("");
+				responsePart.setTime("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
 				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
@@ -660,6 +667,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 
 					responsePart.setHttpCode("");
+					responsePart.setTime("");
 					final Map<String, String> responseHeaders = new LinkedHashMap<>();
 					responsePart.setResponseHeaders(responseHeaders);
 					responsePart.setResponseBody("");
