@@ -118,7 +118,12 @@ public class RequestComponent extends Composite {
 
 	public String getPresetName() { return presetNameCombo.getText(); }
 	public String getServiceUrl() { return serviceUrlText.getText(); }
-	public String getServiceMethod() { return serviceMethodText.getText(); }
+	public String getServiceMethod() {
+		while (serviceMethodText.getText().startsWith("/")) {
+			serviceMethodText.setText(serviceMethodText.getText().substring(1));
+		}
+		return serviceMethodText.getText();
+	}
 	public String getProxyUrl() { return proxyUrlText.getText(); }
 	public String getRequestBody() { return requestBodyText.getText(); }
 
@@ -349,8 +354,11 @@ public class RequestComponent extends Composite {
 								for (final Entry<String, Object> pathEntry : pathsYamlMapping.simpleEntrySet()) {
 									paths.add(pathEntry.getKey());
 								}
-								final String selectedMethod = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
+								String selectedMethod = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
 								if (selectedMethod != null) {
+									while (selectedMethod.startsWith("/")) {
+										selectedMethod = selectedMethod.substring(1);
+									}
 									setServiceMethod(selectedMethod);
 								}
 							}
