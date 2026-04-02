@@ -306,6 +306,13 @@ public class RequestComponent extends Composite {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
 				final SimpleInputDialog dialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, "OpenAPI URL");
+				if (getServiceUrl() != null) {
+					if (getServiceUrl().endsWith("/")) {
+						dialog.setDefaultText(getServiceUrl() + "openapi");
+					} else {
+						dialog.setDefaultText(getServiceUrl() + "/openapi");
+					}
+				}
 				final String result = dialog.open();
 				if (result != null) {
 					try {
@@ -338,11 +345,14 @@ public class RequestComponent extends Composite {
 								final YamlDocument document = reader.readDocument();
 								final YamlNode rootNode = document.getRoot();
 								final YamlMapping pathsYamlMapping = (YamlMapping) ((YamlMapping) rootNode).get("paths");
-								String pathsText = "";
+								final List<String> paths = new ArrayList<>();
 								for (final Entry<String, Object> pathEntry : pathsYamlMapping.simpleEntrySet()) {
-									pathsText += pathEntry.getKey() + "\n";
+									paths.add(pathEntry.getKey());
 								}
-								new QuestionDialog(getShell(), "OpenAPI paths", pathsText, LangResources.get("ok")).open();
+								final String selectedMethod = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
+								if (selectedMethod != null) {
+									setServiceMethod(selectedMethod);
+								}
 							}
 						} else {
 							throw new Exception("Cannot read OpenAPI data. HTTP code: " + (httpResponse == null ? "None" : httpResponse.getHttpCode()));
