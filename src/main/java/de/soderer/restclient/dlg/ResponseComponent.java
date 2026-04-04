@@ -5,6 +5,8 @@ import java.util.Map;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -145,6 +147,19 @@ public class ResponseComponent extends Composite {
 				| SWT.H_SCROLL);
 
 		responseBodyText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+
+		responseBodyText.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(final KeyEvent e) {
+				if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'a' || e.keyCode == 'A')) {
+					responseBodyText.selectAll();
+					e.doit = false;
+				} else if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'c' || e.keyCode == 'C')) {
+					responseBodyText.copy();
+					e.doit = false;
+				}
+			}
+		});
 	}
 
 	private void updateHeaderMinSize() {
