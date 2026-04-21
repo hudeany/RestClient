@@ -335,7 +335,7 @@ public class RequestComponent extends Composite {
 							}
 						}
 
-						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager());
+						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
 						HttpResponse httpResponse;
 						final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 						final Result dialogResult = progressDialog.open();

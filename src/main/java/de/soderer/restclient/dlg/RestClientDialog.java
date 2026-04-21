@@ -582,7 +582,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				final LocalDateTime start = LocalDateTime.now();
 
-				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager());
+				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), requestPart.getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();

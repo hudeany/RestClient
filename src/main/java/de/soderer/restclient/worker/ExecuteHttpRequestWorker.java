@@ -14,13 +14,15 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final HttpRequest httpRequest;
 	private final Proxy proxy;
 	private final TrustManager trustManager;
+private final boolean deactivateHostnameVerification;
 
-	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final TrustManager trustManager) {
+	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final TrustManager trustManager, final boolean deactivateHostnameVerification) {
 		super(parent);
 
 		this.httpRequest = httpRequest;
 		this.proxy = proxy;
 		this.trustManager = trustManager;
+		this.deactivateHostnameVerification = deactivateHostnameVerification;
 	}
 
 	@Override
@@ -35,7 +37,7 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 			itemsToDo = 1;
 			itemsDone = 0;
 
-			httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager);
+			httpResponse = HttpUtilities.executeHttpRequest(httpRequest, proxy, trustManager, deactivateHostnameVerification);
 			itemsDone++;
 
 			signalProgress(true);
