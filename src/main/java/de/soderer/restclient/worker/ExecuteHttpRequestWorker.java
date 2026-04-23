@@ -14,7 +14,7 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final HttpRequest httpRequest;
 	private final Proxy proxy;
 	private final TrustManager trustManager;
-private final boolean deactivateHostnameVerification;
+	private final boolean deactivateHostnameVerification;
 
 	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequest, final Proxy proxy, final TrustManager trustManager, final boolean deactivateHostnameVerification) {
 		super(parent);
@@ -42,7 +42,11 @@ private final boolean deactivateHostnameVerification;
 
 			signalProgress(true);
 		} catch (final Exception e) {
-			throw new Exception("Error: " + e.getMessage(), e);
+			if (cancel) {
+				return null;
+			} else {
+				throw new Exception("Error: " + e.getMessage(), e);
+			}
 		}
 
 		signalProgress(true);
@@ -52,6 +56,13 @@ private final boolean deactivateHostnameVerification;
 		} else {
 			return httpResponse;
 		}
+	}
+
+	@Override
+	public boolean cancel() {
+		final boolean result = super.cancel();
+		httpRequest.cancel();
+		return result;
 	}
 
 	@Override
