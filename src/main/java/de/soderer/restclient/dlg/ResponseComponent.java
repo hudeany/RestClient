@@ -23,6 +23,7 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
 
 public class ResponseComponent extends Composite {
+	private Text ipAddressText;
 	private Text httpCodeText;
 	private Text timeText;
 	private Composite headerContainer;
@@ -36,6 +37,10 @@ public class ResponseComponent extends Composite {
 
 	public void setHttpCode(final String code) {
 		httpCodeText.setText(code != null ? code : "");
+	}
+
+	public void setIpAddress(final String ipAddress) {
+		ipAddressText.setText(ipAddress != null ? ipAddress : "");
 	}
 
 	public void setTime(final String duration) {
@@ -92,6 +97,10 @@ public class ResponseComponent extends Composite {
 		return httpCodeText.getText();
 	}
 
+	public String getIpAddress() {
+		return ipAddressText.getText();
+	}
+
 	public String getTime() {
 		return timeText.getText();
 	}
@@ -120,16 +129,22 @@ public class ResponseComponent extends Composite {
 
 		final Composite sectionCodeAndTime = new Composite(this, SWT.NONE);
 		sectionCodeAndTime.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		sectionCodeAndTime.setLayout(new GridLayout(2, false));
+		sectionCodeAndTime.setLayout(new GridLayout(3, false));
 
 		final Label codeLabel = new Label(sectionCodeAndTime, SWT.NONE);
 		codeLabel.setText(LangResources.get("httpResponseCode"));
+
+		final Label ipAddressLabel = new Label(sectionCodeAndTime, SWT.NONE);
+		ipAddressLabel.setText(LangResources.get("httpResponseIpAddress"));
 
 		final Label timeLabel = new Label(sectionCodeAndTime, SWT.NONE);
 		timeLabel.setText(LangResources.get("httpResponseTime"));
 
 		httpCodeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
 		httpCodeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		ipAddressText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
+		ipAddressText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		timeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
 		timeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -170,10 +185,12 @@ public class ResponseComponent extends Composite {
 
 	public void clearResponse() {
 		httpCodeText.setText("");
+		ipAddressText.setText("");
 		timeText.setText("");
 		responseBodyText.setText("");
 
 		httpCodeText.setVisible(false);
+		ipAddressText.setVisible(false);
 		timeText.setVisible(false);
 
 		headerContainer.setVisible(false);
@@ -192,6 +209,7 @@ public class ResponseComponent extends Composite {
 
 	public void showResponse() {
 		httpCodeText.setVisible(true);
+		ipAddressText.setVisible(true);
 		timeText.setVisible(true);
 
 		headerContainer.setVisible(true);

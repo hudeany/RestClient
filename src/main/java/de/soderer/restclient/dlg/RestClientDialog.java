@@ -601,11 +601,13 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					requestPart.setRequestBody(requestBody);
 				}
 
+				responsePart.setIpAddress(httpResponse.getIpAddress());
 				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
 			} catch (final Exception e) {
+				responsePart.setIpAddress("");
 				responsePart.setHttpCode("");
 				responsePart.setTime("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
@@ -666,6 +668,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						}
 					}
 
+					responsePart.setIpAddress("");
 					responsePart.setHttpCode("");
 					responsePart.setTime("");
 					final Map<String, String> responseHeaders = new LinkedHashMap<>();
@@ -689,6 +692,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 				}
 			} catch (final Exception e) {
+				responsePart.setIpAddress("");
 				responsePart.setHttpCode("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
