@@ -9,3 +9,44 @@ This tool is used exclusively for the experimental processing of data.
 Any use is at your own risk.
 The developer assumes NO WARRANTY, neither for correct functionality nor for damages resulting from the use of the program.
 Please send suggestions for improvements or bug reports to: restclient@soderer.de
+Using Randomly Generated Parameter Values
+
+2. Placeholders for randomly generated parameter values follow this syntax:
+
+${rnd:<ParameterType>[:<OptionalSlotID>[:<OptionalDescriptor>]]}
+The following parameter types are available:
+
+- UUID
+  Example: ${rnd:UUID}
+  => random UUID
+  
+- INT
+  Example: ${rnd:INT}
+  => random integer
+  
+- INT with limits
+  Example: ${rnd:INT:1:1-100}
+  => random integer in the range 1–100, slot ID 1
+  
+- STR
+  Example: ${rnd:STR:1:8}
+  => random string, 8 characters, slot ID 1
+  
+- TS
+  Example: ${rnd:TS}
+  => current Unix timestamp in milliseconds
+  
+- ISO
+  Example: ${rnd:ISO}
+  => current timestamp in ISO 8601 format
+  
+- HEX
+  Example: ${rnd:HEX:1:32}
+  => random hex string with optional length, slot ID 1
+  
+- BOOL
+  Example: ${rnd:BOOL}
+  => randomly either "true" or "false"
+  
+The integer value following the parameter type (slot ID) specifies which slot this parameter occupies.
+Any further occurrences of the same parameter type with the same slot ID will use exactly the same value.

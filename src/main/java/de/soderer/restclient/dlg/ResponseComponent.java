@@ -29,6 +29,9 @@ public class ResponseComponent extends Composite {
 	private Composite headerContainer;
 	private ScrolledComposite headerScrolled;
 	private Text responseBodyText;
+	private Label randomParamsLabel;
+	private Composite randomParamsContainer;
+	private ScrolledComposite randomParamsScrolled;
 
 	public ResponseComponent(final Composite parent, final int style) {
 		super(parent, style);
@@ -175,6 +178,20 @@ public class ResponseComponent extends Composite {
 				}
 			}
 		});
+
+		randomParamsLabel = new Label(this, SWT.NONE);
+		randomParamsLabel.setText(LangResources.get("randomParameters"));
+
+		randomParamsScrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
+		final GridData randomParamsGd = new GridData(SWT.FILL, SWT.FILL, true, false);
+		randomParamsGd.heightHint = 75;
+		randomParamsScrolled.setLayoutData(randomParamsGd);
+		randomParamsScrolled.setExpandHorizontal(true);
+		randomParamsScrolled.setExpandVertical(true);
+
+		randomParamsContainer = new Composite(randomParamsScrolled, SWT.NONE);
+		randomParamsContainer.setLayout(new GridLayout(2, false));
+		randomParamsScrolled.setContent(randomParamsContainer);
 	}
 
 	private void updateHeaderMinSize() {
@@ -197,6 +214,8 @@ public class ResponseComponent extends Composite {
 		headerScrolled.setVisible(false);
 
 		responseBodyText.setVisible(false);
+
+		setRandomParameters(null);
 
 		for (final Control c : getChildren()) {
 			if (c instanceof Label) {
@@ -258,5 +277,33 @@ public class ResponseComponent extends Composite {
 		scrolled.setMinSize(width, height);
 
 		scrolled.layout(true, true);
+	}
+
+	public void setRandomParameters(final Map<String, String> params) {
+		for (final Control c : randomParamsContainer.getChildren()) {
+			c.dispose();
+		}
+
+		if (params != null && !params.isEmpty()) {
+			for (final Map.Entry<String, String> entry : params.entrySet()) {
+				final Text keyText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
+				keyText.setText(entry.getKey() != null ? entry.getKey() : "");
+				final GridData gdKey = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+				gdKey.widthHint = 150;
+				keyText.setLayoutData(gdKey);
+
+				final Text valueText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
+				valueText.setText(entry.getValue() != null ? entry.getValue() : "");
+				valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+			}
+			randomParamsScrolled.setVisible(true);
+			randomParamsLabel.setVisible(true);
+			refreshScrolledArea(randomParamsContainer, randomParamsScrolled);
+		} else {
+			randomParamsScrolled.setVisible(false);
+			randomParamsLabel.setVisible(false);
+		}
+
+		layout(true, true);
 	}
 }

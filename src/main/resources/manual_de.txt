@@ -9,3 +9,44 @@ Dieses Tool dient dabei ausschließlich der experimentellen Verarbeitung von Dat
 Jede Verwendung findet auf eigene Gefahr statt.
 Der Entwickler übernimmt KEINERLEI GEWÄHRLEISTUNG, sowohl der korrekten Funktion, sowie für Schäden die aus der Verwendung des Programms entstehen.
 Verbesserungsvorschläge oder Bughinweise bitte an: restclient@soderer.de
+
+2. Nutzung von zufällig erzeugten Parameterwerten
+
+Platzhalter für zufällig erzeugte Parameterwerte folgen dieser Syntax
+${rnd:<Parametertyp>[:<OptionaleSlotID>[:<OptionaleBeschreibungen>]]}
+
+Folgende Parametertypen sind möglich:
+- UUID
+  Beispiel: ${rnd:UUID}
+  => zufällige UUID
+
+- INT
+  Beispiel: ${rnd:INT}
+  => zufälliger Integer
+
+- INT mit Limits
+  Beispiel: ${rnd:INT:1:1-100}
+  => zufälliger Integer im Bereich 1–100, SlotID 1
+
+- STR
+  Beispiel: ${rnd:STR:1:8}
+  => zufälliger String, 8 Zeichen, SlotID 1
+
+- TS
+  Beispiel: ${rnd:TS}
+  => aktueller Unix Timestamp in Millisekunden
+
+- ISO
+  Beispiel: ${rnd:ISO}
+  => aktueller Timestamp im ISO-8601 format
+
+- HEX
+  Beispiel: ${rnd:HEX:1:32}
+  => zufälliger HEX String mit optionaler Länge, SlotID 1
+
+- BOOL
+  Beispiel: ${rnd:BOOL}
+  => zufällig "true" oder "false"
+
+Der Integer Wert nach dem Typ (SlotID) gibt an welcher Slot dieser Parameter belegen soll.
+Alle weiteren Verwendungen dieses Parametertyps und der gleichen SlotID nutzen dann exakt den selben Wert.

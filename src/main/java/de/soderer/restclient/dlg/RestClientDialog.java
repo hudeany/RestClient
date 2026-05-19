@@ -545,6 +545,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		try {
 			responsePart.clearResponse();
 
+			ExecuteHttpRequestWorker worker = null;
 			try {
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 
@@ -582,7 +583,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				final LocalDateTime start = LocalDateTime.now();
 
-				final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), requestPart.getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
+				worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), requestPart.getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();
@@ -606,6 +607,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
+				responsePart.setRandomParameters(worker.getRandomParameterReplacements());
 			} catch (final Exception e) {
 				responsePart.setIpAddress("");
 				responsePart.setHttpCode("");
@@ -613,6 +615,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
 				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
+
+				if (worker != null) {
+					responsePart.setRandomParameters(worker.getRandomParameterReplacements());
+				} else {
+					responsePart.setRandomParameters(null);
+				}
 			}
 
 			responsePart.showResponse();
