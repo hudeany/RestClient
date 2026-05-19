@@ -181,6 +181,7 @@ public class ResponseComponent extends Composite {
 
 		randomParamsLabel = new Label(this, SWT.NONE);
 		randomParamsLabel.setText(LangResources.get("randomParameters"));
+		randomParamsLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
 
 		randomParamsScrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
 		final GridData randomParamsGd = new GridData(SWT.FILL, SWT.FILL, true, false);
@@ -279,12 +280,15 @@ public class ResponseComponent extends Composite {
 		scrolled.layout(true, true);
 	}
 
+	@SuppressWarnings("null")
 	public void setRandomParameters(final Map<String, String> params) {
 		for (final Control c : randomParamsContainer.getChildren()) {
 			c.dispose();
 		}
 
-		if (params != null && !params.isEmpty()) {
+		final boolean hasParams = params != null && !params.isEmpty();
+
+		if (hasParams) {
 			for (final Map.Entry<String, String> entry : params.entrySet()) {
 				final Text keyText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
 				keyText.setText(entry.getKey() != null ? entry.getKey() : "");
@@ -296,13 +300,14 @@ public class ResponseComponent extends Composite {
 				valueText.setText(entry.getValue() != null ? entry.getValue() : "");
 				valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 			}
-			randomParamsScrolled.setVisible(true);
-			randomParamsLabel.setVisible(true);
 			refreshScrolledArea(randomParamsContainer, randomParamsScrolled);
-		} else {
-			randomParamsScrolled.setVisible(false);
-			randomParamsLabel.setVisible(false);
 		}
+
+		randomParamsLabel.setVisible(hasParams);
+		((GridData) randomParamsLabel.getLayoutData()).exclude = !hasParams;
+
+		randomParamsScrolled.setVisible(hasParams);
+		((GridData) randomParamsScrolled.getLayoutData()).exclude = !hasParams;
 
 		layout(true, true);
 	}
