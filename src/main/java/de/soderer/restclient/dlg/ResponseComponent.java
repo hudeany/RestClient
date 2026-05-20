@@ -281,6 +281,7 @@ public class ResponseComponent extends Composite {
 		scrolled.layout(true, true);
 	}
 
+	@SuppressWarnings("null")
 	public void setRandomParameters(final Map<String, List<String>> params) {
 		for (final Control c : randomParamsContainer.getChildren()) {
 			c.dispose();
