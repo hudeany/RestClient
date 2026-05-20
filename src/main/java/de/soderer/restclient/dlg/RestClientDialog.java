@@ -607,7 +607,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
-				responsePart.setRandomParameters(worker.getRandomParameterReplacements());
+				if (worker.getRandomParameterReplacements() != null && worker.getRandomParameterReplacements().size() > 0) {
+					responsePart.setRandomParameters(worker.getRandomParameterReplacements());
+				} else {
+					responsePart.setRandomParameters(null);
+				}
 			} catch (final Exception e) {
 				responsePart.setIpAddress("");
 				responsePart.setHttpCode("");
@@ -616,7 +620,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				responsePart.setResponseHeaders(responseHeaders);
 				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
 
-				if (worker != null) {
+				if (worker != null && worker.getRandomParameterReplacements() != null && worker.getRandomParameterReplacements().size() > 0) {
 					responsePart.setRandomParameters(worker.getRandomParameterReplacements());
 				} else {
 					responsePart.setRandomParameters(null);

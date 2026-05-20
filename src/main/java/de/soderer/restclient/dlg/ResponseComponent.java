@@ -1,6 +1,7 @@
 package de.soderer.restclient.dlg;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.swt.SWT;
@@ -280,8 +281,7 @@ public class ResponseComponent extends Composite {
 		scrolled.layout(true, true);
 	}
 
-	@SuppressWarnings("null")
-	public void setRandomParameters(final Map<String, String> params) {
+	public void setRandomParameters(final Map<String, List<String>> params) {
 		for (final Control c : randomParamsContainer.getChildren()) {
 			c.dispose();
 		}
@@ -289,16 +289,18 @@ public class ResponseComponent extends Composite {
 		final boolean hasParams = params != null && !params.isEmpty();
 
 		if (hasParams) {
-			for (final Map.Entry<String, String> entry : params.entrySet()) {
-				final Text keyText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
-				keyText.setText(entry.getKey() != null ? entry.getKey() : "");
-				final GridData gdKey = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-				gdKey.widthHint = 150;
-				keyText.setLayoutData(gdKey);
+			for (final Map.Entry<String, List<String>> entry : params.entrySet()) {
+				for (final String entryValue : entry.getValue()) {
+					final Text keyText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
+					keyText.setText(entry.getKey() != null ? entry.getKey() : "");
+					final GridData gdKey = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+					gdKey.widthHint = 150;
+					keyText.setLayoutData(gdKey);
 
-				final Text valueText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
-				valueText.setText(entry.getValue() != null ? entry.getValue() : "");
-				valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+					final Text valueText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
+					valueText.setText(entryValue != null ? entryValue : "");
+					valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+				}
 			}
 			refreshScrolledArea(randomParamsContainer, randomParamsScrolled);
 		}

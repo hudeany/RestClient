@@ -2,7 +2,9 @@ package de.soderer.restclient.helper;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -45,6 +47,7 @@ public class RandomParameterResolver {
 	private static final int DEFAULT_INT_MAX = Integer.MAX_VALUE;
 
 	private final Map<String, String> cache = new HashMap<>();
+	private final Map<String, List<String>> replacementsForDisplay = new HashMap<>();
 	private final SecureRandom random = new SecureRandom();
 
 	/**
@@ -81,6 +84,12 @@ public class RandomParameterResolver {
 			final String value = cache.computeIfAbsent(cacheKey, k -> generatedValue);
 
 			matcher.appendReplacement(sb, Matcher.quoteReplacement(value));
+
+			final String foundText = matcher.group();
+			final List<String> replacementsList = replacementsForDisplay.computeIfAbsent(foundText, k -> new ArrayList<>());
+			if (replacementsList.isEmpty() || Utilities.isBlank(slot)) {
+				replacementsList.add(value);
+			}
 		}
 		matcher.appendTail(sb);
 		return sb.toString();
@@ -92,14 +101,15 @@ public class RandomParameterResolver {
 	 */
 	public void reset() {
 		cache.clear();
+		replacementsForDisplay.clear();
 	}
 
 	/**
-	 * Returns a read-only view of the currently cached slot→value mappings. Useful
+	 * Returns a read-only view of the currently cached slot => value mappings. Useful
 	 * for logging or debugging.
 	 */
-	public Map<String, String> getResolvedValues() {
-		return Map.copyOf(cache);
+	public Map<String, List<String>> getResolvedValues() {
+		return Map.copyOf(replacementsForDisplay);
 	}
 
 	private String generate(final String type, final String param, final String input, final int position) throws Exception {
