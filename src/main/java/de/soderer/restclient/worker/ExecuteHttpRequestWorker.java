@@ -54,7 +54,9 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 			}
 		}
 
-		httpRequest.setRequestBody(randomParameterResolver.resolve(httpRequestTemplate.getRequestBody()));
+		if (httpRequestTemplate.getRequestBody() != null) {
+			httpRequest.setRequestBody(randomParameterResolver.resolve(httpRequestTemplate.getRequestBody()));
+		}
 	}
 
 	public Map<String, List<String>> getRandomParameterReplacements() {
