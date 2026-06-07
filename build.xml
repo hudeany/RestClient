@@ -36,7 +36,7 @@
 
 		<!-- Default: https://soderer.de/index.php?download=Versions.json -->
 		<!-- Override for GitHub: https://api.github.com/repos/hudeany/RestClient/releases/latest -->
-		<property name="VersionsUrl" value = "https://api.github.com/repos/hudeany/RestClient/releases/latest" />
+		<property name="VersionsUrl" value="https://api.github.com/repos/hudeany/RestClient/releases/latest" />
 		<property file="${user.home}/git/codeSigning.properties" />
 
 		<property environment="env"/>
