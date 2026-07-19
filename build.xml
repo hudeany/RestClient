@@ -108,9 +108,9 @@
 
 		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/2.0.1/mailapi-2.0.1.jar" dest="lib/" />
 
-		<property name="json.version" value="26.1.54" />
+		<property name="json.version" value="26.2.0" />
 		<get src="https://github.com/hudeany/json/releases/download/${json.version}/json-${json.version}.jar" dest="lib/" />
-		<property name="proxyautoconfig.version" value="26.0.8" />
+		<property name="proxyautoconfig.version" value="26.1.0" />
 		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/${proxyautoconfig.version}/proxyautoconfig-${proxyautoconfig.version}.jar" dest="lib/" />
 		<property name="network.version" value="26.0.17" />
 		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}.jar" dest="lib/" />
