@@ -389,7 +389,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setProxyUrl("");
 			requestPart.setHttpMethod("GET");
 			requestPart.setServiceUrl("");
-			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 			requestPart.setServiceMethod("");
 			requestPart.setHttpHeaders(new LinkedHashMap<>());
 			requestPart.setUrlParameters(new LinkedHashMap<>());
@@ -406,12 +406,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			final Object tlsCheckConfigurationObject = jsonObject.getSimpleValue("tlsCheck");
 			if (tlsCheckConfigurationObject == null) {
-				requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
+				requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 			} else if (tlsCheckConfigurationObject instanceof Boolean) {
 				if ((Boolean) tlsCheckConfigurationObject) {
-					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore));
+					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 				} else {
-					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.NoCheck));
+					requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.NoCheck, false));
 				}
 			} else {
 				final JsonObject tlsCheckConfigurationJsonObject = (JsonObject) tlsCheckConfigurationObject;
@@ -421,14 +421,21 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 					final String filePath = (String) tlsCheckConfigurationJsonObject.getSimpleValue("file");
 					final String trustorePassword = (String) tlsCheckConfigurationJsonObject.getSimpleValue("trustorePassword");
+					final boolean checkCn;
+					if (tlsCheckConfigurationJsonObject.containsKey("checkCn")) {
+						checkCn = (Boolean) tlsCheckConfigurationJsonObject.getSimpleValue("checkCn");
+					} else {
+						checkCn = tlsCheckConfigurationType != TlsCheckConfigurationType.NoCheck;
+					}
 
 					tlsCheckConfiguration = new TlsCheckConfiguration(
 							tlsCheckConfigurationType,
 							(filePath == null ? null : new File(filePath)),
-							(trustorePassword == null ? null : trustorePassword.toCharArray())
+							(trustorePassword == null ? null : trustorePassword.toCharArray()),
+							checkCn
 							);
 				} catch (@SuppressWarnings("unused") final Exception e) {
-					tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore);
+					tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
 				}
 
 				requestPart.setTlsCheckConfiguration(tlsCheckConfiguration);
@@ -495,6 +502,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			if (tlsCheckConfiguration.getTrustorePassword() != null) {
 				tlsCheckConfigurationJsonObject.add("trustorePassword", new String(tlsCheckConfiguration.getTrustorePassword()));
 			}
+			tlsCheckConfigurationJsonObject.add("checkCn", tlsCheckConfiguration.getCheckCn());
 			requestPresetJsonObject.add("tlsCheck", tlsCheckConfigurationJsonObject);
 		}
 
@@ -583,7 +591,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				final LocalDateTime start = LocalDateTime.now();
 
-				worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), requestPart.getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
+				worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), !requestPart.getTlsCheckConfiguration().getCheckCn());
 				HttpResponse httpResponse;
 				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();

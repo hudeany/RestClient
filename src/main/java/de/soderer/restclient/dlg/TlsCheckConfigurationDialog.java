@@ -26,10 +26,11 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	private TlsCheckConfigurationType selectedType;
 	private File selectedFile;
 	private char[] password;
+	private boolean checkCn;
 
 	private Button okButton;
 
-	public TlsCheckConfigurationDialog(final Shell shell, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password) {
+	public TlsCheckConfigurationDialog(final Shell shell, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password, final boolean checkCn) {
 		super(shell, title);
 
 		if (selectedType == null) {
@@ -39,6 +40,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		}
 		this.selectedFile = selectedFile;
 		this.password = password;
+		this.checkCn = checkCn;
 	}
 
 	@Override
@@ -82,6 +84,11 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 			fileText.setText(new String(password));
 		}
 
+		final Button checkCnCheckbox = new Button(mainComposite, SWT.CHECK);
+		checkCnCheckbox.setText(LangResources.get("checkCn"));
+		checkCnCheckbox.setSelection(checkCn);
+		checkCnCheckbox.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+
 		final Composite buttonComposite = new Composite(mainComposite, SWT.NONE);
 		buttonComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 		buttonComposite.setLayout(SwtUtilities.createNoMarginGridLayout(2, true));
@@ -94,19 +101,33 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		cancelButton.setText(LangResources.get("cancel"));
 		cancelButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-		updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText);
+		updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
 
 		typeCombo.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
 				selectedType = TlsCheckConfigurationType.valueOf(typeCombo.getText());
-				updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText);
+				if (selectedType == TlsCheckConfigurationType.NoCheck) {
+					fileText.setText("");
+				}
+				updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
 				checkButtonStatus(fileText);
 			}
 		});
 
+		checkCnCheckbox.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				checkCn = checkCnCheckbox.getSelection();
+			}
+		});
+
 		fileText.addModifyListener(e -> {
-			selectedFile = new File(fileText.getText());
+			if (Utilities.isBlank(fileText.getText())) {
+				selectedFile = null;
+			} else {
+				selectedFile = new File(fileText.getText());
+			}
 			checkButtonStatus(fileText);
 		});
 
@@ -130,7 +151,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		okButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
-				setReturnValue(new TlsCheckConfiguration(selectedType, selectedFile, password));
+				setReturnValue(new TlsCheckConfiguration(selectedType, selectedFile, password, checkCn));
 				shell.close();
 			}
 		});
@@ -146,7 +167,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		shell.pack();
 	}
 
-	private void updateUI(final Label fileLabel, final Text fileText, final Button fileBrowseButton, final Label passwordLabel, final Text passwordText) {
+	private void updateUI(final Label fileLabel, final Text fileText, final Button fileBrowseButton, final Label passwordLabel, final Text passwordText, final Button checkCnCheckbox) {
 		final boolean enableFile = switch (selectedType) {
 			case TrustStoreFile, AdditionalTrustStoreFile, RecordingToTrustStoreFile, SingleCertificate, RecordingSingleCertificate -> true;
 			case NoCheck, SystemTrustStore -> false;
@@ -173,6 +194,9 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 
 		passwordLabel.setEnabled(enablePassword);
 		passwordText.setEnabled(enablePassword);
+
+		final boolean enableCheckCn = selectedType != TlsCheckConfigurationType.NoCheck;
+		checkCnCheckbox.setEnabled(enableCheckCn);
 	}
 
 	private void checkButtonStatus(final Text fileText) {

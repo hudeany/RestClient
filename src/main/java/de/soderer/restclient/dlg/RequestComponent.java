@@ -88,7 +88,7 @@ public class RequestComponent extends Composite {
 	public RequestComponent(final Composite parent, final int style) throws Exception {
 		super(parent, style);
 
-		tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore);
+		tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
 
 		createOuterScrollArea();
 
@@ -335,7 +335,7 @@ public class RequestComponent extends Composite {
 							}
 						}
 
-						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), getTlsCheckConfiguration().getType() == TlsCheckConfigurationType.NoCheck);
+						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), !getTlsCheckConfiguration().getCheckCn());
 						HttpResponse httpResponse;
 						final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 						final Result dialogResult = progressDialog.open();
@@ -439,7 +439,7 @@ public class RequestComponent extends Composite {
 		tlsCheckButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
-				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword());
+				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword(), tlsCheckConfiguration.getCheckCn());
 				final TlsCheckConfiguration result = dialog.open();
 				if (result != null) {
 					tlsCheckConfiguration = result;

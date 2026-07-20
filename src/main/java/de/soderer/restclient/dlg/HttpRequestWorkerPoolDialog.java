@@ -7,7 +7,6 @@ import org.eclipse.swt.widgets.Shell;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.TlsCheckConfiguration;
-import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.worker.WorkerSimple;
 
@@ -27,7 +26,7 @@ public class HttpRequestWorkerPoolDialog extends WorkerPoolDialog {
 	@Override
 	protected WorkerSimple<?> createWorker() {
 		try {
-			final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, tlsCheckConfiguration.getTrustManager(), tlsCheckConfiguration.getType() == TlsCheckConfigurationType.NoCheck);
+			final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, tlsCheckConfiguration.getTrustManager(), !tlsCheckConfiguration.getCheckCn());
 			return worker;
 		} catch (final Exception e) {
 			throw new RuntimeException(e);
