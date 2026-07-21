@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -223,6 +224,32 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
 							requestPresetsJsonObject = (JsonObject) reader.read();
 							setRequestPreset((JsonObject) requestPresetsJsonObject.get(requestPart.getPresetName()));
+						}
+					}
+				} catch (final Exception e) {
+					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+				}
+			}
+		});
+		requestPart.addPresetsReorderedListener(new java.util.function.Consumer<List<String>>() {
+			@Override
+			public void accept(final List<String> newPresetOrder) {
+				try {
+					if (RestClient.REQUEST_PRESETS_FILE.exists()) {
+						final JsonObject requestPresetsJsonObject;
+						try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
+							requestPresetsJsonObject = (JsonObject) reader.read();
+						}
+
+						final JsonObject reorderedRequestPresetsJsonObject = new JsonObject();
+						for (final String presetName : newPresetOrder) {
+							if (requestPresetsJsonObject.containsKey(presetName)) {
+								reorderedRequestPresetsJsonObject.add(presetName, requestPresetsJsonObject.get(presetName));
+							}
+						}
+
+						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
+							writer.add(reorderedRequestPresetsJsonObject);
 						}
 					}
 				} catch (final Exception e) {
