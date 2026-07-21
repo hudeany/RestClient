@@ -782,6 +782,25 @@ public class RequestComponent extends Composite {
 			}
 		});
 
+		// Highlight the entry under the mouse cursor on hover (Option A: reuses the
+		// real selection, so it stays consistent with drag&drop and the click handler
+		// below). Suppressed while a drag is in progress so it doesn't fight the
+		// drag source's own selection.
+		presetList.addMouseMoveListener(e -> {
+			if (dragInProgress[0]) {
+				return;
+			}
+			int hoveredIndex = e.y / itemHeight;
+			if (hoveredIndex < 0) {
+				hoveredIndex = 0;
+			} else if (hoveredIndex >= presetNames.size()) {
+				hoveredIndex = presetNames.size() - 1;
+			}
+			if (presetList.getSelectionIndex() != hoveredIndex) {
+				presetList.select(hoveredIndex);
+			}
+		});
+
 		// A plain (non-dragging) click selects the preset and closes the popup.
 		presetList.addMouseListener(new MouseAdapter() {
 			@Override
@@ -817,7 +836,7 @@ public class RequestComponent extends Composite {
 	 * = after the last entry), based on which half of the hovered row the
 	 * pointer is currently in.
 	 */
-	private int computeInsertionIndex(final int localY, final int itemHeight, final int itemCount) {
+	private static int computeInsertionIndex(final int localY, final int itemHeight, final int itemCount) {
 		if (itemHeight <= 0 || itemCount <= 0) {
 			return 0;
 		}
