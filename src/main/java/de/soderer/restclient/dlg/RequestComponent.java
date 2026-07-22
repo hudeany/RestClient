@@ -34,6 +34,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 
 import de.soderer.network.HttpConstants;
@@ -81,6 +82,8 @@ public class RequestComponent extends Composite {
 	private Button tlsCheckButton;
 	private Text serviceMethodText;
 	private Text proxyUrlText;
+	private Button followRedirectsButton;
+	private Spinner maxRedirectHopsSpinner;
 	private Text requestBodyText;
 
 	private String idpUrl = null;
@@ -143,6 +146,10 @@ public class RequestComponent extends Composite {
 		return serviceMethodText.getText();
 	}
 	public String getProxyUrl() { return proxyUrlText.getText(); }
+	public boolean isFollowRedirects() { return followRedirectsButton.getSelection(); }
+	public int getMaxRedirectHops() { return maxRedirectHopsSpinner.getSelection(); }
+	/** Combines {@link #isFollowRedirects()} and {@link #getMaxRedirectHops()} into the single int value expected by {@link HttpRequest#setMaxRedirects(int)} (0 = do not follow, positive = hop limit) */
+	public int getMaxRedirects() { return isFollowRedirects() ? getMaxRedirectHops() : 0; }
 	public String getRequestBody() { return requestBodyText.getText(); }
 
 	public String getIdpUrl() { return idpUrl; }
@@ -200,6 +207,16 @@ public class RequestComponent extends Composite {
 	public void setServiceUrl(final String value) { serviceUrlText.setText(value != null ? value : ""); }
 	public void setServiceMethod(final String value) { serviceMethodText.setText(value != null ? value : ""); }
 	public void setProxyUrl(final String value) { proxyUrlText.setText(value != null ? value : ""); }
+	public void setFollowRedirects(final boolean followRedirects) {
+		followRedirectsButton.setSelection(followRedirects);
+		maxRedirectHopsSpinner.setEnabled(followRedirects);
+	}
+	public void setMaxRedirectHops(final int maxRedirectHops) { maxRedirectHopsSpinner.setSelection(maxRedirectHops); }
+	/** Counterpart to {@link #getMaxRedirects()}: 0 disables following, any other value enables it and sets that hop count (negative values are treated as {@link HttpRequest#DEFAULT_MAX_REDIRECTS} since this UI does not offer an "unlimited" option) */
+	public void setMaxRedirects(final int maxRedirects) {
+		setFollowRedirects(maxRedirects != 0);
+		setMaxRedirectHops(maxRedirects > 0 ? maxRedirects : HttpRequest.DEFAULT_MAX_REDIRECTS);
+	}
 	public void setRequestBody(final String value) { requestBodyText.setText(value != null ? value : ""); }
 
 	public void setIdpUrl(final String idpUrl) { this.idpUrl = idpUrl; }
@@ -399,6 +416,38 @@ public class RequestComponent extends Composite {
 				}
 			}
 		});
+
+		final Composite redirectsRow = new Composite(content, SWT.NONE);
+		redirectsRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridLayout redirectsRowLayout = new GridLayout(3, false);
+		redirectsRowLayout.marginWidth = 0;
+		redirectsRowLayout.marginHeight = 0;
+		redirectsRowLayout.horizontalSpacing = 7;
+		redirectsRow.setLayout(redirectsRowLayout);
+
+		followRedirectsButton = new Button(redirectsRow, SWT.CHECK);
+		followRedirectsButton.setText(LangResources.get("followRedirects"));
+		followRedirectsButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+		followRedirectsButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				maxRedirectHopsSpinner.setEnabled(followRedirectsButton.getSelection());
+			}
+		});
+
+		final Label maxRedirectHopsLabel = new Label(redirectsRow, SWT.NONE);
+		maxRedirectHopsLabel.setText(LangResources.get("maxRedirectHops"));
+		maxRedirectHopsLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+
+		maxRedirectHopsSpinner = new Spinner(redirectsRow, SWT.BORDER);
+		maxRedirectHopsSpinner.setMinimum(1);
+		maxRedirectHopsSpinner.setMaximum(999);
+		maxRedirectHopsSpinner.setSelection(HttpRequest.DEFAULT_MAX_REDIRECTS);
+		final GridData maxRedirectHopsGridData = new GridData(SWT.LEFT, SWT.CENTER, false, false);
+		maxRedirectHopsGridData.widthHint = 50;
+		maxRedirectHopsSpinner.setLayoutData(maxRedirectHopsGridData);
+		// Disabled until "Follow redirects" is checked, since the hop count is meaningless otherwise
+		maxRedirectHopsSpinner.setEnabled(false);
 
 		final Composite methodUrlRow = new Composite(content, SWT.NONE);
 		methodUrlRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
