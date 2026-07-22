@@ -429,6 +429,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpPassword("");
 		} else {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
+			// Older presets saved before this field existed simply won't have it -> default to 0 (off)
 			final Object maxRedirectsObject = jsonObject.getSimpleValue("maxRedirects");
 			requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
