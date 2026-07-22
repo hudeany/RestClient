@@ -414,6 +414,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setHtmlFormParameters(new LinkedHashMap<>());
 
 			requestPart.setProxyUrl("");
+			requestPart.setMaxRedirects(0);
 			requestPart.setHttpMethod("GET");
 			requestPart.setServiceUrl("");
 			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
@@ -428,6 +429,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpPassword("");
 		} else {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
+			final Object maxRedirectsObject = jsonObject.getSimpleValue("maxRedirects");
+			requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
 			requestPart.setServiceUrl((String) jsonObject.getSimpleValue("serviceUrl"));
 
@@ -516,6 +519,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		final JsonObject requestPresetJsonObject = new JsonObject();
 
 		requestPresetJsonObject.add("proxyUrl", requestPart.getProxyUrl());
+		requestPresetJsonObject.add("maxRedirects", requestPart.getMaxRedirects());
 		requestPresetJsonObject.add("httpMethod", requestPart.getHttpMethod());
 		requestPresetJsonObject.add("serviceUrl", requestPart.getServiceUrl());
 
