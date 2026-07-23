@@ -426,7 +426,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpUrl("");
 			requestPart.setIdpRealm("");
 			requestPart.setIdpUsername("");
-			requestPart.setIdpPassword("");
+			requestPart.setIdpPassword(new char[0]);
 		} else {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
 			// Older presets saved before this field existed simply won't have it -> default to 0 (off)
@@ -506,9 +506,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpUrl((String) jsonObject.getSimpleValue("idpUrl"));
 			requestPart.setIdpRealm((String) jsonObject.getSimpleValue("idpRealm"));
 			requestPart.setIdpUsername((String) jsonObject.getSimpleValue("idpUsername"));
-			requestPart.setIdpPassword((String) jsonObject.getSimpleValue("idpPassword"));
+			final String loadedIdpPassword = (String) jsonObject.getSimpleValue("idpPassword");
+			requestPart.setIdpPassword(loadedIdpPassword == null ? null : loadedIdpPassword.toCharArray());
 
-			if (Utilities.isNotBlank(requestPart.getIdpPassword())) {
+			if (requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0) {
 				requestPart.setStoreIdpCredentials(true);
 			}
 		}
@@ -531,9 +532,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			if (tlsCheckConfiguration.getTrustoreOrPemFile() != null) {
 				tlsCheckConfigurationJsonObject.add("file", Utilities.replaceUsersHome(tlsCheckConfiguration.getTrustoreOrPemFile().getAbsolutePath()));
 			}
-			if (tlsCheckConfiguration.getTrustorePassword() != null) {
-				tlsCheckConfigurationJsonObject.add("trustorePassword", new String(tlsCheckConfiguration.getTrustorePassword()));
-			}
+			// Deliberately NOT persisting tlsCheckConfiguration.getTrustorePassword() here: unlike the
+			// IdP password (only saved when the user explicitly opts in via isStoreIdpCredentials()),
+			// this password had no opt-in at all and was written in plain text to the presets file on
+			// every save. The password has to be re-entered after loading a preset; the file path and
+			// check type are still restored.
 			tlsCheckConfigurationJsonObject.add("checkCn", tlsCheckConfiguration.getCheckCn());
 			requestPresetJsonObject.add("tlsCheck", tlsCheckConfigurationJsonObject);
 		}
@@ -574,7 +577,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPresetJsonObject.add("idpRealm", requestPart.getIdpRealm());
 			if (requestPart.isStoreIdpCredentials()) {
 				requestPresetJsonObject.add("idpUsername", requestPart.getIdpUsername());
-				requestPresetJsonObject.add("idpPassword", requestPart.getIdpPassword());
+				final char[] idpPasswordChars = requestPart.getIdpPassword();
+				requestPresetJsonObject.add("idpPassword", idpPasswordChars == null ? null : new String(idpPasswordChars));
 			}
 		}
 

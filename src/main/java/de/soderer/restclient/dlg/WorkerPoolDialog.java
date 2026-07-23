@@ -260,19 +260,19 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 					result = Integer.compare(w1.getErrorCount(), w2.getErrorCount());
 					break;
 				case 3:
-					result = w1.getLatestDuration().compareTo(w2.getLatestDuration());
+					result = compareNullable(w1.getLatestDuration(), w2.getLatestDuration());
 					break;
 				case 4:
-					result = Boolean.compare(w1.getLatestStatusWasSuccess(), w2.getLatestStatusWasSuccess());
+					result = compareNullable(w1.getLatestStatusWasSuccess(), w2.getLatestStatusWasSuccess());
 					break;
 				case 5:
-					result = w1.getMinimumDuration().compareTo(w2.getMinimumDuration());
+					result = compareNullable(w1.getMinimumDuration(), w2.getMinimumDuration());
 					break;
 				case 6:
-					result = w1.getAverageDuration().compareTo(w2.getAverageDuration());
+					result = compareNullable(w1.getAverageDuration(), w2.getAverageDuration());
 					break;
 				case 7:
-					result = w1.getMaximumDuration().compareTo(w2.getMaximumDuration());
+					result = compareNullable(w1.getMaximumDuration(), w2.getMaximumDuration());
 					break;
 				default:
 					break;
@@ -280,6 +280,27 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 			return ascending ? result : -result;
 		});
 		table.clearAll();
+	}
+
+	/**
+	 * Null-safe comparison for columns backed by WorkerStats fields that stay null until a worker
+	 * completes its first task (latestDuration/minimumDuration/averageDuration/maximumDuration,
+	 * latestStatusWasSuccess) - sorting by one of those columns before every worker has finished at
+	 * least one repetition would otherwise throw a NullPointerException (directly on the null
+	 * Duration, or via auto-unboxing for Boolean.compare). Workers without a value yet are sorted
+	 * first, regardless of sort direction (the sign flip for descending order is applied by the
+	 * caller on the whole result, so a fixed order here is intentional).
+	 */
+	private static <T extends Comparable<T>> int compareNullable(final T a, final T b) {
+		if (a == null && b == null) {
+			return 0;
+		} else if (a == null) {
+			return -1;
+		} else if (b == null) {
+			return 1;
+		} else {
+			return a.compareTo(b);
+		}
 	}
 
 	private void cancelExecution() {

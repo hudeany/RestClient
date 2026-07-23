@@ -81,7 +81,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		final Text passwordText = new Text(mainComposite, SWT.BORDER | SWT.PASSWORD);
 		passwordText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		if (password != null) {
-			fileText.setText(new String(password));
+			passwordText.setText(new String(password));
 		}
 
 		final Button checkCnCheckbox = new Button(mainComposite, SWT.CHECK);

@@ -64,7 +64,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 			@Override
 			public void widgetSelected(final SelectionEvent event) {
 				String manualText;
-				try (InputStream resourceStream = RestClient.class.getResourceAsStream("/manual_" + Locale.getDefault().getLanguage().toLowerCase() + ".txt")) {
+				try (InputStream resourceStream = RestClient.class.getResourceAsStream("/manual_" + Locale.getDefault().getLanguage().toLowerCase(Locale.ROOT) + ".txt")) {
 					if (resourceStream == null) {
 						try (InputStream resourceStreamDefault = RestClient.class.getResourceAsStream("/manual.txt")) {
 							manualText = IoUtilities.toString(resourceStreamDefault, StandardCharsets.UTF_8);

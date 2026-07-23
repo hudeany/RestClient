@@ -57,6 +57,22 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		if (httpRequestTemplate.getRequestBody() != null) {
 			httpRequest.setRequestBody(randomParameterResolver.resolve(httpRequestTemplate.getRequestBody()));
 		}
+
+		for (final Entry<String, String> entry : httpRequestTemplate.getCookieData().entrySet()) {
+			httpRequest.addCookieData(randomParameterResolver.resolve(entry.getKey()), randomParameterResolver.resolve(entry.getValue()));
+		}
+
+		for (final HttpRequest.UploadFileAttachment uploadFileAttachment : httpRequestTemplate.getUploadFileAttachments()) {
+			httpRequest.addUploadFileData(
+					randomParameterResolver.resolve(uploadFileAttachment.getHtmlInputName()),
+					randomParameterResolver.resolve(uploadFileAttachment.getFileName()),
+					uploadFileAttachment.getData());
+		}
+
+		httpRequest.setMaxRedirects(httpRequestTemplate.getMaxRedirects());
+		httpRequest.setConnectionTimeoutMillis(httpRequestTemplate.getConnectTimeoutMillis());
+		httpRequest.setReadTimeoutMillis(httpRequestTemplate.getReadTimeoutMillis());
+		httpRequest.setEncoding(httpRequestTemplate.getEncoding());
 	}
 
 	public Map<String, List<String>> getRandomParameterReplacements() {

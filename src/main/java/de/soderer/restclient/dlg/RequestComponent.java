@@ -89,7 +89,7 @@ public class RequestComponent extends Composite {
 	private String idpUrl = null;
 	private String idpRealm = null;
 	private String idpUsername = null;
-	private String idpPassword = null;
+	private char[] idpPassword = null;
 	private boolean storeIdpCredentials = false;
 
 	private Composite headerContainer;
@@ -155,7 +155,7 @@ public class RequestComponent extends Composite {
 	public String getIdpUrl() { return idpUrl; }
 	public String getIdpRealm() { return idpRealm; }
 	public String getIdpUsername() { return idpUsername; }
-	public String getIdpPassword() { return idpPassword; }
+	public char[] getIdpPassword() { return idpPassword; }
 	public boolean isStoreIdpCredentials() { return storeIdpCredentials; }
 
 	public Map<String, String> getHttpHeaders() { return extractKeyValuePairs(headerContainer); }
@@ -222,7 +222,7 @@ public class RequestComponent extends Composite {
 	public void setIdpUrl(final String idpUrl) { this.idpUrl = idpUrl; }
 	public void setIdpRealm(final String idpRealm) { this.idpRealm = idpRealm; }
 	public void setIdpUsername(final String idpUsername) { this.idpUsername = idpUsername; }
-	public void setIdpPassword(final String idpPassword) { this.idpPassword = idpPassword; }
+	public void setIdpPassword(final char[] idpPassword) { this.idpPassword = idpPassword; }
 	public void setStoreIdpCredentials(final boolean storeIdpCredentials) { this.storeIdpCredentials = storeIdpCredentials; }
 
 	public void setHttpHeaders(final Map<String, String> headers) {
@@ -570,14 +570,15 @@ public class RequestComponent extends Composite {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
 				try {
-					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), idpUrl, idpRealm, idpUsername, (idpPassword == null ? null : idpPassword.toCharArray()));
+					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), idpUrl, idpRealm, idpUsername, idpPassword);
 					inputDialog.setRememberCredentials(storeIdpCredentials);
 					final Credentials credentials = inputDialog.open();
 					if (credentials != null) {
 						final String tempIdpUrl = inputDialog.getIdpUrl();
 						final String tempIdpRealm = inputDialog.getIdpRealm();
 						final String tempIdpUsername = credentials.getUsername();
-						final String tempIdpPassword = new String(credentials.getPassword());
+						final char[] tempIdpPasswordChars = credentials.getPassword();
+						final String tempIdpPassword = new String(tempIdpPasswordChars);
 
 						storeIdpCredentials = inputDialog.isRememberCredentials();
 
@@ -609,7 +610,7 @@ public class RequestComponent extends Composite {
 						idpUrl = tempIdpUrl;
 						idpRealm = tempIdpRealm;
 						idpUsername = tempIdpUsername;
-						idpPassword = tempIdpPassword;
+						idpPassword = tempIdpPasswordChars;
 					}
 				} catch (final Exception e) {
 					new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
