@@ -213,18 +213,20 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 				for (int j = 0; (tasksPerWorker == -1  || j < tasksPerWorker) && !cancelled; j++) {
 					final WorkerSimple<?> worker = createWorker();
 
+					boolean countInStatistics = true;
 					final LocalDateTime start = LocalDateTime.now();
 					try {
 						final Object workerResult = worker.work();
-						if (poolStart.plus(rampUpTime).isBefore(LocalDateTime.now())) {
-							if (checkForSuccess(workerResult)) {
-								ws.addSuccess(Duration.between(start, LocalDateTime.now()));
-							} else {
-								ws.addError(Duration.between(start, LocalDateTime.now()));
-							}
+						if (rampUpTime != null && poolStart.plus(rampUpTime).isAfter(LocalDateTime.now())) {
+							countInStatistics = false;
+						}
+						if (checkForSuccess(workerResult)) {
+							ws.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
+						} else {
+							ws.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
 						}
 					} catch (@SuppressWarnings("unused") final Exception e) {
-						ws.addError(Duration.between(start, LocalDateTime.now()));
+						ws.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
 					}
 
 					final int current = progress.incrementAndGet();

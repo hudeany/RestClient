@@ -18,15 +18,19 @@ public class WorkerStats {
 		this.workerId = workerId;
 	}
 
-	public synchronized void addSuccess(final Duration duration) {
-		successCount++;
-		updateDauer(duration);
+	public synchronized void addSuccess(final Duration duration, final boolean countInStatistics) {
+		if (countInStatistics) {
+			successCount++;
+			updateDauer(duration);
+		}
 		latestStatusWasSuccess = true;
 	}
 
-	public synchronized void addError(final Duration duration) {
-		errorCount++;
-		updateDauer(duration);
+	public synchronized void addError(final Duration duration, final boolean countInStatistics) {
+		if (countInStatistics) {
+			errorCount++;
+			updateDauer(duration);
+		}
 		latestStatusWasSuccess = false;
 	}
 
