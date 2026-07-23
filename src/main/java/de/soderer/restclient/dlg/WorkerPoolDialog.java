@@ -48,6 +48,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private int workerCount = 1;
 	private int tasksPerWorker = 1;
 	private Duration sleepTime = null;
+	private LocalDateTime poolStart = null;
+	private Duration rampUpTime = null;
 
 	private int sortColumn = 0;
 	private boolean ascending = true;
@@ -68,6 +70,10 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 	public void setSleepTime(final Duration sleepTime) {
 		this.sleepTime = sleepTime;
+	}
+
+	public void setRampUpTime(final Duration rampUpTime) {
+		this.rampUpTime = rampUpTime;
 	}
 
 	@Override
@@ -197,6 +203,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 		table.setItemCount(workerStatsList.size());
 
+		poolStart = LocalDateTime.now();
+
 		for (int i = 0; i < workerStatsList.size(); i++) {
 			final int idx = i;
 			final WorkerStats ws = workerStatsList.get(i);
@@ -208,10 +216,12 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 					final LocalDateTime start = LocalDateTime.now();
 					try {
 						final Object workerResult = worker.work();
-						if (checkForSuccess(workerResult)) {
-							ws.addSuccess(Duration.between(start, LocalDateTime.now()));
-						} else {
-							ws.addError(Duration.between(start, LocalDateTime.now()));
+						if (poolStart.plus(rampUpTime).isBefore(LocalDateTime.now())) {
+							if (checkForSuccess(workerResult)) {
+								ws.addSuccess(Duration.between(start, LocalDateTime.now()));
+							} else {
+								ws.addError(Duration.between(start, LocalDateTime.now()));
+							}
 						}
 					} catch (@SuppressWarnings("unused") final Exception e) {
 						ws.addError(Duration.between(start, LocalDateTime.now()));

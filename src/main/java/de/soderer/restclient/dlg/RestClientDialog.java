@@ -736,12 +736,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 					final int tasksPerWorker = "∞".equals(configurationDialog.getRepetitions()) ? -1 : Integer.parseInt(configurationDialog.getRepetitions());
 
-					final String dialogText = LangResources.get("multipleRequestText", tasksPerWorker >= 0 ? tasksPerWorker : LangResources.get("unlimited"), DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getPauseSeconds()), true, false));
+					final String dialogText = LangResources.get("multipleRequestText",
+						tasksPerWorker >= 0 ? tasksPerWorker : LangResources.get("unlimited"),
+						DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getPauseSeconds()), true, false),
+						DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getRampUpSeconds()), true, false));
 
 					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(getShell(), LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheckConfiguration());
 					dialog.setParallelWorkerAmount(configurationDialog.getWorkerCount());
 					dialog.setRepetitionsPerWorker(tasksPerWorker);
 					dialog.setSleepTime(Duration.ofSeconds(configurationDialog.getPauseSeconds()));
+					dialog.setRampUpTime(Duration.ofSeconds(configurationDialog.getRampUpSeconds()));
 					final Boolean dialogResult = dialog.open();
 
 					if (dialogResult != null && dialogResult) {

@@ -18,6 +18,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 	private int workerCount;
 	private String repetitions;
 	private int pauseSeconds;
+	private int rampUpSeconds;
 
 	public MultipleWorkerConfigurationDialog(final Shell applicationDialog, final String title) {
 		super(applicationDialog, title);
@@ -53,6 +54,14 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 		spnPause.setSelection(0);
 		spnPause.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+		final Label lblRampUp = new Label(parentShell, SWT.NONE);
+		lblRampUp.setText(LangResources.get("workerRampUpTime") + " (" + LangResources.get("seconds") + ", 0 ≤ x):");
+		final Spinner spnRampUp = new Spinner(parentShell, SWT.BORDER);
+		spnRampUp.setMinimum(0);
+		spnRampUp.setMaximum(Integer.MAX_VALUE);
+		spnRampUp.setSelection(0);
+		spnRampUp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
 		final Composite buttonBar = new Composite(parentShell, SWT.NONE);
 		buttonBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 		buttonBar.setLayout(SwtUtilities.createSmallMarginGridLayout(2, true));
@@ -64,6 +73,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 			workerCount = spnWorkers.getSelection();
 			repetitions = cmbReps.getText().trim();
 			pauseSeconds = spnPause.getSelection();
+			rampUpSeconds = spnRampUp.getSelection();
 
 			setReturnValue(true);
 
@@ -88,5 +98,9 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 
 	public int getPauseSeconds() {
 		return pauseSeconds;
+	}
+
+	public int getRampUpSeconds() {
+		return rampUpSeconds;
 	}
 }
