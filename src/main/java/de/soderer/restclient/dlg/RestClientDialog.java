@@ -165,14 +165,15 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					final String presetName = requestPart.getPresetName();
 					if (!requestPresetsJsonObject.containsKey(presetName)
 							|| new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("replaceExistingRequestPreset", presetName), LangResources.get("yes"), LangResources.get("cancel")).open() == 0) {
-						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							final JsonObject requestPresetJsonObject = createRequestPresetJsonObject();
+						final JsonObject requestPresetJsonObject = createRequestPresetJsonObject();
 
-							if (requestPresetsJsonObject.containsKey(presetName)) {
-								requestPresetsJsonObject.replace(presetName, requestPresetJsonObject);
-							} else {
-								requestPresetsJsonObject.add(presetName, requestPresetJsonObject);
-							}
+						if (requestPresetsJsonObject.containsKey(presetName)) {
+							requestPresetsJsonObject.replace(presetName, requestPresetJsonObject);
+						} else {
+							requestPresetsJsonObject.add(presetName, requestPresetJsonObject);
+						}
+
+						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
 							writer.add(requestPresetsJsonObject);
 						}
 						showMessage(RestClient.APPLICATION_NAME, LangResources.get("savedRequestPreset", presetName));
@@ -532,11 +533,13 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			if (tlsCheckConfiguration.getTrustoreOrPemFile() != null) {
 				tlsCheckConfigurationJsonObject.add("file", Utilities.replaceUsersHome(tlsCheckConfiguration.getTrustoreOrPemFile().getAbsolutePath()));
 			}
-			// Deliberately NOT persisting tlsCheckConfiguration.getTrustorePassword() here: unlike the
-			// IdP password (only saved when the user explicitly opts in via isStoreIdpCredentials()),
-			// this password had no opt-in at all and was written in plain text to the presets file on
-			// every save. The password has to be re-entered after loading a preset; the file path and
-			// check type are still restored.
+			if (tlsCheckConfiguration.getTrustorePassword() != null) {
+				// Persisted in plain text in the presets file, same as before this review - the user
+				// has confirmed presets must keep working unattended after a restart, which rules out
+				// leaving the password out entirely. If this ever needs to be revisited, an opt-in
+				// checkbox analogous to isStoreIdpCredentials() would be the way to make it optional.
+				tlsCheckConfigurationJsonObject.add("trustorePassword", new String(tlsCheckConfiguration.getTrustorePassword()));
+			}
 			tlsCheckConfigurationJsonObject.add("checkCn", tlsCheckConfiguration.getCheckCn());
 			requestPresetJsonObject.add("tlsCheck", tlsCheckConfigurationJsonObject);
 		}
