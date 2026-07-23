@@ -19,23 +19,28 @@ public class WorkerStats {
 	}
 
 	public synchronized void addSuccess(final Duration duration, final boolean countInStatistics) {
+		// Latest result is always shown immediately, even during ramp-up
+		latestDuration = duration;
+		latestStatusWasSuccess = true;
+
 		if (countInStatistics) {
 			successCount++;
 			updateDauer(duration);
 		}
-		latestStatusWasSuccess = true;
 	}
 
 	public synchronized void addError(final Duration duration, final boolean countInStatistics) {
+		// Latest result is always shown immediately, even during ramp-up
+		latestDuration = duration;
+		latestStatusWasSuccess = false;
+
 		if (countInStatistics) {
 			errorCount++;
 			updateDauer(duration);
 		}
-		latestStatusWasSuccess = false;
 	}
 
 	private void updateDauer(final Duration duration) {
-		latestDuration = duration;
 		durationOverallMillis += duration.toMillis();
 		numberOfExecutions++;
 

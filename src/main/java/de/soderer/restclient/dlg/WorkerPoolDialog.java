@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
@@ -35,6 +37,7 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 	private Table table;
 	private ProgressBar progressBar;
+	private Label descriptionLabel;
 	private Button actionButton;
 	private Button downloadButton;
 
@@ -80,9 +83,9 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	protected void createComponents(final Shell parentShell) throws Exception {
 		parentShell.setLayout(new GridLayout(1, false));
 
-		final Label description = new Label(parentShell, SWT.WRAP);
-		description.setText(text);
-		description.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+		descriptionLabel = new Label(parentShell, SWT.WRAP);
+		descriptionLabel.setText(text);
+		descriptionLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
 
 		progressBar = new ProgressBar(parentShell, SWT.NONE);
 		progressBar.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
@@ -205,6 +208,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 		poolStart = LocalDateTime.now();
 
+		startRampUpCountdown(display);
+
 		for (int i = 0; i < workerStatsList.size(); i++) {
 			final int idx = i;
 			final WorkerStats ws = workerStatsList.get(i);
@@ -213,13 +218,10 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 				for (int j = 0; (tasksPerWorker == -1  || j < tasksPerWorker) && !cancelled; j++) {
 					final WorkerSimple<?> worker = createWorker();
 
-					boolean countInStatistics = true;
 					final LocalDateTime start = LocalDateTime.now();
+					final boolean countInStatistics = rampUpTime == null || !poolStart.plus(rampUpTime).isAfter(start);
 					try {
 						final Object workerResult = worker.work();
-						if (rampUpTime != null && poolStart.plus(rampUpTime).isAfter(LocalDateTime.now())) {
-							countInStatistics = false;
-						}
 						if (checkForSuccess(workerResult)) {
 							ws.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
 						} else {
@@ -249,6 +251,36 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 				display.asyncExec(this::checkFinished);
 			});
 		}
+	}
+
+	private void startRampUpCountdown(final Display display) {
+		if (rampUpTime == null || rampUpTime.isZero() || rampUpTime.isNegative()) {
+			return;
+		}
+
+		final long totalSeconds = rampUpTime.getSeconds();
+		final Pattern rampUpPattern = Pattern.compile("RampUp:\\s*\\S+");
+
+		final Runnable[] tick = new Runnable[1];
+		tick[0] = () -> {
+			if (descriptionLabel.isDisposed()) {
+				return;
+			}
+
+			final Duration remaining = rampUpTime.minus(Duration.between(poolStart, LocalDateTime.now()));
+			if (remaining.isNegative() || remaining.isZero()) {
+				descriptionLabel.setText(text);
+				getParent().layout(true, true);
+			} else {
+				// Round up so the label still reads "1 sec" during the last partial second
+				final long remainingSeconds = remaining.toMillis() / 1000 + (remaining.toMillis() % 1000 > 0 ? 1 : 0);
+				final String replacement = LangResources.get("rampUp") + ": " + LangResources.get("remainingTime", remainingSeconds, totalSeconds);
+				descriptionLabel.setText(rampUpPattern.matcher(text).replaceFirst(Matcher.quoteReplacement(replacement)));
+				getParent().layout(true, true);
+				display.timerExec(1000, tick[0]);
+			}
+		};
+		display.timerExec(0, tick[0]);
 	}
 
 	private void refreshTableItem(final int idx) {
