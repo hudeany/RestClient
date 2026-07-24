@@ -12,9 +12,6 @@ import java.util.Locale;
 
 import org.eclipse.swt.widgets.Display;
 
-import de.soderer.pac.PacScriptParser;
-import de.soderer.pac.utilities.ProxyConfiguration;
-import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.dlg.RestClientDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
@@ -27,7 +24,6 @@ import de.soderer.utilities.Version;
 import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.console.ConsoleType;
 import de.soderer.utilities.console.ConsoleUtilities;
-import de.soderer.utilities.swt.ApplicationConfigurationDialog;
 import de.soderer.utilities.swt.ErrorDialog;
 import de.soderer.utilities.worker.WorkerParentDual;
 
@@ -61,38 +57,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	/** The Constant CONFIGURATION_FILE. */
 	public static final File CONFIGURATION_FILE = new File(System.getProperty("user.home") + File.separator + "." + APPLICATION_NAME + ".config");
 
-	public static final String CONFIG_VERSION = "Application.Version";
-	public static final String CONFIG_LANGUAGE = "Application.Language";
-	public static final String CONFIG_DAILY_UPDATE_CHECK = "DailyUpdateCheck";
-	public static final String CONFIG_NEXT_DAILY_UPDATE_CHECK = "NextDailyUpdateCheck";
-	public static final String CONFIG_PROXY_CONFIGURATION_TYPE = ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE;
-	public static final String CONFIG_PROXY_URL = ApplicationConfigurationDialog.CONFIG_PROXY_URL;
-	public static final String CONFIG_TLS_SERVER_CERTIFICATE_CHECK = "TlsServerCertificateCheck";
-
 	public static final File REQUEST_PRESETS_FILE = new File(System.getProperty("user.home") + File.separator + "." + RestClient.APPLICATION_NAME + File.separator + "RequestPresets.json");
 
 	public static void setupDefaultConfig(final ConfigurationProperties applicationConfiguration) {
-		applicationConfiguration.set(ApplicationConfigurationDialog.CONFIG_LANGUAGE + ConfigurationProperties.ENUM_EXTENSION, "de,en");
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_LANGUAGE)) {
-			applicationConfiguration.set(RestClient.CONFIG_LANGUAGE, Locale.getDefault().getLanguage());
-		}
-
-		applicationConfiguration.set(ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE + ConfigurationProperties.ENUM_EXTENSION, "None,System,Proxy-URL,WPAD,PAC-URL");
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_DAILY_UPDATE_CHECK)) {
-			applicationConfiguration.set(RestClient.CONFIG_DAILY_UPDATE_CHECK, false);
-		}
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_NEXT_DAILY_UPDATE_CHECK)) {
-			applicationConfiguration.set(RestClient.CONFIG_NEXT_DAILY_UPDATE_CHECK, "");
-		}
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_PROXY_CONFIGURATION_TYPE)) {
-			applicationConfiguration.set(RestClient.CONFIG_PROXY_CONFIGURATION_TYPE, ProxyConfiguration.ProxyConfigurationType.None.name());
-		}
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_PROXY_URL)) {
-			applicationConfiguration.set(RestClient.CONFIG_PROXY_URL, "");
-		}
-		if (!applicationConfiguration.containsKey(RestClient.CONFIG_TLS_SERVER_CERTIFICATE_CHECK)) {
-			applicationConfiguration.set(RestClient.CONFIG_TLS_SERVER_CERTIFICATE_CHECK, "true");
-		}
+		applicationConfiguration.setupDefaultConfig();
 	}
 
 	/** The usage message. */
@@ -150,7 +118,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		try {
 			applicationConfiguration = new ConfigurationProperties(RestClient.APPLICATION_NAME, true);
 			RestClient.setupDefaultConfig(applicationConfiguration);
-			if ("de".equalsIgnoreCase(applicationConfiguration.get(RestClient.CONFIG_LANGUAGE))) {
+			if ("de".equalsIgnoreCase(applicationConfiguration.get(ConfigurationProperties.CONFIG_KEY_LANGUAGE))) {
 				Locale.setDefault(Locale.GERMAN);
 			} else {
 				Locale.setDefault(Locale.ENGLISH);
@@ -159,19 +127,6 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			System.err.println("Invalid application configuration");
 			return 1;
 		}
-
-		if (!applicationConfiguration.containsKey(ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE)) {
-			if (PacScriptParser.findPacFileUrlByWpad() != null) {
-				applicationConfiguration.set(ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE, ProxyConfigurationType.WPAD.name());
-			} else {
-				applicationConfiguration.set(ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE, ProxyConfigurationType.None.name());
-			}
-			applicationConfiguration.save();
-		}
-
-		final ProxyConfigurationType proxyConfigurationType = ProxyConfigurationType.getFromString(applicationConfiguration.get(ApplicationConfigurationDialog.CONFIG_PROXY_CONFIGURATION_TYPE));
-		final String proxyUrl = applicationConfiguration.get(ApplicationConfigurationDialog.CONFIG_PROXY_URL);
-		final ProxyConfiguration proxyConfiguration = new ProxyConfiguration(proxyConfigurationType, proxyUrl);
 
 		try {
 			String[] arguments = args;
@@ -197,11 +152,11 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					} else if ("update".equalsIgnoreCase(arguments[i]) && arguments.length == 1) {
 						final RestClient restclient = new RestClient();
 						if (arguments.length > i + 2) {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, proxyConfiguration, RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], arguments[i + 2].toCharArray(), null, null, false, false);
+							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], arguments[i + 2].toCharArray(), null, null, false, false);
 						} else if (arguments.length > i + 1) {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, proxyConfiguration, RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], null, null, null, false, false);
+							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], null, null, null, false, false);
 						} else {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, proxyConfiguration, RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, false, false);
+							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, false, false);
 						}
 						return 1;
 					} else if ("gui".equalsIgnoreCase(arguments[i])) {
