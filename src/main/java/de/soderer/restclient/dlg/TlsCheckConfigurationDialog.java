@@ -107,9 +107,17 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
 				selectedType = TlsCheckConfigurationType.valueOf(typeCombo.getText());
-				if (selectedType == TlsCheckConfigurationType.NoCheck) {
+
+				if (!selectedType.isFilePathSupported()) {
 					fileText.setText("");
+					selectedFile = null;
 				}
+
+				if (!selectedType.isPasswordSupported()) {
+					passwordText.setText("");
+					password = null;
+				}
+
 				updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
 				checkButtonStatus(fileText);
 			}
@@ -168,24 +176,9 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	}
 
 	private void updateUI(final Label fileLabel, final Text fileText, final Button fileBrowseButton, final Label passwordLabel, final Text passwordText, final Button checkCnCheckbox) {
-		final boolean enableFile = switch (selectedType) {
-			case TrustStoreFile, AdditionalTrustStoreFile, RecordingToTrustStoreFile, SingleCertificate, RecordingSingleCertificate -> true;
-			case NoCheck, SystemTrustStore -> false;
-			default -> false;
-		};
-
-		final boolean fileMustExist = switch (selectedType) {
-			case TrustStoreFile, AdditionalTrustStoreFile, RecordingToTrustStoreFile, SingleCertificate -> true;
-			case RecordingSingleCertificate -> false;
-			case NoCheck, SystemTrustStore -> false;
-			default -> false;
-		};
-
-		final boolean enablePassword = switch (selectedType) {
-			case TrustStoreFile, AdditionalTrustStoreFile, RecordingToTrustStoreFile -> true;
-			case NoCheck, RecordingSingleCertificate, SingleCertificate, SystemTrustStore -> false;
-			default -> false;
-		};
+		final boolean enableFile = selectedType.isFilePathSupported();
+		final boolean fileMustExist = enableFile && selectedType != TlsCheckConfigurationType.RecordingSingleCertificate;
+		final boolean enablePassword = selectedType.isPasswordSupported();
 
 		fileLabel.setEnabled(enableFile);
 		fileText.setEnabled(enableFile);
@@ -200,25 +193,14 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	}
 
 	private void checkButtonStatus(final Text fileText) {
-		boolean enabled = true;
+		boolean enabled;
 
-		switch (selectedType) {
-			case TrustStoreFile:
-			case AdditionalTrustStoreFile:
-			case RecordingToTrustStoreFile:
-				enabled = Utilities.isNotEmpty(fileText.getText());
-				break;
-			case SingleCertificate:
-				enabled = Utilities.isNotEmpty(fileText.getText()) && new File(fileText.getText()).exists();
-				break;
-			case RecordingSingleCertificate:
-				enabled = Utilities.isNotEmpty(fileText.getText());
-				break;
-			case SystemTrustStore:
-			case NoCheck:
-			default:
-				enabled = true;
-				break;
+		if (!selectedType.isFilePathSupported()) {
+			enabled = true;
+		} else if (selectedType == TlsCheckConfigurationType.SingleCertificate) {
+			enabled = Utilities.isNotEmpty(fileText.getText()) && new File(fileText.getText()).exists();
+		} else {
+			enabled = Utilities.isNotEmpty(fileText.getText());
 		}
 
 		okButton.setEnabled(enabled);
