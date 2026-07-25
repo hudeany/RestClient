@@ -350,6 +350,7 @@ public class RequestComponent extends Composite {
 		openApiGridData.widthHint = 100;
 		openApiButton.setLayoutData(openApiGridData);
 		openApiButton.setText("OpenAPI");
+		openApiButton.setEnabled(false);
 		openApiButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
@@ -492,6 +493,7 @@ public class RequestComponent extends Composite {
 		serviceUrlText = new Text(urlCol, SWT.BORDER);
 		serviceUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		serviceUrlText.setMessage(LangResources.get("serviceUrlHint"));
+		serviceUrlText.addModifyListener(e -> openApiButton.setEnabled(Utilities.isNotBlank(serviceUrlText.getText())));
 
 		final Composite tlsCheckCol = new Composite(methodUrlRow, SWT.NONE);
 		final GridData tlsColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
