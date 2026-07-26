@@ -1,6 +1,7 @@
 package de.soderer.restclient.dlg;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -37,6 +38,11 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 
+import de.soderer.json.JsonNode;
+import de.soderer.json.JsonObject;
+import de.soderer.json.JsonWriter;
+import de.soderer.json.schema.JsonSchemaDependencyResolver;
+import de.soderer.json.schema.JsonSchemaExampleGenerator;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
 import de.soderer.network.HttpMethod;
@@ -62,9 +68,7 @@ import de.soderer.utilities.swt.SimpleInputDialog;
 import de.soderer.utilities.swt.SwtColor;
 import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
-import de.soderer.yaml.data.YamlDocument;
-import de.soderer.yaml.data.YamlMapping;
-import de.soderer.yaml.data.YamlNode;
+import de.soderer.yaml.YamlToJsonConverter;
 
 public class RequestComponent extends Composite {
 	private Text presetNameText;
@@ -391,19 +395,52 @@ public class RequestComponent extends Composite {
 
 						if (httpResponse != null && httpResponse.getHttpCode() == 200) {
 							try (YamlReader reader = new YamlReader(new ByteArrayInputStream(httpResponse.getContent().trim().getBytes(StandardCharsets.UTF_8)))) {
-								final YamlDocument document = reader.readDocument();
-								final YamlNode rootNode = document.getRoot();
-								final YamlMapping pathsYamlMapping = (YamlMapping) ((YamlMapping) rootNode).get("paths");
-								final List<String> paths = new ArrayList<>();
-								for (final Entry<String, Object> pathEntry : pathsYamlMapping.simpleEntrySet()) {
-									paths.add(pathEntry.getKey());
+								final JsonNode rootJsonNode = YamlToJsonConverter.convert(reader.readDocument());
+								if (!(rootJsonNode instanceof JsonObject)) {
+									throw new Exception("OpenAPI document does not contain an object at its root");
 								}
-								String selectedMethod = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
-								if (selectedMethod != null) {
-									while (selectedMethod.startsWith("/")) {
-										selectedMethod = selectedMethod.substring(1);
+								final JsonObject rootJsonObject = (JsonObject) rootJsonNode;
+
+								final JsonNode pathsNode = rootJsonObject.get("paths");
+								if (!(pathsNode instanceof JsonObject)) {
+									throw new Exception("OpenAPI document does not contain a 'paths' object");
+								}
+								final JsonObject pathsObject = (JsonObject) pathsNode;
+
+								final List<String> httpMethodNames = List.of("get", "post", "put", "delete", "patch", "head", "options");
+								final List<String> paths = new ArrayList<>(pathsObject.keySet());
+
+								// Stage 1: select a path (no HTTP method involved yet)
+								final String selectedPathRaw = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
+								if (selectedPathRaw != null) {
+									String selectedPath = selectedPathRaw;
+									while (selectedPath.startsWith("/")) {
+										selectedPath = selectedPath.substring(1);
 									}
-									setServiceMethod(selectedMethod);
+									setServiceMethod(selectedPath);
+
+									// Stage 2: select one of the HTTP methods available for that path, if any were recognized
+									final List<String> availableMethods = new ArrayList<>();
+									final Map<String, JsonObject> operationsByMethod = new LinkedHashMap<>();
+									if (pathsObject.get(selectedPathRaw) instanceof JsonObject) {
+										for (final Entry<String, JsonNode> methodEntry : ((JsonObject) pathsObject.get(selectedPathRaw)).entrySet()) {
+											final String methodName = methodEntry.getKey().toLowerCase();
+											if (httpMethodNames.contains(methodName) && methodEntry.getValue() instanceof JsonObject) {
+												final String methodLabel = methodName.toUpperCase();
+												availableMethods.add(methodLabel);
+												operationsByMethod.put(methodLabel, (JsonObject) methodEntry.getValue());
+											}
+										}
+									}
+
+									if (availableMethods.size() == 1) {
+										applyOpenApiMethodSelection(availableMethods.get(0), operationsByMethod, rootJsonObject);
+									} else if (availableMethods.size() > 1) {
+										final String selectedHttpMethod = new SelectionDialog(getShell(), "OpenAPI methods", LangResources.get("selectHttpMethod"), availableMethods).open();
+										if (selectedHttpMethod != null) {
+											applyOpenApiMethodSelection(selectedHttpMethod, operationsByMethod, rootJsonObject);
+										}
+									}
 								}
 							}
 						} else {
@@ -1124,6 +1161,84 @@ public class RequestComponent extends Composite {
 			}
 		}
 		return map;
+	}
+
+	private void applyOpenApiMethodSelection(final String selectedHttpMethod, final Map<String, JsonObject> operationsByMethod, final JsonObject rootJsonObject) throws Exception {
+		setHttpMethod(selectedHttpMethod);
+
+		final String exampleJson = extractJsonExampleFromOperation(operationsByMethod.get(selectedHttpMethod), rootJsonObject);
+		if (exampleJson != null) {
+			setRequestBody(exampleJson);
+		}
+	}
+
+	private static String extractJsonExampleFromOperation(final JsonObject operation, final JsonObject rootDocument) throws Exception {
+		if (operation == null) {
+			return null;
+		}
+
+		final JsonNode requestBody = operation.get("requestBody");
+		if (!(requestBody instanceof JsonObject)) {
+			return null;
+		}
+
+		final JsonNode requestContent = ((JsonObject) requestBody).get("content");
+		if (!(requestContent instanceof JsonObject)) {
+			return null;
+		}
+
+		final JsonNode jsonContentNode = ((JsonObject) requestContent).get("application/json");
+		if (!(jsonContentNode instanceof JsonObject)) {
+			return null;
+		}
+		final JsonObject jsonContent = (JsonObject) jsonContentNode;
+
+		// 1. Example directly on the media type object (content.application/json.example)
+		JsonNode example = jsonContent.get("example");
+
+		// 2. Named examples map (content.application/json.examples.<name>.value)
+		if (example == null) {
+			final JsonNode examples = jsonContent.get("examples");
+			if (examples instanceof JsonObject) {
+				for (final JsonNode namedExample : ((JsonObject) examples).values()) {
+					if (namedExample instanceof JsonObject) {
+						final JsonNode value = ((JsonObject) namedExample).get("value");
+						if (value != null) {
+							example = value;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		final JsonNode schemaNode = jsonContent.get("schema");
+		if (schemaNode instanceof JsonObject) {
+			// 3. Example nested inside the schema object (content.application/json.schema.example)
+			//    This is the convention actually used by e.g. simple string request bodies (schema: {type: string, example: "..."})
+			if (example == null) {
+				example = ((JsonObject) schemaNode).get("example");
+			}
+
+			// 4. No explicit example anywhere: generate a placeholder example from the schema itself
+			//    (resolves "$ref" against the whole OpenAPI document, e.g. "#/components/schemas/User")
+			if (example == null) {
+				final JsonSchemaDependencyResolver dependencyResolver = new JsonSchemaDependencyResolver(rootDocument);
+				final JsonSchemaExampleGenerator exampleGenerator = new JsonSchemaExampleGenerator(dependencyResolver);
+				example = exampleGenerator.generateExample((JsonObject) schemaNode);
+			}
+		}
+
+		return example == null ? null : toJsonText(example);
+	}
+
+	private static String toJsonText(final JsonNode value) throws Exception {
+		try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+				JsonWriter writer = new JsonWriter(output, StandardCharsets.UTF_8)) {
+			writer.add(value);
+			writer.flush();
+			return new String(output.toByteArray(), StandardCharsets.UTF_8);
+		}
 	}
 
 	private void checkRequestContentStatus() {
