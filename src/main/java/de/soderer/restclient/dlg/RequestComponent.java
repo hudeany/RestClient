@@ -879,7 +879,7 @@ public class RequestComponent extends Composite {
 			if (dragInProgress[0]) {
 				return;
 			}
-			int hoveredIndex = e.y / itemHeight;
+			int hoveredIndex = presetList.getTopIndex() + e.y / itemHeight;
 			if (hoveredIndex < 0) {
 				hoveredIndex = 0;
 			} else if (hoveredIndex >= presetNames.size()) {
