@@ -2,8 +2,10 @@ package de.soderer.restclient.dlg;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -358,7 +360,7 @@ public class RequestComponent extends Composite {
 		openApiButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent ev) {
-				final SimpleInputDialog dialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, "OpenAPI URL");
+				final SimpleInputDialog dialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, "OpenAPI URL " + LangResources.get("orLocalFilePath"));
 				if (getServiceUrl() != null) {
 					if (getServiceUrl().endsWith("/")) {
 						dialog.setDefaultText(getServiceUrl() + "openapi");
@@ -369,85 +371,14 @@ public class RequestComponent extends Composite {
 				final String result = dialog.open();
 				if (result != null) {
 					try {
-						final HttpRequest openApiRequest = new HttpRequest(HttpMethod.GET, result);
-
-						Proxy proxy = null;
-						if (Utilities.isNotBlank(getProxyUrl())) {
-							if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
-								proxy = Proxy.NO_PROXY;
-							} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
-								final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
-								proxy = requestProxyConfiguration.getProxy(openApiRequest.getUrl());
-							} else {
-								proxy = HttpUtilities.getProxyFromString(getProxyUrl());
-							}
-						}
-
-						final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), !getTlsCheckConfiguration().getCheckCn());
-						HttpResponse httpResponse;
-						final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
-						final Result dialogResult = progressDialog.open();
-						if (dialogResult == Result.CANCELED) {
-							return;
+						final File localFile = new File(result);
+						final byte[] openApiContent;
+						if (localFile.isFile()) {
+							openApiContent = Files.readAllBytes(localFile.toPath());
 						} else {
-							httpResponse = worker.get();
+							openApiContent = fetchOpenApiContentFromUrl(result);
 						}
-
-						if (httpResponse != null && httpResponse.getHttpCode() == 200) {
-							try (YamlReader reader = new YamlReader(new ByteArrayInputStream(httpResponse.getContent().trim().getBytes(StandardCharsets.UTF_8)))) {
-								final JsonNode rootJsonNode = YamlToJsonConverter.convert(reader.readDocument());
-								if (!(rootJsonNode instanceof JsonObject)) {
-									throw new Exception("OpenAPI document does not contain an object at its root");
-								}
-								final JsonObject rootJsonObject = (JsonObject) rootJsonNode;
-
-								final JsonNode pathsNode = rootJsonObject.get("paths");
-								if (!(pathsNode instanceof JsonObject)) {
-									throw new Exception("OpenAPI document does not contain a 'paths' object");
-								}
-								final JsonObject pathsObject = (JsonObject) pathsNode;
-
-								final List<String> httpMethodNames = List.of("get", "post", "put", "delete", "patch", "head", "options");
-								final List<String> paths = new ArrayList<>(pathsObject.keySet());
-
-								// Stage 1: select a path (no HTTP method involved yet)
-								final String selectedPathRaw = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
-								if (selectedPathRaw != null) {
-									String selectedPath = selectedPathRaw;
-									while (selectedPath.startsWith("/")) {
-										selectedPath = selectedPath.substring(1);
-									}
-									setServiceMethod(selectedPath);
-
-									// Stage 2: select one of the HTTP methods available for that path, if any were recognized
-									final List<String> availableMethods = new ArrayList<>();
-									final Map<String, JsonObject> operationsByMethod = new LinkedHashMap<>();
-									if (pathsObject.get(selectedPathRaw) instanceof JsonObject) {
-										for (final Entry<String, JsonNode> methodEntry : ((JsonObject) pathsObject.get(selectedPathRaw)).entrySet()) {
-											final String methodName = methodEntry.getKey().toLowerCase();
-											if (httpMethodNames.contains(methodName) && methodEntry.getValue() instanceof JsonObject) {
-												final String methodLabel = methodName.toUpperCase();
-												availableMethods.add(methodLabel);
-												operationsByMethod.put(methodLabel, (JsonObject) methodEntry.getValue());
-											}
-										}
-									}
-
-									if (availableMethods.size() == 1) {
-										applyOpenApiMethodSelection(availableMethods.get(0), operationsByMethod, rootJsonObject);
-									} else if (availableMethods.size() > 1) {
-										final String selectedHttpMethod = new SelectionDialog(getShell(), "OpenAPI methods", LangResources.get("selectHttpMethod"), availableMethods).open();
-										if (selectedHttpMethod != null) {
-											applyOpenApiMethodSelection(selectedHttpMethod, operationsByMethod, rootJsonObject);
-										}
-									}
-								}
-							}
-						} else {
-							throw new Exception("Cannot read OpenAPI data. HTTP code: " + (httpResponse == null ? "None" : httpResponse.getHttpCode()));
-						}
-
-						checkRequestContentStatus();
+						processOpenApiDocument(openApiContent);
 					} catch (final Exception e) {
 						new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
 					}
@@ -1162,6 +1093,97 @@ public class RequestComponent extends Composite {
 			}
 		}
 		return map;
+	}
+
+	private byte[] fetchOpenApiContentFromUrl(final String url) throws Exception {
+		final HttpRequest openApiRequest = new HttpRequest(HttpMethod.GET, url);
+
+		Proxy proxy = null;
+		if (Utilities.isNotBlank(getProxyUrl())) {
+			if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
+				proxy = Proxy.NO_PROXY;
+			} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
+				final ProxyConfiguration requestProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+				proxy = requestProxyConfiguration.getProxy(openApiRequest.getUrl());
+			} else {
+				proxy = HttpUtilities.getProxyFromString(getProxyUrl());
+			}
+		}
+
+		final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), !getTlsCheckConfiguration().getCheckCn());
+		HttpResponse httpResponse;
+		final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
+		final Result dialogResult = progressDialog.open();
+		if (dialogResult == Result.CANCELED) {
+			return null;
+		} else {
+			httpResponse = worker.get();
+		}
+
+		if (httpResponse != null && httpResponse.getHttpCode() == 200) {
+			return httpResponse.getContent().trim().getBytes(StandardCharsets.UTF_8);
+		} else {
+			throw new Exception("Cannot read OpenAPI data. HTTP code: " + (httpResponse == null ? "None" : httpResponse.getHttpCode()));
+		}
+	}
+
+	private void processOpenApiDocument(final byte[] openApiContent) throws Exception {
+		if (openApiContent == null) {
+			// e.g. HTTP request was canceled by the user in the progress dialog
+			return;
+		}
+
+		try (YamlReader reader = new YamlReader(new ByteArrayInputStream(openApiContent))) {
+			final JsonNode rootJsonNode = YamlToJsonConverter.convert(reader.readDocument());
+			if (!(rootJsonNode instanceof JsonObject)) {
+				throw new Exception("OpenAPI document does not contain an object at its root");
+			}
+			final JsonObject rootJsonObject = (JsonObject) rootJsonNode;
+
+			final JsonNode pathsNode = rootJsonObject.get("paths");
+			if (!(pathsNode instanceof JsonObject)) {
+				throw new Exception("OpenAPI document does not contain a 'paths' object");
+			}
+			final JsonObject pathsObject = (JsonObject) pathsNode;
+
+			final List<String> httpMethodNames = List.of("get", "post", "put", "delete", "patch", "head", "options");
+			final List<String> paths = new ArrayList<>(pathsObject.keySet());
+
+			// Stage 1: select a path (no HTTP method involved yet)
+			final String selectedPathRaw = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
+			if (selectedPathRaw != null) {
+				String selectedPath = selectedPathRaw;
+				while (selectedPath.startsWith("/")) {
+					selectedPath = selectedPath.substring(1);
+				}
+				setServiceMethod(selectedPath);
+
+				// Stage 2: select one of the HTTP methods available for that path, if any were recognized
+				final List<String> availableMethods = new ArrayList<>();
+				final Map<String, JsonObject> operationsByMethod = new LinkedHashMap<>();
+				if (pathsObject.get(selectedPathRaw) instanceof JsonObject) {
+					for (final Entry<String, JsonNode> methodEntry : ((JsonObject) pathsObject.get(selectedPathRaw)).entrySet()) {
+						final String methodName = methodEntry.getKey().toLowerCase();
+						if (httpMethodNames.contains(methodName) && methodEntry.getValue() instanceof JsonObject) {
+							final String methodLabel = methodName.toUpperCase();
+							availableMethods.add(methodLabel);
+							operationsByMethod.put(methodLabel, (JsonObject) methodEntry.getValue());
+						}
+					}
+				}
+
+				if (availableMethods.size() == 1) {
+					applyOpenApiMethodSelection(availableMethods.get(0), operationsByMethod, rootJsonObject);
+				} else if (availableMethods.size() > 1) {
+					final String selectedHttpMethod = new SelectionDialog(getShell(), "OpenAPI methods", LangResources.get("selectHttpMethod"), availableMethods).open();
+					if (selectedHttpMethod != null) {
+						applyOpenApiMethodSelection(selectedHttpMethod, operationsByMethod, rootJsonObject);
+					}
+				}
+			}
+		}
+
+		checkRequestContentStatus();
 	}
 
 	private void applyOpenApiMethodSelection(final String selectedHttpMethod, final Map<String, JsonObject> operationsByMethod, final JsonObject rootJsonObject) throws Exception {
