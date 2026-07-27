@@ -829,9 +829,10 @@ public class RequestComponent extends Composite {
 				event.feedback = DND.FEEDBACK_SCROLL;
 
 				final Point localPoint = presetList.toControl(event.x, event.y);
-				insertionIndex[0] = computeInsertionIndex(localPoint.y, itemHeight, presetNames.size());
+				final int topIndex = presetList.getTopIndex();
+				insertionIndex[0] = computeInsertionIndex(localPoint.y, itemHeight, presetNames.size(), topIndex);
 
-				final int markerY = Math.max(0, Math.min(popupHeight - 2, insertionIndex[0] * itemHeight - 1));
+				final int markerY = Math.max(0, Math.min(popupHeight - 2, (insertionIndex[0] - topIndex) * itemHeight - 1));
 				insertionMarker.setBounds(0, markerY, popupWidth, 2);
 				insertionMarker.setVisible(true);
 				insertionMarker.moveAbove(presetList);
@@ -925,12 +926,12 @@ public class RequestComponent extends Composite {
 	 * = after the last entry), based on which half of the hovered row the
 	 * pointer is currently in.
 	 */
-	private static int computeInsertionIndex(final int localY, final int itemHeight, final int itemCount) {
+	private static int computeInsertionIndex(final int localY, final int itemHeight, final int itemCount, final int topIndex) {
 		if (itemHeight <= 0 || itemCount <= 0) {
 			return 0;
 		}
 
-		int hoveredIndex = localY / itemHeight;
+		int hoveredIndex = topIndex + localY / itemHeight;
 		if (hoveredIndex < 0) {
 			hoveredIndex = 0;
 		}
@@ -938,7 +939,7 @@ public class RequestComponent extends Composite {
 			hoveredIndex = itemCount - 1;
 		}
 
-		final int remainderInRow = localY - hoveredIndex * itemHeight;
+		final int remainderInRow = localY - (hoveredIndex - topIndex) * itemHeight;
 		int insertAt = remainderInRow < itemHeight / 2 ? hoveredIndex : hoveredIndex + 1;
 		if (insertAt < 0) {
 			insertAt = 0;
