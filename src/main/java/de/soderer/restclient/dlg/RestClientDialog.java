@@ -589,6 +589,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			ExecuteHttpRequestWorker worker = null;
 			try {
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
+				httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 
 				for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
 					httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());
@@ -648,6 +649,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
+				responsePart.setRedirectInfo(httpResponse.getRedirectCount(), httpResponse.getFinalUrl(), httpResponse.isCredentialsDroppedOnRedirect());
 				if (worker.getRandomParameterReplacements() != null && worker.getRandomParameterReplacements().size() > 0) {
 					responsePart.setRandomParameters(worker.getRandomParameterReplacements());
 				} else {
@@ -660,6 +662,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
 				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
+				responsePart.setRedirectInfo(0, null, false);
 
 				if (worker != null && worker.getRandomParameterReplacements() != null && worker.getRandomParameterReplacements().size() > 0) {
 					responsePart.setRandomParameters(worker.getRandomParameterReplacements());
@@ -683,6 +686,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final Boolean result = configurationDialog.open();
 				if (result != null && result) {
 					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
+					httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 
 					for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
 						httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());

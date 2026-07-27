@@ -8,6 +8,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -27,6 +28,8 @@ public class ResponseComponent extends Composite {
 	private Text ipAddressText;
 	private Text httpCodeText;
 	private Text timeText;
+	private Label redirectHintLabel;
+	private Color redirectWarningColor;
 	private Composite headerContainer;
 	private ScrolledComposite headerScrolled;
 	private Text responseBodyText;
@@ -49,6 +52,30 @@ public class ResponseComponent extends Composite {
 
 	public void setTime(final String duration) {
 		timeText.setText(duration);
+	}
+
+	/**
+	 * Shows a hint above the response headers if the request followed one or more redirects, since that
+	 * happens silently otherwise (the response shown may come from a completely different URL than requested).
+	 * If credentials (Authorization header and/or cookies) were withheld while following a cross-origin
+	 * redirect (see {@link de.soderer.network.HttpUtilities}), this is additionally called out in a warning color.
+	 */
+	public void setRedirectInfo(final int redirectCount, final String finalUrl, final boolean credentialsDroppedOnRedirect) {
+		final boolean hasRedirectInfo = redirectCount > 0;
+		if (hasRedirectInfo) {
+			String hintText = LangResources.get("redirectFollowedHint", redirectCount, finalUrl);
+			if (credentialsDroppedOnRedirect) {
+				hintText += " " + LangResources.get("redirectCredentialsDroppedHint");
+			}
+			redirectHintLabel.setText(hintText);
+			redirectHintLabel.setForeground(credentialsDroppedOnRedirect ? redirectWarningColor : null);
+		} else {
+			redirectHintLabel.setText("");
+			redirectHintLabel.setForeground(null);
+		}
+		redirectHintLabel.setVisible(hasRedirectInfo);
+		((GridData) redirectHintLabel.getLayoutData()).exclude = !hasRedirectInfo;
+		layout(true, true);
 	}
 
 	public void setResponseBody(final String body) {
@@ -153,6 +180,14 @@ public class ResponseComponent extends Composite {
 		timeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
 		timeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+		redirectWarningColor = new Color(getDisplay(), 170, 0, 0);
+		addDisposeListener(e -> redirectWarningColor.dispose());
+
+		redirectHintLabel = new Label(this, SWT.WRAP);
+		redirectHintLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		redirectHintLabel.setVisible(false);
+		((GridData) redirectHintLabel.getLayoutData()).exclude = true;
+
 		createKeyValueSection(LangResources.get("httpResponseHeader"));
 
 		final Label bodyLabel = new Label(this, SWT.NONE);
@@ -218,9 +253,10 @@ public class ResponseComponent extends Composite {
 		responseBodyText.setVisible(false);
 
 		setRandomParameters(null);
+		setRedirectInfo(0, null, false);
 
 		for (final Control c : getChildren()) {
-			if (c instanceof Label) {
+			if (c instanceof Label && c != redirectHintLabel) {
 				c.setVisible(false);
 			}
 		}
@@ -239,7 +275,7 @@ public class ResponseComponent extends Composite {
 		responseBodyText.setVisible(true);
 
 		for (final Control c : getChildren()) {
-			if (c instanceof Label) {
+			if (c instanceof Label && c != redirectHintLabel) {
 				c.setVisible(true);
 			}
 		}
