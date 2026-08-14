@@ -17,6 +17,8 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
@@ -84,17 +86,6 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			getShell().setLocation((monitorArray[0].getClientArea().width - getSize().x) / 2, (monitorArray[0].getClientArea().height - getSize().y) / 2);
 		}
 
-		if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
-			setDailyUpdateCheckStatus(true);
-			try {
-				if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
-					ApplicationUpdateUtilities.executeUpdate(this, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, true, false);
-				}
-			} catch (final Exception e) {
-				showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
-			}
-		}
-
 		// Mandatory initialization
 		@SuppressWarnings("unused")
 		final ImageManager imageManager = new ImageManager(getShell());
@@ -119,6 +110,25 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		});
 
 		checkButtonStatus();
+
+		final RestClientDialog mainDialog = this;
+		getShell().addShellListener(new ShellAdapter() {
+			@Override
+			public void shellActivated(final ShellEvent event) {
+				getShell().removeShellListener(this);
+
+				if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
+					setDailyUpdateCheckStatus(true);
+					try {
+						if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
+							ApplicationUpdateUtilities.executeUpdate(mainDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, true, false);
+						}
+					} catch (final Exception e) {
+						showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
+					}
+				}
+			}
+		});
 	}
 
 	private void createLeftPart(final SashForm parent) throws Exception {
