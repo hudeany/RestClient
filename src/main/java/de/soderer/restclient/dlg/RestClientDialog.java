@@ -72,7 +72,10 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlWriter;
 import de.soderer.yaml.data.YamlDocument;
 import de.soderer.yaml.data.YamlMapping;
+import de.soderer.yaml.data.YamlMultilineScalarChompingType;
+import de.soderer.yaml.data.YamlMultilineScalarType;
 import de.soderer.yaml.data.YamlScalar;
+import de.soderer.yaml.data.YamlScalarType;
 import de.soderer.yaml.data.YamlSequence;
 
 public class RestClientDialog extends UpdateableGuiApplication {
@@ -758,7 +761,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * cleared/initial state), used to decide whether the "response" section is written on export.
 	 */
 	private boolean hasResponseData() {
-		return Utilities.isNotBlank(responsePart.getHttpCode())
+		return responsePart.getHttpCode() != null
 				|| Utilities.isNotBlank(responsePart.getResponseBody())
 				|| !responsePart.getResponseHeaders().isEmpty();
 	}
@@ -895,7 +898,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	private YamlMapping createResponseYamlMapping() throws DuplicateKeyException {
 		final YamlMapping responseYamlMapping = new YamlMapping();
 
-		if (Utilities.isNotBlank(responsePart.getHttpCode())) {
+		if (responsePart.getHttpCode() != null) {
 			responseYamlMapping.add("httpCode", responsePart.getHttpCode());
 		}
 		if (Utilities.isNotBlank(responsePart.getIpAddress())) {
@@ -917,7 +920,18 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		}
 
 		if (Utilities.isNotBlank(responsePart.getResponseBody())) {
-			responseYamlMapping.add("responseBody", responsePart.getResponseBody());
+			// The 1-arg YamlScalar(Object) constructor always produces YamlScalarType.STRING, and
+			// getType() (not the multiline settings below) is what YamlWriter uses to decide between
+			// a quoted single-line string and a "|"/">" block scalar - so MULTILINE must be requested
+			// explicitly via this constructor for the block style to actually be written.
+			final YamlScalar responseBodyYamlScalar = new YamlScalar(responsePart.getResponseBody(), YamlScalarType.MULTILINE);
+			try {
+				responseBodyYamlScalar.setMultilineType(YamlMultilineScalarType.LITERAL);
+				responseBodyYamlScalar.setMultilineChompingType(YamlMultilineScalarChompingType.STRIP);
+			} catch (@SuppressWarnings("unused") final Exception e) {
+				// Cannot actually happen: both enum constants passed above are never null
+			}
+			responseYamlMapping.add("responseBody", responseBodyYamlScalar);
 		}
 
 		return responseYamlMapping;
@@ -1023,7 +1037,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			return;
 		}
 
-		responsePart.setHttpCode((String) responseYamlMapping.getSimpleValue("httpCode"));
+		responsePart.setHttpCode((Integer) responseYamlMapping.getSimpleValue("httpCode"));
 		responsePart.setIpAddress((String) responseYamlMapping.getSimpleValue("ipAddress"));
 		responsePart.setTime((String) responseYamlMapping.getSimpleValue("time"));
 
@@ -1104,7 +1118,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				}
 
 				responsePart.setIpAddress(httpResponse.getIpAddress());
-				responsePart.setHttpCode(Integer.toString(httpResponse.getHttpCode()));
+				responsePart.setHttpCode(httpResponse.getHttpCode());
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
@@ -1116,7 +1130,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				}
 			} catch (final Exception e) {
 				responsePart.setIpAddress("");
-				responsePart.setHttpCode("");
+				responsePart.setHttpCode(null);
 				responsePart.setTime("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
@@ -1185,7 +1199,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 
 					responsePart.setIpAddress("");
-					responsePart.setHttpCode("");
+					responsePart.setHttpCode(null);
 					responsePart.setTime("");
 					final Map<String, String> responseHeaders = new LinkedHashMap<>();
 					responsePart.setResponseHeaders(responseHeaders);
@@ -1213,7 +1227,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				}
 			} catch (final Exception e) {
 				responsePart.setIpAddress("");
-				responsePart.setHttpCode("");
+				responsePart.setHttpCode(null);
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
 				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());

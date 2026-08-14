@@ -22,6 +22,7 @@ import de.soderer.json.JsonWriter;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.Utilities;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
 
 public class ResponseComponent extends Composite {
@@ -42,8 +43,8 @@ public class ResponseComponent extends Composite {
 		createUI();
 	}
 
-	public void setHttpCode(final String code) {
-		httpCodeText.setText(code != null ? code : "");
+	public void setHttpCode(final Integer code) {
+		httpCodeText.setText(code != null ? code.toString() : "");
 	}
 
 	public void setIpAddress(final String ipAddress) {
@@ -124,8 +125,8 @@ public class ResponseComponent extends Composite {
 		updateHeaderMinSize();
 	}
 
-	public String getHttpCode() {
-		return httpCodeText.getText();
+	public Integer getHttpCode() {
+		return Utilities.isNotBlank(httpCodeText.getText()) ? Integer.parseInt(httpCodeText.getText()) : null;
 	}
 
 	public String getIpAddress() {
