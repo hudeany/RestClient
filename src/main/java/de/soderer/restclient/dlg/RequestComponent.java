@@ -693,7 +693,13 @@ public class RequestComponent extends Composite {
 
 		final Composite comboButtonComposite = new Composite(content, SWT.NONE);
 		comboButtonComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		comboButtonComposite.setLayout(new GridLayout(3, false));
+		final GridLayout comboButtonLayout = new GridLayout(3, false);
+		// Zeroed to match proxyRow/proxyUrlCol below, whose explicit marginWidth=0 is what keeps
+		// their field's left edge flush with content's own margin. Without this, GridLayout's
+		// default marginWidth (5px) shifted presetNameText 5px further right than proxyUrlText.
+		comboButtonLayout.marginWidth = 0;
+		comboButtonLayout.marginHeight = 0;
+		comboButtonComposite.setLayout(comboButtonLayout);
 
 		// Text field and dropdown arrow are grouped into their own composite with
 		// zero spacing, so they visually read as a single combined control.

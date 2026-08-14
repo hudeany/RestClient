@@ -5,6 +5,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.Proxy;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,10 +24,12 @@ import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Monitor;
@@ -64,6 +68,12 @@ import de.soderer.utilities.swt.SwtColor;
 import de.soderer.utilities.swt.SwtUtilities;
 import de.soderer.utilities.swt.UpdateableGuiApplication;
 import de.soderer.utilities.worker.WorkerSimple;
+import de.soderer.yaml.YamlReader;
+import de.soderer.yaml.YamlWriter;
+import de.soderer.yaml.data.YamlDocument;
+import de.soderer.yaml.data.YamlMapping;
+import de.soderer.yaml.data.YamlScalar;
+import de.soderer.yaml.data.YamlSequence;
 
 public class RestClientDialog extends UpdateableGuiApplication {
 	private RequestComponent requestPart;
@@ -71,6 +81,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 	private Button clearRequestDataButton;
 	private Button sendRequestButton;
+	private Button exportRequestResponseButton;
+	private Button importRequestResponseButton;
 	private Button multipleRequestButton;
 	private Button closeButton;
 
@@ -281,13 +293,27 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart.clearResponse();
 
 		final Composite buttonRegion = new Composite(rightPart, SWT.NONE);
-		buttonRegion.setLayout(SwtUtilities.createSmallMarginGridLayout(2, true));
+		// One column of full-width rows; the send-request row and the clear/close row each get their
+		// own nested 2-column composite so their column-grow behavior doesn't bleed into each other
+		// (a shared GridLayout grows a column if ANY row in it has grabExcessHorizontalSpace=true).
+		buttonRegion.setLayout(SwtUtilities.createSmallMarginGridLayout(1, false));
 		buttonRegion.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
 
-		sendRequestButton = new Button(buttonRegion, SWT.PUSH);
-		final GridData gdDouble = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
-		gdDouble.heightHint = 48;
-		sendRequestButton.setLayoutData(gdDouble);
+		final int actionButtonHeight = 48;
+
+		final Composite sendRequestRow = new Composite(buttonRegion, SWT.NONE);
+		final GridLayout sendRequestRowLayout = SwtUtilities.createSmallMarginGridLayout(2, false);
+		// Margins already come from buttonRegion; a margin here would double-indent this row's
+		// buttons compared to multipleRequestButton, which sits directly in buttonRegion
+		sendRequestRowLayout.marginWidth = 0;
+		sendRequestRowLayout.marginHeight = 0;
+		sendRequestRow.setLayout(sendRequestRowLayout);
+		sendRequestRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		sendRequestButton = new Button(sendRequestRow, SWT.PUSH);
+		final GridData gdSendRequest = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		gdSendRequest.heightHint = actionButtonHeight;
+		sendRequestButton.setLayoutData(gdSendRequest);
 		sendRequestButton.setText(LangResources.get("sendRequest"));
 		sendRequestButton.addSelectionListener(new SelectionAdapter() {
 			@Override
@@ -296,8 +322,48 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			}
 		});
 
+		// Export and Import sit next to each other, anchored to the right edge of the button
+		// region; the gap between them matches the gap between sendRequestButton and this
+		// container, so it reuses sendRequestRowLayout's horizontalSpacing instead of a literal
+		final Composite exportImportContainer = new Composite(sendRequestRow, SWT.NONE);
+		final GridLayout exportImportLayout = new GridLayout(2, false);
+		exportImportLayout.marginWidth = 0;
+		exportImportLayout.marginHeight = 0;
+		exportImportLayout.horizontalSpacing = sendRequestRowLayout.horizontalSpacing;
+		exportImportLayout.verticalSpacing = 0;
+		exportImportContainer.setLayout(exportImportLayout);
+		exportImportContainer.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
+
+		exportRequestResponseButton = new Button(exportImportContainer, SWT.PUSH);
+		final GridData gdExport = new GridData(SWT.CENTER, SWT.CENTER, false, false);
+		gdExport.widthHint = actionButtonHeight;
+		gdExport.heightHint = actionButtonHeight;
+		exportRequestResponseButton.setLayoutData(gdExport);
+		exportRequestResponseButton.setText(LangResources.get("export"));
+		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseYamlTooltip"));
+		exportRequestResponseButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				exportRequestResponseToYamlFile();
+			}
+		});
+
+		importRequestResponseButton = new Button(exportImportContainer, SWT.PUSH);
+		final GridData gdImport = new GridData(SWT.CENTER, SWT.CENTER, false, false);
+		gdImport.widthHint = actionButtonHeight;
+		gdImport.heightHint = actionButtonHeight;
+		importRequestResponseButton.setLayoutData(gdImport);
+		importRequestResponseButton.setText(LangResources.get("import"));
+		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseYamlTooltip"));
+		importRequestResponseButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				importRequestResponseFromYamlFile();
+			}
+		});
+
 		multipleRequestButton = new Button(buttonRegion, SWT.PUSH);
-		multipleRequestButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		multipleRequestButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		multipleRequestButton.setText(LangResources.get("multipleRequest"));
 		multipleRequestButton.addSelectionListener(new SelectionAdapter() {
 			@Override
@@ -306,7 +372,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			}
 		});
 
-		clearRequestDataButton = new Button(buttonRegion, SWT.PUSH);
+		final Composite clearCloseRow = new Composite(buttonRegion, SWT.NONE);
+		final GridLayout clearCloseRowLayout = SwtUtilities.createSmallMarginGridLayout(2, true);
+		clearCloseRowLayout.marginWidth = 0;
+		clearCloseRowLayout.marginHeight = 0;
+		clearCloseRow.setLayout(clearCloseRowLayout);
+		clearCloseRow.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
+
+		clearRequestDataButton = new Button(clearCloseRow, SWT.PUSH);
 		clearRequestDataButton.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
 		clearRequestDataButton.setText(LangResources.get("clearRequestData"));
 		clearRequestDataButton.addSelectionListener(new SelectionAdapter() {
@@ -316,7 +389,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			}
 		});
 
-		closeButton = new Button(buttonRegion, SWT.PUSH);
+		closeButton = new Button(clearCloseRow, SWT.PUSH);
 		closeButton.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
 		closeButton.setText(LangResources.get("close"));
 		closeButton.addSelectionListener(new SelectionAdapter() {
@@ -594,6 +667,378 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		}
 
 		return requestPresetJsonObject;
+	}
+
+	/**
+	 * Writes the currently displayed request and response data (as shown in {@link #requestPart} and
+	 * {@link #responsePart}) into a single YAML file chosen by the user via a save file dialog.
+	 */
+	private void exportRequestResponseToYamlFile() {
+		final FileDialog fileDialog = new FileDialog(getShell(), SWT.SAVE);
+		fileDialog.setText(LangResources.get("export"));
+		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml", "*.*" });
+		final String presetName = requestPart.getPresetName();
+		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + ".yaml";
+		fileDialog.setFileName(defaultFileName);
+		final String selectedPath = fileDialog.open();
+		if (selectedPath == null) {
+			return;
+		}
+
+		File exportFile = new File(selectedPath);
+		if (!exportFile.getName().contains(".")) {
+			exportFile = new File(exportFile.getParentFile(), exportFile.getName() + ".yaml");
+		}
+
+		// The native save dialog only checks the name the user typed, not the ".yaml" suffix
+		// added above when it was missing, so an overwrite of that resolved path is checked here explicitly.
+		if (exportFile.exists()
+				&& new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), LangResources.get("yes"), LangResources.get("cancel")).open() != 0) {
+			return;
+		}
+
+		try {
+			final YamlMapping rootMapping = new YamlMapping();
+			rootMapping.add("request", createRequestYamlMapping());
+			if (hasResponseData()) {
+				rootMapping.add("response", createResponseYamlMapping());
+			}
+
+			final YamlDocument yamlDocument = new YamlDocument().withRoot(rootMapping);
+
+			try (YamlWriter writer = new YamlWriter(new FileOutputStream(exportFile))) {
+				writer.writeDocument(yamlDocument);
+			}
+
+			showMessage(RestClient.APPLICATION_NAME, LangResources.get("exportedRequestResponse", exportFile.getAbsolutePath()));
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	/**
+	 * Reads request and response data from a YAML file chosen by the user via an open file dialog and
+	 * fills {@link #requestPart} and {@link #responsePart} with it, as if the request had just been sent.
+	 */
+	private void importRequestResponseFromYamlFile() {
+		final FileDialog fileDialog = new FileDialog(getShell(), SWT.OPEN);
+		fileDialog.setText(LangResources.get("import"));
+		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml", "*.*" });
+		final String selectedPath = fileDialog.open();
+		if (selectedPath == null) {
+			return;
+		}
+
+		try {
+			final YamlDocument yamlDocument;
+			try (YamlReader reader = new YamlReader(new FileInputStream(new File(selectedPath)))) {
+				yamlDocument = reader.readDocument();
+			}
+
+			final YamlMapping rootMapping = (YamlMapping) yamlDocument.getRoot();
+
+			if (rootMapping.containsKey("request")) {
+				applyRequestYamlMapping((YamlMapping) rootMapping.get("request"));
+			}
+
+			responsePart.clearResponse();
+			if (rootMapping.containsKey("response")) {
+				applyResponseYamlMapping((YamlMapping) rootMapping.get("response"));
+			}
+			responsePart.showResponse();
+
+			checkButtonStatus();
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	/**
+	 * Whether {@link #responsePart} currently shows any actual response data (as opposed to its
+	 * cleared/initial state), used to decide whether the "response" section is written on export.
+	 */
+	private boolean hasResponseData() {
+		return Utilities.isNotBlank(responsePart.getHttpCode())
+				|| Utilities.isNotBlank(responsePart.getResponseBody())
+				|| !responsePart.getResponseHeaders().isEmpty();
+	}
+
+	/**
+	 * The default {@link TlsCheckConfiguration} that {@link #setRequestPreset(JsonObject)} and
+	 * {@link #applyRequestYamlMapping(YamlMapping)} fall back to when nothing else is specified
+	 * (system truststore, CN check on, no custom file/password). Used to skip writing the "tlsCheck"
+	 * section on export when it wouldn't add any information beyond that default.
+	 */
+	private static boolean isDefaultTlsCheckConfiguration(final TlsCheckConfiguration tlsCheckConfiguration) {
+		return tlsCheckConfiguration.getType() == TlsCheckConfigurationType.SystemTrustStore
+				&& tlsCheckConfiguration.getTrustoreOrPemFile() == null
+				&& tlsCheckConfiguration.getTrustorePassword() == null
+				&& tlsCheckConfiguration.getCheckCn();
+	}
+
+	/**
+	 * Builds a YAML representation of the currently displayed request data. Mirrors
+	 * {@link #createRequestPresetJsonObject()}, kept as a separate method because the export file also
+	 * contains the response data, which has no equivalent in the request presets file.
+	 */
+	private YamlMapping createRequestYamlMapping() throws Exception {
+		final YamlMapping requestYamlMapping = new YamlMapping();
+
+		if (Utilities.isNotBlank(requestPart.getPresetName())) {
+			requestYamlMapping.add("presetName", requestPart.getPresetName());
+		}
+
+		if (Utilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
+			requestYamlMapping.add("proxyUrl", requestPart.getProxyUrl());
+		}
+		if (requestPart.getMaxRedirects() > 0) {
+			requestYamlMapping.add("maxRedirects", requestPart.getMaxRedirects());
+		}
+		requestYamlMapping.add("httpMethod", requestPart.getHttpMethod());
+
+		final YamlScalar serviceUrlKeyYamlScalar = new YamlScalar("serviceUrl");
+		final YamlScalar serviceUrlYamlScalar = new YamlScalar(requestPart.getServiceUrl());
+		if (Utilities.isNotBlank(requestPart.getServiceUrl())) {
+			final StringBuilder fullUrl = new StringBuilder(requestPart.getServiceUrl());
+			if (Utilities.isNotBlank(requestPart.getServiceMethod())) {
+				fullUrl.append("/").append(requestPart.getServiceMethod());
+			}
+			if (!requestPart.getUrlParameters().isEmpty()) {
+				fullUrl.append("?");
+				boolean firstUrlParameter = true;
+				for (final Entry<String, String> urlParametersEntry : requestPart.getUrlParameters().entrySet()) {
+					if (!firstUrlParameter) {
+						fullUrl.append("&");
+					}
+					firstUrlParameter = false;
+					fullUrl.append(URLEncoder.encode(urlParametersEntry.getKey(), StandardCharsets.UTF_8));
+					fullUrl.append("=");
+					fullUrl.append(URLEncoder.encode(urlParametersEntry.getValue() != null ? urlParametersEntry.getValue() : "", StandardCharsets.UTF_8));
+				}
+			}
+			serviceUrlKeyYamlScalar.addLeadingComment(" fullUrl: " + fullUrl);
+		}
+		requestYamlMapping.add(serviceUrlKeyYamlScalar, serviceUrlYamlScalar);
+
+		requestYamlMapping.add("serviceMethod", requestPart.getServiceMethod());
+
+		final TlsCheckConfiguration tlsCheckConfiguration = requestPart.getTlsCheckConfiguration();
+		if (tlsCheckConfiguration != null && !isDefaultTlsCheckConfiguration(tlsCheckConfiguration)) {
+			final YamlMapping tlsCheckYamlMapping = new YamlMapping();
+			tlsCheckYamlMapping.add("type", tlsCheckConfiguration.getType().name());
+			if (tlsCheckConfiguration.getTrustoreOrPemFile() != null) {
+				tlsCheckYamlMapping.add("file", Utilities.replaceUsersHome(tlsCheckConfiguration.getTrustoreOrPemFile().getAbsolutePath()));
+			}
+			if (tlsCheckConfiguration.getTrustorePassword() != null) {
+				// Same trade-off as in createRequestPresetJsonObject: stored in plain text so the
+				// exported file can be re-imported without manual password re-entry.
+				tlsCheckYamlMapping.add("trustorePassword", new String(tlsCheckConfiguration.getTrustorePassword()));
+			}
+			tlsCheckYamlMapping.add("checkCn", tlsCheckConfiguration.getCheckCn());
+			requestYamlMapping.add("tlsCheck", tlsCheckYamlMapping);
+		}
+
+		if (!requestPart.getHttpHeaders().isEmpty()) {
+			final YamlSequence httpRequestHeadersYamlSequence = new YamlSequence();
+			for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
+				final YamlMapping httpRequestHeaderYamlMapping = new YamlMapping();
+				httpRequestHeaderYamlMapping.add("name", httpRequestHeadersEntry.getKey());
+				httpRequestHeaderYamlMapping.add("value", httpRequestHeadersEntry.getValue());
+				httpRequestHeadersYamlSequence.add(httpRequestHeaderYamlMapping);
+			}
+			requestYamlMapping.add("httpRequestHeaders", httpRequestHeadersYamlSequence);
+		}
+
+		if (!requestPart.getUrlParameters().isEmpty()) {
+			final YamlSequence urlParametersYamlSequence = new YamlSequence();
+			for (final Entry<String, String> urlParametersEntry : requestPart.getUrlParameters().entrySet()) {
+				final YamlMapping urlParameterYamlMapping = new YamlMapping();
+				urlParameterYamlMapping.add("name", urlParametersEntry.getKey());
+				urlParameterYamlMapping.add("value", urlParametersEntry.getValue());
+				urlParametersYamlSequence.add(urlParameterYamlMapping);
+			}
+			requestYamlMapping.add("urlParameters", urlParametersYamlSequence);
+		}
+
+		if (!requestPart.getHtmlFormParameters().isEmpty()) {
+			final YamlSequence htmlFormParametersYamlSequence = new YamlSequence();
+			for (final Entry<String, String> htmlFormParametersEntry : requestPart.getHtmlFormParameters().entrySet()) {
+				final YamlMapping htmlFormParameterYamlMapping = new YamlMapping();
+				htmlFormParameterYamlMapping.add("name", htmlFormParametersEntry.getKey());
+				htmlFormParameterYamlMapping.add("value", htmlFormParametersEntry.getValue());
+				htmlFormParametersYamlSequence.add(htmlFormParameterYamlMapping);
+			}
+			requestYamlMapping.add("htmlFormParameters", htmlFormParametersYamlSequence);
+		}
+
+		if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+			requestYamlMapping.add("requestBody", requestPart.getRequestBody());
+		}
+
+		if (Utilities.isNotBlank(requestPart.getIdpUrl())) {
+			requestYamlMapping.add("idpUrl", requestPart.getIdpUrl());
+			requestYamlMapping.add("idpRealm", requestPart.getIdpRealm());
+			if (requestPart.isStoreIdpCredentials()) {
+				requestYamlMapping.add("idpUsername", requestPart.getIdpUsername());
+				final char[] idpPasswordChars = requestPart.getIdpPassword();
+				requestYamlMapping.add("idpPassword", idpPasswordChars == null ? null : new String(idpPasswordChars));
+			}
+		}
+
+		return requestYamlMapping;
+	}
+
+	/**
+	 * Builds a YAML representation of the currently displayed response data.
+	 * @throws DuplicateKeyException
+	 */
+	private YamlMapping createResponseYamlMapping() throws DuplicateKeyException {
+		final YamlMapping responseYamlMapping = new YamlMapping();
+
+		if (Utilities.isNotBlank(responsePart.getHttpCode())) {
+			responseYamlMapping.add("httpCode", responsePart.getHttpCode());
+		}
+		if (Utilities.isNotBlank(responsePart.getIpAddress())) {
+			responseYamlMapping.add("ipAddress", responsePart.getIpAddress());
+		}
+		if (Utilities.isNotBlank(responsePart.getTime())) {
+			responseYamlMapping.add("time", responsePart.getTime());
+		}
+
+		if (!responsePart.getResponseHeaders().isEmpty()) {
+			final YamlSequence responseHeadersYamlSequence = new YamlSequence();
+			for (final Entry<String, String> responseHeaderEntry : responsePart.getResponseHeaders().entrySet()) {
+				final YamlMapping responseHeaderYamlMapping = new YamlMapping();
+				responseHeaderYamlMapping.add("name", responseHeaderEntry.getKey());
+				responseHeaderYamlMapping.add("value", responseHeaderEntry.getValue());
+				responseHeadersYamlSequence.add(responseHeaderYamlMapping);
+			}
+			responseYamlMapping.add("responseHeaders", responseHeadersYamlSequence);
+		}
+
+		if (Utilities.isNotBlank(responsePart.getResponseBody())) {
+			responseYamlMapping.add("responseBody", responsePart.getResponseBody());
+		}
+
+		return responseYamlMapping;
+	}
+
+	/**
+	 * Fills {@link #requestPart} from an imported YAML mapping. Mirrors {@link #setRequestPreset(JsonObject)},
+	 * but never clears the fields when {@code requestYamlMapping} is {@code null} (unlike the preset variant,
+	 * import simply leaves the request part untouched in that case).
+	 */
+	private void applyRequestYamlMapping(final YamlMapping requestYamlMapping) {
+		if (requestYamlMapping == null) {
+			return;
+		}
+
+		if (requestYamlMapping.containsKey("presetName")) {
+			requestPart.setPresetName((String) requestYamlMapping.getSimpleValue("presetName"));
+		}
+
+		requestPart.setProxyUrl(requestYamlMapping.containsKey("proxyUrl") ? (String) requestYamlMapping.getSimpleValue("proxyUrl") : "");
+		final Object maxRedirectsObject = requestYamlMapping.getSimpleValue("maxRedirects");
+		requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
+		requestPart.setHttpMethod((String) requestYamlMapping.getSimpleValue("httpMethod"));
+		requestPart.setServiceUrl((String) requestYamlMapping.getSimpleValue("serviceUrl"));
+
+		if (requestYamlMapping.containsKey("tlsCheck")) {
+			final YamlMapping tlsCheckYamlMapping = (YamlMapping) requestYamlMapping.get("tlsCheck");
+			TlsCheckConfiguration tlsCheckConfiguration;
+			try {
+				final TlsCheckConfigurationType tlsCheckConfigurationType = TlsCheckConfigurationType.getTlsCheckConfigurationByName((String) tlsCheckYamlMapping.getSimpleValue("type"));
+
+				final String filePath = (String) tlsCheckYamlMapping.getSimpleValue("file");
+				final String trustorePassword = (String) tlsCheckYamlMapping.getSimpleValue("trustorePassword");
+				final boolean checkCn;
+				if (tlsCheckYamlMapping.containsKey("checkCn")) {
+					checkCn = (Boolean) tlsCheckYamlMapping.getSimpleValue("checkCn");
+				} else {
+					checkCn = tlsCheckConfigurationType != TlsCheckConfigurationType.NoCheck;
+				}
+
+				tlsCheckConfiguration = new TlsCheckConfiguration(
+						tlsCheckConfigurationType,
+						(filePath == null ? null : new File(filePath)),
+						(trustorePassword == null ? null : trustorePassword.toCharArray()),
+						checkCn
+						);
+			} catch (@SuppressWarnings("unused") final Exception e) {
+				tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
+			}
+			requestPart.setTlsCheckConfiguration(tlsCheckConfiguration);
+		} else {
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
+		}
+
+		requestPart.setServiceMethod((String) requestYamlMapping.getSimpleValue("serviceMethod"));
+
+		final Map<String, String> httpHeaders = new LinkedHashMap<>();
+		if (requestYamlMapping.containsKey("httpRequestHeaders")) {
+			for (final Object httpHeaderItem : ((YamlSequence) requestYamlMapping.get("httpRequestHeaders")).items()) {
+				final YamlMapping httpHeaderYamlMapping = (YamlMapping) httpHeaderItem;
+				httpHeaders.put((String) httpHeaderYamlMapping.getSimpleValue("name"), (String) httpHeaderYamlMapping.getSimpleValue("value"));
+			}
+		}
+		requestPart.setHttpHeaders(httpHeaders);
+
+		final Map<String, String> urlParameters = new LinkedHashMap<>();
+		if (requestYamlMapping.containsKey("urlParameters")) {
+			for (final Object urlParameterItem : ((YamlSequence) requestYamlMapping.get("urlParameters")).items()) {
+				final YamlMapping urlParameterYamlMapping = (YamlMapping) urlParameterItem;
+				urlParameters.put((String) urlParameterYamlMapping.getSimpleValue("name"), (String) urlParameterYamlMapping.getSimpleValue("value"));
+			}
+		}
+		requestPart.setUrlParameters(urlParameters);
+
+		// Clear HtmlFormParameters first to prevent refill of HTTP header Content-Type, same as setRequestPreset
+		requestPart.setHtmlFormParameters(new LinkedHashMap<>());
+		final Map<String, String> htmlFormParameters = new LinkedHashMap<>();
+		if (requestYamlMapping.containsKey("htmlFormParameters")) {
+			for (final Object htmlFormParameterItem : ((YamlSequence) requestYamlMapping.get("htmlFormParameters")).items()) {
+				final YamlMapping htmlFormParameterYamlMapping = (YamlMapping) htmlFormParameterItem;
+				htmlFormParameters.put((String) htmlFormParameterYamlMapping.getSimpleValue("name"), (String) htmlFormParameterYamlMapping.getSimpleValue("value"));
+			}
+		}
+		requestPart.setHtmlFormParameters(htmlFormParameters);
+
+		requestPart.setRequestBody((String) requestYamlMapping.getSimpleValue("requestBody"));
+
+		requestPart.setIdpUrl((String) requestYamlMapping.getSimpleValue("idpUrl"));
+		requestPart.setIdpRealm((String) requestYamlMapping.getSimpleValue("idpRealm"));
+		requestPart.setIdpUsername((String) requestYamlMapping.getSimpleValue("idpUsername"));
+		final String loadedIdpPassword = (String) requestYamlMapping.getSimpleValue("idpPassword");
+		requestPart.setIdpPassword(loadedIdpPassword == null ? null : loadedIdpPassword.toCharArray());
+		if (requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0) {
+			requestPart.setStoreIdpCredentials(true);
+		}
+	}
+
+	/**
+	 * Fills {@link #responsePart} from an imported YAML mapping.
+	 */
+	private void applyResponseYamlMapping(final YamlMapping responseYamlMapping) {
+		if (responseYamlMapping == null) {
+			return;
+		}
+
+		responsePart.setHttpCode((String) responseYamlMapping.getSimpleValue("httpCode"));
+		responsePart.setIpAddress((String) responseYamlMapping.getSimpleValue("ipAddress"));
+		responsePart.setTime((String) responseYamlMapping.getSimpleValue("time"));
+
+		final Map<String, String> responseHeaders = new LinkedHashMap<>();
+		if (responseYamlMapping.containsKey("responseHeaders")) {
+			for (final Object responseHeaderItem : ((YamlSequence) responseYamlMapping.get("responseHeaders")).items()) {
+				final YamlMapping responseHeaderYamlMapping = (YamlMapping) responseHeaderItem;
+				responseHeaders.put((String) responseHeaderYamlMapping.getSimpleValue("name"), (String) responseHeaderYamlMapping.getSimpleValue("value"));
+			}
+		}
+		responsePart.setResponseHeaders(responseHeaders);
+
+		responsePart.setResponseBody((String) responseYamlMapping.getSimpleValue("responseBody"));
+		responsePart.setRedirectInfo(0, null, false);
+		responsePart.setRandomParameters(null);
 	}
 
 	private void executeRequest() {
