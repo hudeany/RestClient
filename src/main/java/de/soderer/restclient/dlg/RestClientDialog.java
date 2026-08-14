@@ -155,6 +155,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		requestPart = new RequestComponent(leftPart, SWT.BORDER);
 		requestPart.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 3, 1));
+		requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
 		requestPart.addSaveButtonListener(new Runnable() {
 			@Override
 			public void run() {
@@ -340,6 +341,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(getShell(), applicationConfiguration, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, iconData, ImageManager.getImage("RestClient.png"));
 				if (dialog.open()) {
 					applicationConfiguration.save();
+					requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
 				}
 			} catch (final Exception ex) {
 				new ErrorDialog(getShell(), RestClient.APPLICATION_NAME, RestClient.VERSION.toString(), RestClient.APPLICATION_ERROR_EMAIL_ADRESS, ex).open();

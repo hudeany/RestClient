@@ -88,6 +88,9 @@ public class RequestComponent extends Composite {
 	private Button tlsCheckButton;
 	private Text serviceMethodText;
 	private Text proxyUrlText;
+	private Button proxyUrlDropDownButton;
+	private Composite proxyUrlFieldComposite;
+	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private Button followRedirectsButton;
 	private Spinner maxRedirectHopsSpinner;
 	private Text requestBodyText;
@@ -185,6 +188,17 @@ public class RequestComponent extends Composite {
 
 	public void addPresetSelectionListener(final Runnable listener) {
 		presetSelectionListener = listener;
+	}
+
+	/**
+	 * Sets the list of preset proxy URLs offered in the proxy URL dropdown,
+	 * in addition to the built-in "DIRECT" and "WPAD" special values.
+	 */
+	public void setProxyUrlPresets(final List<String> presets) {
+		proxyUrlPresets.clear();
+		if (presets != null) {
+			proxyUrlPresets.addAll(presets);
+		}
 	}
 
 	/**
@@ -334,9 +348,35 @@ public class RequestComponent extends Composite {
 		final Label proxyUrlLabel = new Label(proxyUrlCol, SWT.NONE);
 		proxyUrlLabel.setText(LangResources.get("proxyURL"));
 
-		proxyUrlText = new Text(proxyUrlCol, SWT.BORDER);
-		proxyUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		// Text field and dropdown arrow are grouped into their own composite with
+		// zero spacing, so they visually read as a single combined control
+		// (same pseudo-dropdown pattern as the preset selector above).
+		proxyUrlFieldComposite = new Composite(proxyUrlCol, SWT.NONE);
+		proxyUrlFieldComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridLayout proxyUrlFieldLayout = new GridLayout(2, false);
+		proxyUrlFieldLayout.marginWidth = 0;
+		proxyUrlFieldLayout.marginHeight = 0;
+		proxyUrlFieldLayout.horizontalSpacing = 0;
+		proxyUrlFieldComposite.setLayout(proxyUrlFieldLayout);
+
+		proxyUrlText = new Text(proxyUrlFieldComposite, SWT.BORDER);
+		proxyUrlText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
 		proxyUrlText.setMessage(LangResources.get("proxyUrlHint"));
+
+		// Light gray fill on the button itself; no separate border composite,
+		// so no extra background shows through around it.
+		proxyUrlDropDownButton = new Button(proxyUrlFieldComposite, SWT.PUSH | SWT.FLAT);
+		proxyUrlDropDownButton.setText("\u25BC");
+		proxyUrlDropDownButton.setBackground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
+		final GridData proxyUrlArrowButtonGridData = new GridData(SWT.FILL, SWT.FILL, false, true);
+		proxyUrlArrowButtonGridData.widthHint = 20;
+		proxyUrlDropDownButton.setLayoutData(proxyUrlArrowButtonGridData);
+		proxyUrlDropDownButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				openProxyUrlSelectionPopup();
+			}
+		});
 
 		final Composite openApiCol = new Composite(proxyRow, SWT.NONE);
 		final GridData openApiColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
@@ -879,6 +919,75 @@ public class RequestComponent extends Composite {
 			insertAt = itemCount;
 		}
 		return insertAt;
+	}
+
+	/**
+	 * Opens a popup below the proxy URL field, listing the built-in "DIRECT"
+	 * and "WPAD" special values together with any preset proxy URLs set via
+	 * {@link #setProxyUrlPresets(List)}. Unlike the preset name dropdown
+	 * above, this list is purely for selection: no drag&amp;drop reordering,
+	 * no save/delete. A single click on an entry writes it into the proxy
+	 * URL text field and closes the popup; the field itself stays freely
+	 * editable for proxy URLs that are not in the preset list.
+	 */
+	private void openProxyUrlSelectionPopup() {
+		final List<String> entries = new ArrayList<>();
+		entries.add("DIRECT");
+		entries.add("WPAD");
+		for (final String presetProxyUrl : proxyUrlPresets) {
+			if (Utilities.isNotBlank(presetProxyUrl) && !entries.contains(presetProxyUrl)) {
+				entries.add(presetProxyUrl);
+			}
+		}
+
+		final Shell popup = new Shell(getShell(), SWT.NO_TRIM | SWT.ON_TOP);
+
+		final org.eclipse.swt.widgets.List proxyUrlList = new org.eclipse.swt.widgets.List(popup, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
+		for (final String entry : entries) {
+			proxyUrlList.add(entry);
+		}
+
+		final int itemCount = Math.min(entries.size(), 10);
+		final int itemHeight = proxyUrlList.getItemHeight();
+		final int popupHeight = itemCount * itemHeight + 4;
+		final int popupWidth = proxyUrlFieldComposite.getSize().x;
+		final Point popupLocation = proxyUrlFieldComposite.toDisplay(0, proxyUrlFieldComposite.getSize().y);
+		popup.setBounds(popupLocation.x, popupLocation.y, popupWidth, popupHeight);
+		proxyUrlList.setBounds(0, 0, popupWidth, popupHeight);
+
+		// Highlight the entry under the mouse cursor on hover, same as the preset popup.
+		proxyUrlList.addMouseMoveListener(e -> {
+			int hoveredIndex = proxyUrlList.getTopIndex() + e.y / itemHeight;
+			if (hoveredIndex < 0) {
+				hoveredIndex = 0;
+			} else if (hoveredIndex >= entries.size()) {
+				hoveredIndex = entries.size() - 1;
+			}
+			if (proxyUrlList.getSelectionIndex() != hoveredIndex) {
+				proxyUrlList.select(hoveredIndex);
+			}
+		});
+
+		proxyUrlList.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseUp(final MouseEvent e) {
+				final int index = proxyUrlList.getSelectionIndex();
+				if (index >= 0) {
+					final String selectedProxyUrl = proxyUrlList.getItem(index);
+					popup.dispose();
+					proxyUrlText.setText(selectedProxyUrl);
+				}
+			}
+		});
+
+		popup.addListener(SWT.Deactivate, e -> {
+			if (!popup.isDisposed()) {
+				popup.dispose();
+			}
+		});
+
+		popup.open();
+		proxyUrlList.setFocus();
 	}
 
 	private Text createLabeledText(final String labelText, final String message) {

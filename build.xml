@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project default="build_jar" name="Create all Jars for Project RestClient">
+	<property name="csv.version" value="26.1.1" />
 	<property name="mailapi.version" value="2.0.1" />
 	<property name="json.version" value="26.2.1" />
 	<property name="proxyautoconfig.version" value="26.1.0" />
@@ -84,6 +85,15 @@
 		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/${mailapi.version}/mailapi-${mailapi.version}.jar" dest="lib/" />
 	</target>
 
+	<available file="lib/csv-${csv.version}.jar" property="csv.available" />
+	<target name="get_csv" unless="csv.available" depends="proxy">
+		<mkdir dir="lib/" />
+		<delete>
+			<fileset dir="lib" includes="csv-*.jar" />
+		</delete>
+		<get src="https://github.com/hudeany/csv/releases/download/${csv.version}/csv-${csv.version}.jar" dest="lib/" />
+	</target>
+
 	<available file="lib/json-${json.version}.jar" property="json.available" />
 	<target name="get_json" unless="json.available" depends="proxy">
 		<mkdir dir="lib/" />
@@ -161,7 +171,7 @@
 		<delete file="lib/swt_linux.zip" />
 	</target>
 
-	<target name="download_dependencies" depends="get_mailapi, get_json, get_proxyautoconfig, get_network, get_soderer_utilities, get_soderer_utilities_sources, get_swt_win, get_swt_linux" />
+	<target name="download_dependencies" depends="get_mailapi, get_csv, get_json, get_proxyautoconfig, get_network, get_soderer_utilities, get_soderer_utilities_sources, get_swt_win, get_swt_linux" />
 
 	<target name="compile" depends="download_dependencies">
 		<path id="build.classpath">

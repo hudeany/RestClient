@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -32,6 +33,8 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	public static final String APPLICATION_NAME = "RestClient";
 	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-restclient";
 	public static final String APPLICATION_ERROR_EMAIL_ADRESS = "RestClient.Error@soderer.de";
+
+	public static final String CONFIG_KEY_PROXY_URL_PRESETS = "Application.ProxyUrlPresets";
 
 	public static final File KEYSTORE_FILE = new File(System.getProperty("user.home") + File.separator + "." + APPLICATION_NAME + File.separator + "." + APPLICATION_NAME + ".keystore");
 
@@ -60,6 +63,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 
 	public static void setupDefaultConfig(final ConfigurationProperties applicationConfiguration) {
 		applicationConfiguration.setupDefaultConfig();
+
+		if (!applicationConfiguration.containsKey(CONFIG_KEY_PROXY_URL_PRESETS)) {
+			applicationConfiguration.set(CONFIG_KEY_PROXY_URL_PRESETS, new ArrayList<>());
+		}
 	}
 
 	/** The usage message. */
