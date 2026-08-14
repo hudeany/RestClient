@@ -117,16 +117,18 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			public void shellActivated(final ShellEvent event) {
 				getShell().removeShellListener(this);
 
-				if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
-					setDailyUpdateCheckStatus(true);
-					try {
-						if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
-							ApplicationUpdateUtilities.executeUpdate(mainDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, true, false);
+				display.asyncExec(() -> {
+					if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
+						setDailyUpdateCheckStatus(true);
+						try {
+							if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
+								ApplicationUpdateUtilities.executeUpdate(mainDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, true, false);
+							}
+						} catch (final Exception e) {
+							showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
 						}
-					} catch (final Exception e) {
-						showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
 					}
-				}
+				});
 			}
 		});
 	}
