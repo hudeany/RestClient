@@ -709,7 +709,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			final YamlDocument yamlDocument = new YamlDocument().withRoot(rootMapping);
 
-			try (YamlWriter writer = new YamlWriter(new FileOutputStream(exportFile))) {
+			try (YamlWriter writer = new YamlWriter(new FileOutputStream(exportFile), StandardCharsets.UTF_8)) {
 				writer.writeDocument(yamlDocument);
 			}
 
@@ -734,7 +734,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		try {
 			final YamlDocument yamlDocument;
-			try (YamlReader reader = new YamlReader(new FileInputStream(new File(selectedPath)))) {
+			try (YamlReader reader = new YamlReader(new FileInputStream(new File(selectedPath)), StandardCharsets.UTF_8)) {
 				yamlDocument = reader.readDocument();
 			}
 
