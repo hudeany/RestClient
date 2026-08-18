@@ -14,17 +14,6 @@ import java.util.Map.Entry;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
-import org.eclipse.swt.dnd.DND;
-import org.eclipse.swt.dnd.DragSource;
-import org.eclipse.swt.dnd.DragSourceAdapter;
-import org.eclipse.swt.dnd.DragSourceEvent;
-import org.eclipse.swt.dnd.DropTarget;
-import org.eclipse.swt.dnd.DropTargetAdapter;
-import org.eclipse.swt.dnd.DropTargetEvent;
-import org.eclipse.swt.dnd.TextTransfer;
-import org.eclipse.swt.dnd.Transfer;
-import org.eclipse.swt.events.MouseAdapter;
-import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Point;
@@ -36,7 +25,6 @@ import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 
@@ -62,6 +50,8 @@ import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
+import de.soderer.utilities.swt.ArrangeableAutoCompleteCombo;
+import de.soderer.utilities.swt.ArrangeableAutoCompleteCombo.MatchMode;
 import de.soderer.utilities.swt.CredentialsDialog;
 import de.soderer.utilities.swt.ProgressDialog;
 import de.soderer.utilities.swt.QuestionDialog;
@@ -73,9 +63,7 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
 public class RequestComponent extends Composite {
-	private Text presetNameText;
-	private Button presetDropDownButton;
-	private Composite presetFieldComposite;
+	private ArrangeableAutoCompleteCombo presetCombo;
 	private Button saveButton;
 	private Button deleteButton;
 
@@ -87,9 +75,7 @@ public class RequestComponent extends Composite {
 	private Text serviceUrlText;
 	private Button tlsCheckButton;
 	private Text serviceMethodText;
-	private Text proxyUrlText;
-	private Button proxyUrlDropDownButton;
-	private Composite proxyUrlFieldComposite;
+	private ArrangeableAutoCompleteCombo proxyUrlCombo;
 	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private Button followRedirectsButton;
 	private Spinner maxRedirectHopsSpinner;
@@ -146,7 +132,7 @@ public class RequestComponent extends Composite {
 		return tlsCheckConfiguration;
 	}
 
-	public String getPresetName() { return presetNameText.getText(); }
+	public String getPresetName() { return presetCombo.getText(); }
 	public String getServiceUrl() { return serviceUrlText.getText(); }
 	public String getServiceMethod() {
 		while (serviceMethodText.getText().startsWith("/")) {
@@ -154,7 +140,7 @@ public class RequestComponent extends Composite {
 		}
 		return serviceMethodText.getText();
 	}
-	public String getProxyUrl() { return proxyUrlText.getText(); }
+	public String getProxyUrl() { return proxyUrlCombo.getText(); }
 	public boolean isFollowRedirects() { return followRedirectsButton.getSelection(); }
 	public int getMaxRedirectHops() { return maxRedirectHopsSpinner.getSelection(); }
 	/** Combines {@link #isFollowRedirects()} and {@link #getMaxRedirectHops()} into the single int value expected by {@link HttpRequest#setMaxRedirects(int)} (0 = do not follow, positive = hop limit) */
@@ -176,6 +162,7 @@ public class RequestComponent extends Composite {
 		if (presets != null) {
 			presetNames.addAll(presets);
 		}
+		presetCombo.setItems(presetNames);
 	}
 
 	/**
@@ -199,6 +186,16 @@ public class RequestComponent extends Composite {
 		if (presets != null) {
 			proxyUrlPresets.addAll(presets);
 		}
+
+		final List<String> comboItems = new ArrayList<>();
+		comboItems.add("DIRECT");
+		comboItems.add("WPAD");
+		for (final String presetProxyUrl : proxyUrlPresets) {
+			if (Utilities.isNotBlank(presetProxyUrl) && !comboItems.contains(presetProxyUrl)) {
+				comboItems.add(presetProxyUrl);
+			}
+		}
+		proxyUrlCombo.setItems(comboItems);
 	}
 
 	/**
@@ -223,10 +220,10 @@ public class RequestComponent extends Composite {
 		});
 	}
 
-	public void setPresetName(final String value) { if (value != null) presetNameText.setText(value); }
+	public void setPresetName(final String value) { if (value != null) presetCombo.setText(value); }
 	public void setServiceUrl(final String value) { serviceUrlText.setText(value != null ? value : ""); }
 	public void setServiceMethod(final String value) { serviceMethodText.setText(value != null ? value : ""); }
-	public void setProxyUrl(final String value) { proxyUrlText.setText(value != null ? value : ""); }
+	public void setProxyUrl(final String value) { proxyUrlCombo.setText(value != null ? value : ""); }
 	public void setFollowRedirects(final boolean followRedirects) {
 		followRedirectsButton.setSelection(followRedirects);
 		maxRedirectHopsSpinner.setEnabled(followRedirects);
@@ -348,35 +345,19 @@ public class RequestComponent extends Composite {
 		final Label proxyUrlLabel = new Label(proxyUrlCol, SWT.NONE);
 		proxyUrlLabel.setText(LangResources.get("proxyURL"));
 
-		// Text field and dropdown arrow are grouped into their own composite with
-		// zero spacing, so they visually read as a single combined control
-		// (same pseudo-dropdown pattern as the preset selector above).
-		proxyUrlFieldComposite = new Composite(proxyUrlCol, SWT.NONE);
-		proxyUrlFieldComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout proxyUrlFieldLayout = new GridLayout(2, false);
-		proxyUrlFieldLayout.marginWidth = 0;
-		proxyUrlFieldLayout.marginHeight = 0;
-		proxyUrlFieldLayout.horizontalSpacing = 0;
-		proxyUrlFieldComposite.setLayout(proxyUrlFieldLayout);
-
-		proxyUrlText = new Text(proxyUrlFieldComposite, SWT.BORDER);
-		proxyUrlText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-		proxyUrlText.setMessage(LangResources.get("proxyUrlHint"));
-
-		// Light gray fill on the button itself; no separate border composite,
-		// so no extra background shows through around it.
-		proxyUrlDropDownButton = new Button(proxyUrlFieldComposite, SWT.PUSH | SWT.FLAT);
-		proxyUrlDropDownButton.setText("\u25BC");
-		proxyUrlDropDownButton.setBackground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
-		final GridData proxyUrlArrowButtonGridData = new GridData(SWT.FILL, SWT.FILL, false, true);
-		proxyUrlArrowButtonGridData.widthHint = 20;
-		proxyUrlDropDownButton.setLayoutData(proxyUrlArrowButtonGridData);
-		proxyUrlDropDownButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				openProxyUrlSelectionPopup();
-			}
-		});
+		// ArrangeableAutoCompleteCombo builds its own dropdown arrow button and
+		// popup internally (same pseudo-dropdown look as before) - no separate
+		// wrapper composite, arrow Button, or the old openProxyUrlSelectionPopup()
+		// needed anymore. STARTS_WITH (rather than the preset combo's CONTAINS)
+		// since proxy URLs/hostnames are naturally typed from the beginning.
+		// No reordering here - the preset list itself is only ever changed via
+		// the application configuration dialog, not by dragging entries around.
+		proxyUrlCombo = new ArrangeableAutoCompleteCombo(proxyUrlCol, SWT.NONE);
+		proxyUrlCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		proxyUrlCombo.setCaseSensitive(false);
+		proxyUrlCombo.setMatchMode(MatchMode.STARTS_WITH);
+		proxyUrlCombo.setAllowCustomValues(true);
+		proxyUrlCombo.setMessage(LangResources.get("proxyUrlHint"));
 
 		final Composite openApiCol = new Composite(proxyRow, SWT.NONE);
 		final GridData openApiColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
@@ -696,36 +677,30 @@ public class RequestComponent extends Composite {
 		final GridLayout comboButtonLayout = new GridLayout(3, false);
 		// Zeroed to match proxyRow/proxyUrlCol below, whose explicit marginWidth=0 is what keeps
 		// their field's left edge flush with content's own margin. Without this, GridLayout's
-		// default marginWidth (5px) shifted presetNameText 5px further right than proxyUrlText.
+		// default marginWidth (5px) shifted presetCombo 5px further right than proxyUrlCombo.
 		comboButtonLayout.marginWidth = 0;
 		comboButtonLayout.marginHeight = 0;
 		comboButtonComposite.setLayout(comboButtonLayout);
 
-		// Text field and dropdown arrow are grouped into their own composite with
-		// zero spacing, so they visually read as a single combined control.
-		presetFieldComposite = new Composite(comboButtonComposite, SWT.NONE);
-		presetFieldComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout presetFieldLayout = new GridLayout(2, false);
-		presetFieldLayout.marginWidth = 0;
-		presetFieldLayout.marginHeight = 0;
-		presetFieldLayout.horizontalSpacing = 0;
-		presetFieldComposite.setLayout(presetFieldLayout);
-
-		presetNameText = new Text(presetFieldComposite, SWT.BORDER);
-		presetNameText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-
-		// Light gray fill on the button itself; no separate border composite,
-		// so no extra background shows through around it.
-		presetDropDownButton = new Button(presetFieldComposite, SWT.PUSH | SWT.FLAT);
-		presetDropDownButton.setText("\u25BC");
-		presetDropDownButton.setBackground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_LIGHT_SHADOW));
-		final GridData arrowButtonGridData = new GridData(SWT.FILL, SWT.FILL, false, true);
-		arrowButtonGridData.widthHint = 20;
-		presetDropDownButton.setLayoutData(arrowButtonGridData);
-		presetDropDownButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				openPresetSelectionPopup();
+		// ArrangeableAutoCompleteCombo now builds its own dropdown arrow button
+		// internally (flush against its text field, same pseudo-dropdown look as
+		// before) - no separate wrapper composite or button needed here anymore.
+		presetCombo = new ArrangeableAutoCompleteCombo(comboButtonComposite, SWT.NONE);
+		presetCombo.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
+		presetCombo.setCaseSensitive(false);
+		presetCombo.setMatchMode(MatchMode.CONTAINS);
+		presetCombo.setAllowCustomValues(true);
+		presetCombo.setReorderable(true);
+		presetCombo.addItemsReorderedListener(newOrder -> {
+			presetNames.clear();
+			presetNames.addAll(newOrder);
+			if (presetsReorderedListener != null) {
+				presetsReorderedListener.accept(getPresetNames());
+			}
+		});
+		presetCombo.addListener(SWT.Selection, e -> {
+			if (presetSelectionListener != null) {
+				presetSelectionListener.run();
 			}
 		});
 
@@ -734,266 +709,6 @@ public class RequestComponent extends Composite {
 
 		deleteButton = new Button(comboButtonComposite, SWT.PUSH);
 		deleteButton.setText(LangResources.get("delete"));
-	}
-
-	/**
-	 * Opens a popup below the preset text field, listing all known presets.
-	 * A single click on an entry selects it and closes the popup again.
-	 * Entries can be reordered via drag&amp;drop while the popup is open.
-	 */
-	private void openPresetSelectionPopup() {
-		if (presetNames.isEmpty()) {
-			return;
-		}
-
-		final Shell popup = new Shell(getShell(), SWT.NO_TRIM | SWT.ON_TOP);
-
-		final org.eclipse.swt.widgets.List presetList = new org.eclipse.swt.widgets.List(popup, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
-		for (final String presetName : presetNames) {
-			presetList.add(presetName);
-		}
-
-		final int itemCount = Math.min(presetNames.size(), 10);
-		final int itemHeight = presetList.getItemHeight();
-		final int popupHeight = itemCount * itemHeight + 4;
-		final int popupWidth = presetFieldComposite.getSize().x;
-		final Point popupLocation = presetFieldComposite.toDisplay(0, presetFieldComposite.getSize().y);
-		popup.setBounds(popupLocation.x, popupLocation.y, popupWidth, popupHeight);
-		presetList.setBounds(0, 0, popupWidth, popupHeight);
-
-		// Thin marker bar showing exactly where a dragged entry would be inserted,
-		// positioned manually on top of the list while dragging.
-		final Composite insertionMarker = new Composite(popup, SWT.NONE);
-		insertionMarker.setBackground(getDisplay().getSystemColor(SWT.COLOR_BLUE));
-		insertionMarker.setVisible(false);
-
-		// Drag&Drop reordering of the preset list within the popup.
-		final int[] dragSourceIndex = { -1 };
-		final boolean[] dragInProgress = { false };
-		final int[] insertionIndex = { -1 };
-
-		final DragSource dragSource = new DragSource(presetList, DND.DROP_MOVE);
-		dragSource.setTransfer(new Transfer[] { TextTransfer.getInstance() });
-		dragSource.addDragListener(new DragSourceAdapter() {
-			@Override
-			public void dragStart(final DragSourceEvent event) {
-				final int index = presetList.getSelectionIndex();
-				if (index < 0) {
-					event.doit = false;
-				} else {
-					dragSourceIndex[0] = index;
-					dragInProgress[0] = true;
-				}
-			}
-
-			@Override
-			public void dragSetData(final DragSourceEvent event) {
-				event.data = String.valueOf(dragSourceIndex[0]);
-			}
-
-			@Override
-			public void dragFinished(final DragSourceEvent event) {
-				dragInProgress[0] = false;
-				insertionMarker.setVisible(false);
-			}
-		});
-
-		final DropTarget dropTarget = new DropTarget(presetList, DND.DROP_MOVE);
-		dropTarget.setTransfer(new Transfer[] { TextTransfer.getInstance() });
-		dropTarget.addDropListener(new DropTargetAdapter() {
-			@Override
-			public void dragOver(final DropTargetEvent event) {
-				event.feedback = DND.FEEDBACK_SCROLL;
-
-				final Point localPoint = presetList.toControl(event.x, event.y);
-				final int topIndex = presetList.getTopIndex();
-				insertionIndex[0] = computeInsertionIndex(localPoint.y, itemHeight, presetNames.size(), topIndex);
-
-				final int markerY = Math.max(0, Math.min(popupHeight - 2, (insertionIndex[0] - topIndex) * itemHeight - 1));
-				insertionMarker.setBounds(0, markerY, popupWidth, 2);
-				insertionMarker.setVisible(true);
-				insertionMarker.moveAbove(presetList);
-			}
-
-			@Override
-			public void dragLeave(final DropTargetEvent event) {
-				insertionMarker.setVisible(false);
-			}
-
-			@Override
-			public void drop(final DropTargetEvent event) {
-				insertionMarker.setVisible(false);
-
-				if (dragSourceIndex[0] < 0 || insertionIndex[0] < 0) {
-					return;
-				}
-
-				if (insertionIndex[0] != dragSourceIndex[0] && insertionIndex[0] != dragSourceIndex[0] + 1) {
-					final String movedPresetName = presetNames.remove(dragSourceIndex[0]);
-					final int insertAt = insertionIndex[0] > dragSourceIndex[0] ? insertionIndex[0] - 1 : insertionIndex[0];
-					presetNames.add(insertAt, movedPresetName);
-
-					presetList.removeAll();
-					for (final String presetName : presetNames) {
-						presetList.add(presetName);
-					}
-					presetList.select(insertAt);
-
-					if (presetsReorderedListener != null) {
-						presetsReorderedListener.accept(getPresetNames());
-					}
-				}
-
-				dragSourceIndex[0] = -1;
-				insertionIndex[0] = -1;
-			}
-		});
-
-		// Highlight the entry under the mouse cursor on hover (Option A: reuses the
-		// real selection, so it stays consistent with drag&drop and the click handler
-		// below). Suppressed while a drag is in progress so it doesn't fight the
-		// drag source's own selection.
-		presetList.addMouseMoveListener(e -> {
-			if (dragInProgress[0]) {
-				return;
-			}
-			int hoveredIndex = presetList.getTopIndex() + e.y / itemHeight;
-			if (hoveredIndex < 0) {
-				hoveredIndex = 0;
-			} else if (hoveredIndex >= presetNames.size()) {
-				hoveredIndex = presetNames.size() - 1;
-			}
-			if (presetList.getSelectionIndex() != hoveredIndex) {
-				presetList.select(hoveredIndex);
-			}
-		});
-
-		// A plain (non-dragging) click selects the preset and closes the popup.
-		presetList.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseUp(final MouseEvent e) {
-				if (dragInProgress[0]) {
-					return;
-				}
-				final int index = presetList.getSelectionIndex();
-				if (index >= 0) {
-					final String selectedPresetName = presetList.getItem(index);
-					popup.dispose();
-					presetNameText.setText(selectedPresetName);
-					if (presetSelectionListener != null) {
-						presetSelectionListener.run();
-					}
-				}
-			}
-		});
-
-		popup.addListener(SWT.Deactivate, e -> {
-			if (!dragInProgress[0] && !popup.isDisposed()) {
-				popup.dispose();
-			}
-		});
-
-		popup.open();
-		presetList.setFocus();
-	}
-
-	/**
-	 * Translates a mouse y-coordinate inside the popup list into the index a
-	 * dragged entry would be inserted at (0 = before the first entry, itemCount
-	 * = after the last entry), based on which half of the hovered row the
-	 * pointer is currently in.
-	 */
-	private static int computeInsertionIndex(final int localY, final int itemHeight, final int itemCount, final int topIndex) {
-		if (itemHeight <= 0 || itemCount <= 0) {
-			return 0;
-		}
-
-		int hoveredIndex = topIndex + localY / itemHeight;
-		if (hoveredIndex < 0) {
-			hoveredIndex = 0;
-		}
-		if (hoveredIndex >= itemCount) {
-			hoveredIndex = itemCount - 1;
-		}
-
-		final int remainderInRow = localY - (hoveredIndex - topIndex) * itemHeight;
-		int insertAt = remainderInRow < itemHeight / 2 ? hoveredIndex : hoveredIndex + 1;
-		if (insertAt < 0) {
-			insertAt = 0;
-		}
-		if (insertAt > itemCount) {
-			insertAt = itemCount;
-		}
-		return insertAt;
-	}
-
-	/**
-	 * Opens a popup below the proxy URL field, listing the built-in "DIRECT"
-	 * and "WPAD" special values together with any preset proxy URLs set via
-	 * {@link #setProxyUrlPresets(List)}. Unlike the preset name dropdown
-	 * above, this list is purely for selection: no drag&amp;drop reordering,
-	 * no save/delete. A single click on an entry writes it into the proxy
-	 * URL text field and closes the popup; the field itself stays freely
-	 * editable for proxy URLs that are not in the preset list.
-	 */
-	private void openProxyUrlSelectionPopup() {
-		final List<String> entries = new ArrayList<>();
-		entries.add("DIRECT");
-		entries.add("WPAD");
-		for (final String presetProxyUrl : proxyUrlPresets) {
-			if (Utilities.isNotBlank(presetProxyUrl) && !entries.contains(presetProxyUrl)) {
-				entries.add(presetProxyUrl);
-			}
-		}
-
-		final Shell popup = new Shell(getShell(), SWT.NO_TRIM | SWT.ON_TOP);
-
-		final org.eclipse.swt.widgets.List proxyUrlList = new org.eclipse.swt.widgets.List(popup, SWT.SINGLE | SWT.V_SCROLL | SWT.BORDER);
-		for (final String entry : entries) {
-			proxyUrlList.add(entry);
-		}
-
-		final int itemCount = Math.min(entries.size(), 10);
-		final int itemHeight = proxyUrlList.getItemHeight();
-		final int popupHeight = itemCount * itemHeight + 4;
-		final int popupWidth = proxyUrlFieldComposite.getSize().x;
-		final Point popupLocation = proxyUrlFieldComposite.toDisplay(0, proxyUrlFieldComposite.getSize().y);
-		popup.setBounds(popupLocation.x, popupLocation.y, popupWidth, popupHeight);
-		proxyUrlList.setBounds(0, 0, popupWidth, popupHeight);
-
-		// Highlight the entry under the mouse cursor on hover, same as the preset popup.
-		proxyUrlList.addMouseMoveListener(e -> {
-			int hoveredIndex = proxyUrlList.getTopIndex() + e.y / itemHeight;
-			if (hoveredIndex < 0) {
-				hoveredIndex = 0;
-			} else if (hoveredIndex >= entries.size()) {
-				hoveredIndex = entries.size() - 1;
-			}
-			if (proxyUrlList.getSelectionIndex() != hoveredIndex) {
-				proxyUrlList.select(hoveredIndex);
-			}
-		});
-
-		proxyUrlList.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseUp(final MouseEvent e) {
-				final int index = proxyUrlList.getSelectionIndex();
-				if (index >= 0) {
-					final String selectedProxyUrl = proxyUrlList.getItem(index);
-					popup.dispose();
-					proxyUrlText.setText(selectedProxyUrl);
-				}
-			}
-		});
-
-		popup.addListener(SWT.Deactivate, e -> {
-			if (!popup.isDisposed()) {
-				popup.dispose();
-			}
-		});
-
-		popup.open();
-		proxyUrlList.setFocus();
 	}
 
 	private Text createLabeledText(final String labelText, final String message) {
