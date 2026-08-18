@@ -353,7 +353,23 @@ public class RequestComponent extends Composite {
 		// No reordering here - the preset list itself is only ever changed via
 		// the application configuration dialog, not by dragging entries around.
 		proxyUrlCombo = new ArrangeableAutoCompleteCombo(proxyUrlCol, SWT.NONE);
-		proxyUrlCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+		final GridData proxyUrlComboLayoutData = new GridData(SWT.FILL, SWT.FILL, true, false);
+
+		/*
+		 * "proxyUrlCombo" sits alone in "proxyUrlCol"'s own single-column
+		 * row, so SWT.FILL alone has nothing taller to stretch against
+		 * there - unlike "presetCombo", which shares its row with
+		 * "saveButton"/"deleteButton" and gets stretched to their
+		 * (theme-dependent) preferred height for free. Read that same
+		 * height from the already-created "saveButton" (createPresetNameSection()
+		 * runs before this) and apply it explicitly here, so both combos
+		 * end up the same height without hardcoding a second pixel value.
+		 */
+		proxyUrlComboLayoutData.heightHint = saveButton.computeSize(SWT.DEFAULT, SWT.DEFAULT).y;
+
+		proxyUrlCombo.setLayoutData(proxyUrlComboLayoutData);
+
 		proxyUrlCombo.setCaseSensitive(false);
 		proxyUrlCombo.setMatchMode(MatchMode.STARTS_WITH);
 		proxyUrlCombo.setAllowCustomValues(true);
