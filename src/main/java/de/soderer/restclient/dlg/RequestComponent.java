@@ -50,9 +50,9 @@ import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swt.ArrangeableAutoCompleteCombo;
-import de.soderer.utilities.swt.ArrangeableAutoCompleteCombo.MatchMode;
 import de.soderer.utilities.swt.CredentialsDialog;
+import de.soderer.utilities.swt.DropDown;
+import de.soderer.utilities.swt.DropDown.MatchMode;
 import de.soderer.utilities.swt.ProgressDialog;
 import de.soderer.utilities.swt.QuestionDialog;
 import de.soderer.utilities.swt.SelectionDialog;
@@ -63,7 +63,7 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
 public class RequestComponent extends Composite {
-	private ArrangeableAutoCompleteCombo presetCombo;
+	private DropDown presetCombo;
 	private Button saveButton;
 	private Button deleteButton;
 
@@ -75,7 +75,7 @@ public class RequestComponent extends Composite {
 	private Text serviceUrlText;
 	private Button tlsCheckButton;
 	private Text serviceMethodText;
-	private ArrangeableAutoCompleteCombo proxyUrlCombo;
+	private DropDown proxyUrlCombo;
 	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private Button followRedirectsButton;
 	private Spinner maxRedirectHopsSpinner;
@@ -352,7 +352,7 @@ public class RequestComponent extends Composite {
 		// since proxy URLs/hostnames are naturally typed from the beginning.
 		// No reordering here - the preset list itself is only ever changed via
 		// the application configuration dialog, not by dragging entries around.
-		proxyUrlCombo = new ArrangeableAutoCompleteCombo(proxyUrlCol, SWT.NONE);
+		proxyUrlCombo = new DropDown(proxyUrlCol, SWT.NONE);
 
 		final GridData proxyUrlComboLayoutData = new GridData(SWT.FILL, SWT.FILL, true, false);
 
@@ -701,7 +701,7 @@ public class RequestComponent extends Composite {
 		// ArrangeableAutoCompleteCombo now builds its own dropdown arrow button
 		// internally (flush against its text field, same pseudo-dropdown look as
 		// before) - no separate wrapper composite or button needed here anymore.
-		presetCombo = new ArrangeableAutoCompleteCombo(comboButtonComposite, SWT.NONE);
+		presetCombo = new DropDown(comboButtonComposite, SWT.NONE);
 		presetCombo.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
 		presetCombo.setCaseSensitive(false);
 		presetCombo.setMatchMode(MatchMode.CONTAINS);
