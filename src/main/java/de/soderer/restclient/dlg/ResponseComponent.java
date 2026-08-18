@@ -1,5 +1,6 @@
 package de.soderer.restclient.dlg;
 
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -8,12 +9,17 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.DirectoryDialog;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 
@@ -34,6 +40,9 @@ public class ResponseComponent extends Composite {
 	private Composite headerContainer;
 	private ScrolledComposite headerScrolled;
 	private Text responseBodyText;
+	private Text downloadTargetText;
+	private Button downloadTargetBrowseFileButton;
+	private Button downloadTargetBrowseDirectoryButton;
 	private Label randomParamsLabel;
 	private Composite randomParamsContainer;
 	private ScrolledComposite randomParamsScrolled;
@@ -141,6 +150,21 @@ public class ResponseComponent extends Composite {
 		return responseBodyText.getText();
 	}
 
+	/**
+	 * Path chosen by the user as the download target for a response body that
+	 * represents a downloadable file. May point either to a directory (the
+	 * response's own filename, e.g. from Content-Disposition, is then used
+	 * inside it) or to a specific target file. Empty if no target was set, in
+	 * which case no automatic download should be attempted.
+	 */
+	public String getDownloadTarget() {
+		return downloadTargetText.getText();
+	}
+
+	public void setDownloadTarget(final String downloadTarget) {
+		downloadTargetText.setText(downloadTarget != null ? downloadTarget : "");
+	}
+
 	public Map<String, String> getResponseHeaders() {
 		final Map<String, String> map = new LinkedHashMap<>();
 		final Control[] children = headerContainer.getChildren();
@@ -212,6 +236,67 @@ public class ResponseComponent extends Composite {
 				} else if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'c' || e.keyCode == 'C')) {
 					responseBodyText.copy();
 					e.doit = false;
+				}
+			}
+		});
+
+		final Composite downloadTargetRow = new Composite(this, SWT.NONE);
+		downloadTargetRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final GridLayout downloadTargetLayout = new GridLayout(4, false);
+		downloadTargetLayout.marginWidth = 0;
+		downloadTargetLayout.marginHeight = 0;
+		downloadTargetRow.setLayout(downloadTargetLayout);
+
+		final Label downloadTargetLabel = new Label(downloadTargetRow, SWT.NONE);
+		downloadTargetLabel.setText(LangResources.get("downloadTarget"));
+
+		downloadTargetText = new Text(downloadTargetRow, SWT.BORDER | SWT.SINGLE);
+		downloadTargetText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		downloadTargetText.setText(Utilities.getUsersDefaultDownloadDirectory());
+		downloadTargetText.setMessage(LangResources.get("downloadTargetHint"));
+		downloadTargetText.setToolTipText(LangResources.get("downloadTargetTooltip"));
+
+		downloadTargetBrowseFileButton = new Button(downloadTargetRow, SWT.PUSH);
+		downloadTargetBrowseFileButton.setText(LangResources.get("downloadTargetBrowseFile"));
+		downloadTargetBrowseFileButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				final FileDialog dialog = new FileDialog(getShell(), SWT.SAVE);
+				final String current = downloadTargetText.getText();
+				if (Utilities.isNotBlank(current)) {
+					final File currentFile = new File(current);
+					final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
+					if (currentDir != null) {
+						dialog.setFilterPath(currentDir.getAbsolutePath());
+					}
+					if (!currentFile.isDirectory()) {
+						dialog.setFileName(currentFile.getName());
+					}
+				}
+				final String selected = dialog.open();
+				if (selected != null) {
+					downloadTargetText.setText(selected);
+				}
+			}
+		});
+
+		downloadTargetBrowseDirectoryButton = new Button(downloadTargetRow, SWT.PUSH);
+		downloadTargetBrowseDirectoryButton.setText(LangResources.get("downloadTargetBrowseDirectory"));
+		downloadTargetBrowseDirectoryButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				final DirectoryDialog dialog = new DirectoryDialog(getShell());
+				final String current = downloadTargetText.getText();
+				if (Utilities.isNotBlank(current)) {
+					final File currentFile = new File(current);
+					final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
+					if (currentDir != null) {
+						dialog.setFilterPath(currentDir.getAbsolutePath());
+					}
+				}
+				final String selected = dialog.open();
+				if (selected != null) {
+					downloadTargetText.setText(selected);
 				}
 			}
 		});

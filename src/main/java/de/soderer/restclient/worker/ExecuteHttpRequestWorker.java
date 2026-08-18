@@ -73,6 +73,42 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		httpRequest.setConnectionTimeoutMillis(httpRequestTemplate.getConnectTimeoutMillis());
 		httpRequest.setReadTimeoutMillis(httpRequestTemplate.getReadTimeoutMillis());
 		httpRequest.setEncoding(httpRequestTemplate.getEncoding());
+
+		if (httpRequestTemplate.getDownloadTarget() != null) {
+			// Also relevant for the single "send request" execution, not just the worker
+			// pool load test - both go through this same class (see RestClientDialog).
+			httpRequest.setDownloadTarget(httpRequestTemplate.getDownloadTarget());
+		}
+
+		/*
+		 * The following three fields are deliberately NOT copied onto the cloned
+		 * "httpRequest" - unlike everything else copied above, they cannot be safely
+		 * shared/reused, since this worker may run several times in parallel (worker
+		 * pool load test):
+		 * - requestBodyContentStream: an InputStream can only be consumed once, so
+		 *   reusing the very same stream instance across (potentially parallel) worker
+		 *   runs would either fail outright or silently send a truncated/empty body
+		 *   for all but the first run (same reasoning as the redirect-body handling in
+		 *   HttpUtilities.executeHttpRequest, which refuses to re-send such a body).
+		 * - downloadStream/downloadFile: an OutputStream/File is not safely writable by
+		 *   several worker runs at once (data corruption from concurrent writes) -
+		 *   unlike "downloadTarget" above, they have no built-in collision handling,
+		 *   since they are meant for a single explicit, programmatic call.
+		 * Silently dropping them would leave the request looking fine while quietly
+		 * sending no body / not downloading, so they fail fast here instead.
+		 */
+		if (httpRequestTemplate.getRequestBodyContentStream() != null) {
+			throw new Exception("RequestBodyContentStream cannot be used with " + ExecuteHttpRequestWorker.class.getSimpleName()
+					+ ", because it may run this request more than once (e.g. for a worker pool load test) and an InputStream can only be consumed once");
+		}
+		if (httpRequestTemplate.getDownloadStream() != null) {
+			throw new Exception("DownloadStream cannot be used with " + ExecuteHttpRequestWorker.class.getSimpleName()
+					+ ", because it may run this request more than once (e.g. for a worker pool load test) and a single OutputStream cannot be safely written to by several runs");
+		}
+		if (httpRequestTemplate.getDownloadFile() != null) {
+			throw new Exception("DownloadFile cannot be used with " + ExecuteHttpRequestWorker.class.getSimpleName()
+					+ ", because it may run this request more than once (e.g. for a worker pool load test) and a single target file cannot be safely written to by several runs - use DownloadTarget instead, which handles this via ascending name collision numbering");
+		}
 	}
 
 	public Map<String, List<String>> getRandomParameterReplacements() {

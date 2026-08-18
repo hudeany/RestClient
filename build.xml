@@ -4,7 +4,7 @@
 	<property name="mailapi.version" value="2.0.1" />
 	<property name="json.version" value="26.2.1" />
 	<property name="proxyautoconfig.version" value="26.1.0" />
-	<property name="network.version" value="26.0.29" />
+	<property name="network.version" value="26.0.30" />
 	<property name="soderer-utilities.version" value="26.2.47" />
 
 	<property name="swt.version" value="4.38" />
@@ -119,6 +119,7 @@
 			<fileset dir="lib" includes="network-*.jar" />
 		</delete>
 		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}.jar" dest="lib/" />
+		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}_sources.jar" dest="lib/" />
 	</target>
 
 	<available file="lib/soderer-utilities-${soderer-utilities.version}.jar" property="soderer-utilities.available" />

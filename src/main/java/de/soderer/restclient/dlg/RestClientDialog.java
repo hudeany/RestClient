@@ -1064,6 +1064,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 				httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 
+				if (Utilities.isNotBlank(responsePart.getDownloadTarget())) {
+					// Only actually used as a download destination if the response signals a
+					// real file download via "Content-Disposition: attachment" - see
+					// HttpUtilities.executeHttpRequest(). A normal (e.g. JSON) response is
+					// still shown in the response body as usual.
+					httpRequest.setDownloadTarget(new File(responsePart.getDownloadTarget()));
+				}
+
 				for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
 					httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());
 				}
