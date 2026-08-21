@@ -882,6 +882,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * fills {@link #requestPart} with it. Best-effort parser covering the commonly used options
 	 * (-X/--request, -H/--header, -d/--data/--data-raw/--data-binary, -u/--user, -x/--proxy,
 	 * -k/--insecure, -L/--location, --max-redirs, --cacert, --url); unrecognized options are ignored.
+	 * A --cacert file is mapped to {@link TlsCheckConfigurationType#SingleCertificateFile} (a single,
+	 * unencrypted PEM certificate file, as opposed to a password-protected truststore).
 	 */
 	private void applyCurlCommand(final String curlCommand) throws Exception {
 		// Join line continuations ("... \" followed by a newline), as used when a cURL command
@@ -978,11 +980,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		if (insecure) {
 			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.NoCheck, false));
+		} else if (cacertFile != null) {
+			// A --cacert file is a single, unencrypted PEM certificate file (no truststore password)
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SingleCertificate, new File(cacertFile), null, true));
 		} else {
-			// A --cacert file could be mapped to a custom-truststore TlsCheckConfigurationType, but its
-			// exact enum constant name isn't visible from this file, so it is intentionally left as the
-			// default here rather than guessed; cacertFile is still parsed above so it doesn't get
-			// mistaken for the request URL by the fallback branch further up.
 			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 		}
 	}
