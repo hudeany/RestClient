@@ -5,11 +5,14 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.Proxy;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,7 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.graphics.Font;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -32,6 +36,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Monitor;
 
 import de.soderer.json.JsonArray;
@@ -343,11 +349,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		gdExport.heightHint = actionButtonHeight;
 		exportRequestResponseButton.setLayoutData(gdExport);
 		exportRequestResponseButton.setText(LangResources.get("export"));
-		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseYamlTooltip"));
+		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseTooltip"));
 		exportRequestResponseButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
-				exportRequestResponseToYamlFile();
+				openExportFormatMenu();
 			}
 		});
 
@@ -357,11 +363,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		gdImport.heightHint = actionButtonHeight;
 		importRequestResponseButton.setLayoutData(gdImport);
 		importRequestResponseButton.setText(LangResources.get("import"));
-		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseYamlTooltip"));
+		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseTooltip"));
 		importRequestResponseButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
-				importRequestResponseFromYamlFile();
+				importRequestResponse();
 			}
 		});
 
@@ -676,6 +682,365 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * Writes the currently displayed request and response data (as shown in {@link #requestPart} and
 	 * {@link #responsePart}) into a single YAML file chosen by the user via a save file dialog.
 	 */
+	/**
+	 * Opens a small dropdown menu below {@link #exportRequestResponseButton} letting the user choose
+	 * the export format (YAML, containing request + response, or a cURL command, request only).
+	 */
+	private void openExportFormatMenu() {
+		final Menu exportFormatMenu = new Menu(exportRequestResponseButton);
+
+		final MenuItem yamlMenuItem = new MenuItem(exportFormatMenu, SWT.PUSH);
+		yamlMenuItem.setText(LangResources.get("exportFormatYaml"));
+		yamlMenuItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				exportRequestResponseToYamlFile();
+			}
+		});
+
+		final MenuItem curlMenuItem = new MenuItem(exportFormatMenu, SWT.PUSH);
+		curlMenuItem.setText(LangResources.get("exportFormatCurl"));
+		curlMenuItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(final SelectionEvent e) {
+				exportRequestToCurlFile();
+			}
+		});
+
+		final Point menuLocation = exportRequestResponseButton.toDisplay(0, exportRequestResponseButton.getSize().y);
+		exportFormatMenu.setLocation(menuLocation);
+		exportFormatMenu.setVisible(true);
+	}
+
+	/**
+	 * Opens a file dialog for import, then auto-detects whether the chosen file is a YAML export
+	 * (request + optional response) or a cURL command line (request only) and parses it accordingly -
+	 * unlike export, import needs no format selection since the file content already reveals its format.
+	 */
+	private void importRequestResponse() {
+		final FileDialog fileDialog = new FileDialog(getShell(), SWT.OPEN);
+		fileDialog.setText(LangResources.get("import"));
+		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml;*.sh;*.txt", "*.*" });
+		final String selectedPath = fileDialog.open();
+		if (selectedPath == null) {
+			return;
+		}
+
+		final File importFile = new File(selectedPath);
+		try {
+			final String fileContent = Files.readString(importFile.toPath(), StandardCharsets.UTF_8);
+			if (isCurlCommand(fileContent)) {
+				applyCurlCommand(fileContent);
+				responsePart.clearResponse();
+				responsePart.showResponse();
+			} else {
+				importRequestResponseFromYaml(importFile);
+			}
+			checkButtonStatus();
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	/**
+	 * Detects whether {@code fileContent} is a cURL command line rather than a YAML export: true if,
+	 * after skipping leading blank lines and YAML "#" comment lines, the first remaining line's first
+	 * token is exactly "curl" (as in "curl ..." or a multiline command starting "curl \").
+	 */
+	private static boolean isCurlCommand(final String fileContent) {
+		for (final String line : fileContent.split("\r?\n")) {
+			final String trimmedLine = line.trim();
+			if (trimmedLine.isEmpty() || trimmedLine.startsWith("#")) {
+				continue;
+			}
+			return trimmedLine.regionMatches(true, 0, "curl", 0, 4)
+					&& (trimmedLine.length() == 4 || Character.isWhitespace(trimmedLine.charAt(4)));
+		}
+		return false;
+	}
+
+	/**
+	 * Exports the currently displayed request as a cURL command line to a user-chosen file.
+	 * Unlike the YAML export, this covers the request only: a cURL command has no representation for
+	 * response data (httpCode, headers, body, timing), so it is intentionally left out and the user is
+	 * informed of this after a successful export.
+	 */
+	private void exportRequestToCurlFile() {
+		final FileDialog fileDialog = new FileDialog(getShell(), SWT.SAVE);
+		fileDialog.setText(LangResources.get("export"));
+		fileDialog.setFilterExtensions(new String[] { "*.sh", "*.txt", "*.*" });
+		final String presetName = requestPart.getPresetName();
+		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + ".sh";
+		fileDialog.setFileName(defaultFileName);
+		final String selectedPath = fileDialog.open();
+		if (selectedPath == null) {
+			return;
+		}
+
+		File exportFile = new File(selectedPath);
+		if (!exportFile.getName().contains(".")) {
+			exportFile = new File(exportFile.getParentFile(), exportFile.getName() + ".sh");
+		}
+
+		if (exportFile.exists()
+				&& new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), LangResources.get("yes"), LangResources.get("cancel")).open() != 0) {
+			return;
+		}
+
+		try {
+			final String curlCommand = buildCurlCommand();
+			Files.writeString(exportFile.toPath(), curlCommand, StandardCharsets.UTF_8);
+
+			showMessage(RestClient.APPLICATION_NAME, LangResources.get("exportedRequestResponse", exportFile.getAbsolutePath()) + "\n\n" + LangResources.get("curlExportResponseNotIncludedHint"));
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	/**
+	 * Builds a cURL command line representing the currently displayed request. Best-effort: some
+	 * request settings have no cURL equivalent and are silently left out (see inline comments below).
+	 */
+	private String buildCurlCommand() throws Exception {
+		final StringBuilder fullUrl = new StringBuilder(Utilities.isNotBlank(requestPart.getServiceUrl()) ? requestPart.getServiceUrl() : "");
+		if (Utilities.isNotBlank(requestPart.getServiceMethod())) {
+			fullUrl.append("/").append(requestPart.getServiceMethod());
+		}
+		if (!requestPart.getUrlParameters().isEmpty()) {
+			fullUrl.append("?");
+			boolean firstUrlParameter = true;
+			for (final Entry<String, String> urlParametersEntry : requestPart.getUrlParameters().entrySet()) {
+				if (!firstUrlParameter) {
+					fullUrl.append("&");
+				}
+				firstUrlParameter = false;
+				fullUrl.append(URLEncoder.encode(urlParametersEntry.getKey(), StandardCharsets.UTF_8));
+				fullUrl.append("=");
+				fullUrl.append(URLEncoder.encode(urlParametersEntry.getValue() != null ? urlParametersEntry.getValue() : "", StandardCharsets.UTF_8));
+			}
+		}
+
+		final StringBuilder curlCommand = new StringBuilder("curl");
+
+		if (Utilities.isNotBlank(requestPart.getHttpMethod()) && !"GET".equalsIgnoreCase(requestPart.getHttpMethod())) {
+			curlCommand.append(" -X ").append(shellQuote(requestPart.getHttpMethod()));
+		}
+
+		curlCommand.append(" ").append(shellQuote(fullUrl.toString()));
+
+		for (final Entry<String, String> httpHeaderEntry : requestPart.getHttpHeaders().entrySet()) {
+			curlCommand.append(" \\\n  -H ").append(shellQuote(httpHeaderEntry.getKey() + ": " + httpHeaderEntry.getValue()));
+		}
+
+		if (!requestPart.getHtmlFormParameters().isEmpty()) {
+			final StringBuilder formBody = new StringBuilder();
+			for (final Entry<String, String> formParameterEntry : requestPart.getHtmlFormParameters().entrySet()) {
+				if (formBody.length() > 0) {
+					formBody.append("&");
+				}
+				formBody.append(URLEncoder.encode(formParameterEntry.getKey(), StandardCharsets.UTF_8));
+				formBody.append("=");
+				formBody.append(URLEncoder.encode(formParameterEntry.getValue() != null ? formParameterEntry.getValue() : "", StandardCharsets.UTF_8));
+			}
+			curlCommand.append(" \\\n  --data ").append(shellQuote(formBody.toString()));
+		} else if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+			curlCommand.append(" \\\n  --data ").append(shellQuote(requestPart.getRequestBody()));
+		}
+
+		if (requestPart.getMaxRedirects() > 0) {
+			curlCommand.append(" \\\n  -L --max-redirs ").append(requestPart.getMaxRedirects());
+		}
+
+		if (Utilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl()) && !"WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
+			// WPAD proxy autodetection has no cURL equivalent and is left out here
+			curlCommand.append(" \\\n  -x ").append(shellQuote(requestPart.getProxyUrl()));
+		}
+
+		final TlsCheckConfiguration tlsCheckConfiguration = requestPart.getTlsCheckConfiguration();
+		if (tlsCheckConfiguration != null && tlsCheckConfiguration.getType() == TlsCheckConfigurationType.NoCheck) {
+			curlCommand.append(" \\\n  -k");
+		}
+		// A custom truststore/PEM file (TlsCheckConfigurationType other than SystemTrustStore/NoCheck)
+		// has no single well-known cURL flag across all such configuration types and is left out here.
+
+		// IdP/OAuth login (idpUrl/idpRealm/idpUsername/idpPassword) has no direct cURL equivalent
+		// (it is a separate token-acquisition request performed by RestClient itself) and is left out.
+
+		return curlCommand.toString();
+	}
+
+	/**
+	 * Quotes a single argument for use in a POSIX shell command line, using single quotes (the only
+	 * quoting style that needs no escaping for special characters other than the quote character itself).
+	 */
+	private static String shellQuote(final String value) {
+		return "'" + (value == null ? "" : value.replace("'", "'\\''")) + "'";
+	}
+
+	/**
+	 * Parses a cURL command line (as copied from a browser's "Copy as cURL" or written by hand) and
+	 * fills {@link #requestPart} with it. Best-effort parser covering the commonly used options
+	 * (-X/--request, -H/--header, -d/--data/--data-raw/--data-binary, -u/--user, -x/--proxy,
+	 * -k/--insecure, -L/--location, --max-redirs, --cacert, --url); unrecognized options are ignored.
+	 */
+	private void applyCurlCommand(final String curlCommand) throws Exception {
+		// Join line continuations ("... \" followed by a newline), as used when a cURL command
+		// copied from a browser is spread across multiple lines for readability
+		final String joinedCommand = curlCommand.replace("\\\r\n", " ").replace("\\\n", " ");
+
+		final List<String> tokens = tokenizeCommandLine(joinedCommand);
+
+		String httpMethod = null;
+		String url = null;
+		String requestBody = null;
+		boolean insecure = false;
+		int maxRedirects = 0;
+		String proxyUrl = null;
+		String cacertFile = null;
+		final Map<String, String> httpHeaders = new LinkedHashMap<>();
+
+		for (int i = 0; i < tokens.size(); i++) {
+			final String token = tokens.get(i);
+			if ("curl".equalsIgnoreCase(token) && i == 0) {
+				continue;
+			} else if (("-X".equals(token) || "--request".equals(token)) && i + 1 < tokens.size()) {
+				httpMethod = tokens.get(++i);
+			} else if (("-H".equals(token) || "--header".equals(token)) && i + 1 < tokens.size()) {
+				final String headerLine = tokens.get(++i);
+				final int colonPosition = headerLine.indexOf(':');
+				if (colonPosition > 0) {
+					httpHeaders.put(headerLine.substring(0, colonPosition).trim(), headerLine.substring(colonPosition + 1).trim());
+				}
+			} else if (("-d".equals(token) || "--data".equals(token) || "--data-raw".equals(token) || "--data-binary".equals(token) || "--data-ascii".equals(token)) && i + 1 < tokens.size()) {
+				requestBody = tokens.get(++i);
+				if (httpMethod == null) {
+					httpMethod = "POST";
+				}
+			} else if (("-u".equals(token) || "--user".equals(token)) && i + 1 < tokens.size()) {
+				final String userAndPassword = tokens.get(++i);
+				httpHeaders.put("Authorization", "Basic " + Base64.getEncoder().encodeToString(userAndPassword.getBytes(StandardCharsets.UTF_8)));
+			} else if (("-x".equals(token) || "--proxy".equals(token)) && i + 1 < tokens.size()) {
+				proxyUrl = tokens.get(++i);
+			} else if ("-k".equals(token) || "--insecure".equals(token)) {
+				insecure = true;
+			} else if ("-L".equals(token) || "--location".equals(token)) {
+				if (maxRedirects == 0) {
+					maxRedirects = 10;
+				}
+			} else if ("--max-redirs".equals(token) && i + 1 < tokens.size()) {
+				maxRedirects = Integer.parseInt(tokens.get(++i));
+			} else if ("--cacert".equals(token) && i + 1 < tokens.size()) {
+				cacertFile = tokens.get(++i);
+			} else if ("--url".equals(token) && i + 1 < tokens.size()) {
+				url = tokens.get(++i);
+			} else if (url == null && !token.startsWith("-")) {
+				url = token;
+			}
+		}
+
+		if (url == null) {
+			throw new Exception(LangResources.get("curlImportNoUrlFound"));
+		}
+
+		String serviceUrl = url;
+		final Map<String, String> urlParameters = new LinkedHashMap<>();
+		final int queryStringPosition = url.indexOf('?');
+		if (queryStringPosition >= 0) {
+			serviceUrl = url.substring(0, queryStringPosition);
+			for (final String parameterPart : url.substring(queryStringPosition + 1).split("&")) {
+				if (Utilities.isNotBlank(parameterPart)) {
+					final int equalsPosition = parameterPart.indexOf('=');
+					if (equalsPosition >= 0) {
+						urlParameters.put(
+								URLDecoder.decode(parameterPart.substring(0, equalsPosition), StandardCharsets.UTF_8),
+								URLDecoder.decode(parameterPart.substring(equalsPosition + 1), StandardCharsets.UTF_8));
+					} else {
+						urlParameters.put(URLDecoder.decode(parameterPart, StandardCharsets.UTF_8), "");
+					}
+				}
+			}
+		}
+
+		requestPart.setPresetName(null);
+		requestPart.setProxyUrl(proxyUrl == null ? "" : proxyUrl);
+		requestPart.setMaxRedirects(maxRedirects);
+		requestPart.setHttpMethod(httpMethod == null ? "GET" : httpMethod);
+		requestPart.setServiceUrl(serviceUrl);
+		requestPart.setServiceMethod(null);
+		requestPart.setHttpHeaders(httpHeaders);
+		requestPart.setUrlParameters(urlParameters);
+		requestPart.setHtmlFormParameters(new LinkedHashMap<>());
+		requestPart.setRequestBody(requestBody);
+		requestPart.setIdpUrl(null);
+		requestPart.setIdpRealm(null);
+		requestPart.setIdpUsername(null);
+		requestPart.setIdpPassword(null);
+
+		if (insecure) {
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.NoCheck, false));
+		} else {
+			// A --cacert file could be mapped to a custom-truststore TlsCheckConfigurationType, but its
+			// exact enum constant name isn't visible from this file, so it is intentionally left as the
+			// default here rather than guessed; cacertFile is still parsed above so it doesn't get
+			// mistaken for the request URL by the fallback branch further up.
+			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
+		}
+	}
+
+	/**
+	 * Splits a shell command line into tokens, honoring single- and double-quoted sections (with
+	 * backslash-escaping inside double quotes and outside quotes, as a real shell would). Sufficient
+	 * for the cURL command lines this feature needs to parse; not a full shell grammar implementation.
+	 */
+	private static List<String> tokenizeCommandLine(final String commandLine) {
+		final List<String> tokens = new ArrayList<>();
+		final StringBuilder currentToken = new StringBuilder();
+		boolean inSingleQuotes = false;
+		boolean inDoubleQuotes = false;
+		boolean tokenStarted = false;
+
+		for (int i = 0; i < commandLine.length(); i++) {
+			final char currentChar = commandLine.charAt(i);
+			if (inSingleQuotes) {
+				if (currentChar == '\'') {
+					inSingleQuotes = false;
+				} else {
+					currentToken.append(currentChar);
+				}
+			} else if (inDoubleQuotes) {
+				if (currentChar == '\\' && i + 1 < commandLine.length() && (commandLine.charAt(i + 1) == '"' || commandLine.charAt(i + 1) == '\\')) {
+					currentToken.append(commandLine.charAt(++i));
+				} else if (currentChar == '"') {
+					inDoubleQuotes = false;
+				} else {
+					currentToken.append(currentChar);
+				}
+			} else if (currentChar == '\'') {
+				inSingleQuotes = true;
+				tokenStarted = true;
+			} else if (currentChar == '"') {
+				inDoubleQuotes = true;
+				tokenStarted = true;
+			} else if (currentChar == '\\' && i + 1 < commandLine.length()) {
+				currentToken.append(commandLine.charAt(++i));
+				tokenStarted = true;
+			} else if (Character.isWhitespace(currentChar)) {
+				if (tokenStarted) {
+					tokens.add(currentToken.toString());
+					currentToken.setLength(0);
+					tokenStarted = false;
+				}
+			} else {
+				currentToken.append(currentChar);
+				tokenStarted = true;
+			}
+		}
+		if (tokenStarted) {
+			tokens.add(currentToken.toString());
+		}
+		return tokens;
+	}
+
 	private void exportRequestResponseToYamlFile() {
 		final FileDialog fileDialog = new FileDialog(getShell(), SWT.SAVE);
 		fileDialog.setText(LangResources.get("export"));
@@ -720,40 +1085,26 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	/**
-	 * Reads request and response data from a YAML file chosen by the user via an open file dialog and
-	 * fills {@link #requestPart} and {@link #responsePart} with it, as if the request had just been sent.
+	 * Reads request and response data from a YAML file (already chosen by the caller) and fills
+	 * {@link #requestPart} and {@link #responsePart} with it, as if the request had just been sent.
 	 */
-	private void importRequestResponseFromYamlFile() {
-		final FileDialog fileDialog = new FileDialog(getShell(), SWT.OPEN);
-		fileDialog.setText(LangResources.get("import"));
-		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml", "*.*" });
-		final String selectedPath = fileDialog.open();
-		if (selectedPath == null) {
-			return;
+	private void importRequestResponseFromYaml(final File importFile) throws Exception {
+		final YamlDocument yamlDocument;
+		try (YamlReader reader = new YamlReader(new FileInputStream(importFile), StandardCharsets.UTF_8)) {
+			yamlDocument = reader.readDocument();
 		}
 
-		try {
-			final YamlDocument yamlDocument;
-			try (YamlReader reader = new YamlReader(new FileInputStream(new File(selectedPath)), StandardCharsets.UTF_8)) {
-				yamlDocument = reader.readDocument();
-			}
+		final YamlMapping rootMapping = (YamlMapping) yamlDocument.getRoot();
 
-			final YamlMapping rootMapping = (YamlMapping) yamlDocument.getRoot();
-
-			if (rootMapping.containsKey("request")) {
-				applyRequestYamlMapping((YamlMapping) rootMapping.get("request"));
-			}
-
-			responsePart.clearResponse();
-			if (rootMapping.containsKey("response")) {
-				applyResponseYamlMapping((YamlMapping) rootMapping.get("response"));
-			}
-			responsePart.showResponse();
-
-			checkButtonStatus();
-		} catch (final Exception e) {
-			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		if (rootMapping.containsKey("request")) {
+			applyRequestYamlMapping((YamlMapping) rootMapping.get("request"));
 		}
+
+		responsePart.clearResponse();
+		if (rootMapping.containsKey("response")) {
+			applyResponseYamlMapping((YamlMapping) rootMapping.get("response"));
+		}
+		responsePart.showResponse();
 	}
 
 	/**
