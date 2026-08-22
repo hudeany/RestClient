@@ -26,7 +26,6 @@ import de.soderer.json.path.JsonPathElement;
 import de.soderer.json.path.JsonPathPropertyElement;
 import de.soderer.json.path.JsonPathRoot;
 import de.soderer.network.HttpContentType;
-import de.soderer.restclient.dlg.ResponseComponent;
 import de.soderer.yaml.YamlWriter;
 import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;

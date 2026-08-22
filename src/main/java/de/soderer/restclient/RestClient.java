@@ -57,7 +57,9 @@ import de.soderer.utilities.swt.ErrorDialog;
 import de.soderer.utilities.worker.WorkerParentDual;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.data.YamlDocument;
+import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;
+import de.soderer.yaml.data.YamlSequence;
 
 public class RestClient extends UpdateableConsoleApplication implements WorkerParentDual {
 	/** The Constant APPLICATION_NAME. */
@@ -227,6 +229,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			String cliIdpUsername = null;
 			String cliIdpPassword = null;
 			String cliPresetName = null;
+			String cliRequestFile = null;
 			boolean cliListPresets = false;
 			String cliOutputFile = null;
 			String cliBasicAuth = null;
@@ -282,7 +285,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					case "--max-redirects":
 						try {
 							cliMaxRedirects = Integer.parseInt(requireValue(arguments, i++, argument));
-						} catch (final NumberFormatException e) {
+						} catch (@SuppressWarnings("unused") final NumberFormatException e) {
 							throw new ParameterException(argument, "Must be a whole number");
 						}
 						break;
@@ -318,6 +321,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 						break;
 					case "--preset":
 						cliPresetName = requireValue(arguments, i++, argument);
+						break;
+					case "--request-file":
+						cliRequestFile = requireValue(arguments, i++, argument);
 						break;
 					case "--list-presets":
 						cliListPresets = true;
@@ -460,6 +466,82 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					}
 				}
 
+				if (cliRequestFile != null) {
+					if (cliPresetName != null) {
+						throw new ParameterException("request-file", "Cannot use --preset and --request-file together");
+					}
+
+					final YamlDocument yamlDocument = YamlReader.readDocument(Files.readString(Path.of(cliRequestFile), StandardCharsets.UTF_8));
+					final YamlMapping rootYamlMapping = (YamlMapping) yamlDocument.getRoot();
+
+					if (rootYamlMapping.containsKey("request")) {
+						final YamlMapping requestYamlMapping = (YamlMapping) rootYamlMapping.get("request");
+
+						proxyUrl = (String) requestYamlMapping.getSimpleValue("proxyUrl");
+						final Object maxRedirectsObject = requestYamlMapping.getSimpleValue("maxRedirects");
+						maxRedirects = maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue();
+						httpMethod = (String) requestYamlMapping.getSimpleValue("httpMethod");
+						serviceUrl = (String) requestYamlMapping.getSimpleValue("serviceUrl");
+						final String serviceMethod = (String) requestYamlMapping.getSimpleValue("serviceMethod");
+						if (Utilities.isNotBlank(serviceMethod)) {
+							serviceUrl = (serviceUrl == null ? "" : serviceUrl) + "/" + serviceMethod;
+						}
+
+						if (requestYamlMapping.containsKey("tlsCheck")) {
+							final YamlMapping tlsCheckYamlMapping = (YamlMapping) requestYamlMapping.get("tlsCheck");
+							try {
+								final TlsCheckConfigurationType type = TlsCheckConfigurationType.getTlsCheckConfigurationByName((String) tlsCheckYamlMapping.getSimpleValue("type"));
+								final String filePath = (String) tlsCheckYamlMapping.getSimpleValue("file");
+								final String trustorePassword = (String) tlsCheckYamlMapping.getSimpleValue("trustorePassword");
+								final boolean checkCn = tlsCheckYamlMapping.containsKey("checkCn") ? (Boolean) tlsCheckYamlMapping.getSimpleValue("checkCn") : type != TlsCheckConfigurationType.NoCheck;
+								tlsCheckConfiguration = new TlsCheckConfiguration(type, filePath == null ? null : new File(filePath), trustorePassword == null ? null : trustorePassword.toCharArray(), checkCn);
+							} catch (@SuppressWarnings("unused") final Exception e) {
+								tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
+							}
+						}
+
+						if (requestYamlMapping.containsKey("httpRequestHeaders")) {
+							for (final YamlNode item : ((YamlSequence) requestYamlMapping.get("httpRequestHeaders")).items()) {
+								final YamlMapping headerYamlMapping = (YamlMapping) item;
+								httpHeaders.put((String) headerYamlMapping.getSimpleValue("name"), (String) headerYamlMapping.getSimpleValue("value"));
+							}
+						}
+						if (requestYamlMapping.containsKey("urlParameters")) {
+							for (final YamlNode item : ((YamlSequence) requestYamlMapping.get("urlParameters")).items()) {
+								final YamlMapping paramYamlMapping = (YamlMapping) item;
+								urlParameters.put((String) paramYamlMapping.getSimpleValue("name"), (String) paramYamlMapping.getSimpleValue("value"));
+							}
+						}
+						if (requestYamlMapping.containsKey("htmlFormParameters")) {
+							for (final YamlNode item : ((YamlSequence) requestYamlMapping.get("htmlFormParameters")).items()) {
+								final YamlMapping paramYamlMapping = (YamlMapping) item;
+								htmlFormParameters.put((String) paramYamlMapping.getSimpleValue("name"), (String) paramYamlMapping.getSimpleValue("value"));
+							}
+						}
+
+						requestBody = (String) requestYamlMapping.getSimpleValue("requestBody");
+
+						idpUrl = (String) requestYamlMapping.getSimpleValue("idpUrl");
+						idpRealm = (String) requestYamlMapping.getSimpleValue("idpRealm");
+						idpUsername = (String) requestYamlMapping.getSimpleValue("idpUsername");
+						idpPassword = (String) requestYamlMapping.getSimpleValue("idpPassword");
+
+						if (Utilities.isBlank(httpMethod)) {
+							httpMethod = "GET";
+						}
+					}
+
+					// The "response" section of an export file is mostly a snapshot of a previous
+					// response (httpCode/time/headers/body) and not relevant to re-executing the
+					// request - only the two settings that affect how the request/response is
+					// handled are picked up here, same as with a loaded preset.
+					if (rootYamlMapping.containsKey("response")) {
+						final YamlMapping responseYamlMapping = (YamlMapping) rootYamlMapping.get("response");
+						downloadTarget = (String) responseYamlMapping.getSimpleValue("downloadTarget");
+						responseDataPath = (String) responseYamlMapping.getSimpleValue("responseDataPath");
+					}
+				}
+
 				// Command line values override whatever a loaded preset set (or the defaults, if no preset was given)
 				if (cliUrl != null) {
 					serviceUrl = cliUrl;
@@ -538,7 +620,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				if (Utilities.isNotBlank(idpUrl)) {
 					final ProxyConfiguration idpProxyConfiguration = buildIdpProxyConfiguration(proxyUrl);
 					final String idpToken;
-					if (idpUrl.endsWith("/token")) {
+					if (idpUrl != null && idpUrl.endsWith("/token")) {
 						idpToken = IdpHelper.aquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
 					} else {
 						final String idpTokenEndpointUrl = IdpHelper.getIdpTokenEdpointUrl(idpUrl, idpRealm, idpProxyConfiguration);
@@ -576,8 +658,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 
 				final Proxy proxy = resolveProxy(proxyUrl, httpRequest.getUrl());
 
-				final RestClient restClient = new RestClient();
-				final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(restClient, httpRequest, proxy, tlsCheckConfiguration.getTrustManager(), !tlsCheckConfiguration.getCheckCn());
+				// Passing null here (no progress reporting), same as RestClientDialog.executeRequest()
+				// does for the GUI - a single one-shot CLI request needs no progress bar, and printing
+				// one would pollute stdout for scripted/piped usage anyway.
+				final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, tlsCheckConfiguration.getTrustManager(), !tlsCheckConfiguration.getCheckCn());
 				worker.run();
 				final HttpResponse httpResponse;
 				try {

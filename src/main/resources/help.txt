@@ -3,6 +3,7 @@ Usage:
 	java -jar RestClient.jar gui
 	java -jar RestClient.jar --url <url> [options...]
 	java -jar RestClient.jar --preset <name> [options...]
+	java -jar RestClient.jar --request-file <path> [options...]
 	java -jar RestClient.jar --list-presets
 
 Global standalone parameters
@@ -13,11 +14,11 @@ Global standalone parameters
 
 Request parameters
 	Without "gui", RestClient executes a single HTTP request from the command line and prints the
-	response body to stdout. Either --url or --preset is required. When both a preset and other
-	options are given, the preset is loaded first and every other option given on the command line
-	then overrides (or, for --header/--url-param/--form-param, adds to) the preset's values -
-	the same way loading a preset in the GUI fills the form and individual fields can still be
-	changed afterwards.
+	response body to stdout. One of --url, --preset, or --request-file is required. When combined
+	with other options, the preset or file is loaded first and every other option given on the
+	command line then overrides (or, for --header/--url-param/--form-param, adds to) its values -
+	the same way loading a preset or importing a file in the GUI fills the form and individual
+	fields can still be changed afterwards.
 
 	--url <url>                      Full request URL (required unless --preset is used)
 	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS, TRACE, CONNECT (default: GET)
@@ -52,6 +53,10 @@ Request parameters
 	--basic-auth <username:password> Adds an "Authorization: Basic ..." request header
 	--bearer-token <token>           Adds an "Authorization: Bearer ..." request header
 	--preset <name>                  Loads a request preset previously saved from the GUI, by name
+	--request-file <path>            Loads request (and download-target/response-data-path settings) from a
+	                                  request/response YAML file, as created by the GUI's "Export" button -
+	                                  does not need to be imported into the GUI first. Cannot be combined
+	                                  with --preset.
 	--list-presets                   Prints the names of all saved request presets and exits
 	--output <path>                  Writes the (rendered) response body to a file instead of printing it to stdout
 	-v, --verbose                    Also prints the HTTP status code and response headers to stderr
