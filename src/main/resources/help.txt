@@ -1,7 +1,62 @@
 Usage:
 	java -jar RestClient.jar
+	java -jar RestClient.jar gui
+	java -jar RestClient.jar --url <url> [options...]
+	java -jar RestClient.jar --preset <name> [options...]
+	java -jar RestClient.jar --list-presets
 
 Global standalone parameters
 	help: Show this help manual
 	version: Show current local version of this tool
 	update: Check for online update and ask, whether an available update shell be installed. [username [password]]
+	gui: Open the graphical user interface (also opened when no parameters are given at all, unless the environment is headless)
+
+Request parameters
+	Without "gui", RestClient executes a single HTTP request from the command line and prints the
+	response body to stdout. Either --url or --preset is required. When both a preset and other
+	options are given, the preset is loaded first and every other option given on the command line
+	then overrides (or, for --header/--url-param/--form-param, adds to) the preset's values -
+	the same way loading a preset in the GUI fills the form and individual fields can still be
+	changed afterwards.
+
+	--url <url>                      Full request URL (required unless --preset is used)
+	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS, TRACE, CONNECT (default: GET)
+	--header <name: value>           Adds an HTTP request header. Repeatable.
+	--url-param <name=value>         Adds a URL (query string) parameter. Repeatable.
+	--form-param <name=value>        Adds an HTML form (application/x-www-form-urlencoded) parameter. Repeatable.
+	                                  Only used as the request body for POST/PUT, and only if given (see --body).
+	--body <text>                    Request body text. Only used for POST/PUT, and only if no --form-param was given.
+	--body-file <path>                Reads the request body from a local text file instead of --body.
+	--proxy <DIRECT|WPAD|host:port>  Proxy to use for this request. DIRECT disables any proxy, WPAD autodetects one.
+	--max-redirects <n>              Maximum number of redirects to follow (default: 0, i.e. do not follow redirects)
+	--tls-check-type <type>          One of: SystemTrustStore, TrustStoreFile, AdditionalTrustStoreFile,
+	                                  RecordingToTrustStoreFile, SingleCertificate, RecordingSingleCertificate, NoCheck
+	                                  (default: SystemTrustStore)
+	--tls-check-file <path>          Truststore/PEM file path (required by most --tls-check-type values other than SystemTrustStore/NoCheck)
+	--tls-check-password <password>  Truststore password (only for the truststore-file based --tls-check-type values)
+	--tls-check-cn <true|false>      Whether to also check the certificate's common name/SAN against the host name
+	--download-target <path>         Directory or file to save the response body to, if the response is a file
+	                                  download (Content-Disposition: attachment). Otherwise has no effect - the
+	                                  response body is still printed as usual.
+	--response-data-path <path>      Evaluates a path into the response content and only prints the matching part.
+	                                  Interpreted depending on the response's Content-Type: JsonPath for JSON
+	                                  (e.g. $.data.items[0].id), the same path syntax for YAML, XPath for XML
+	                                  (e.g. //item[1]/@id).
+	--idp-url <url>                  IdP/OAuth base URL or full token endpoint URL (ending in "/token"). If given,
+	                                  RestClient first performs a separate client-credentials token request and adds
+	                                  the resulting token as an "Authorization: Bearer ..." request header.
+	--idp-realm <realm>              Realm name, used to discover the token endpoint when --idp-url is not itself
+	                                  the token endpoint (ignored if --idp-url already ends in "/token")
+	--idp-username <username>        Client ID for the IdP token request
+	--idp-password <password>        Client secret for the IdP token request
+	--basic-auth <username:password> Adds an "Authorization: Basic ..." request header
+	--bearer-token <token>           Adds an "Authorization: Bearer ..." request header
+	--preset <name>                  Loads a request preset previously saved from the GUI, by name
+	--list-presets                   Prints the names of all saved request presets and exits
+	--output <path>                  Writes the (rendered) response body to a file instead of printing it to stdout
+	-v, --verbose                    Also prints the HTTP status code and response headers to stderr
+	--fail                           Exit with a non-zero exit code if the response HTTP status code is 400 or higher
+
+	Exit code is 0 once a response was received, regardless of its HTTP status code (like curl's
+	default behaviour) - only network, parameter, or parsing errors result in a non-zero exit code,
+	unless --fail is given (see above).

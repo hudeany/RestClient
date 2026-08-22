@@ -2,18 +2,45 @@ package de.soderer.restclient;
 
 import java.awt.GraphicsEnvironment;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import org.eclipse.swt.widgets.Display;
 
+import de.soderer.json.JsonArray;
+import de.soderer.json.JsonNode;
+import de.soderer.json.JsonObject;
+import de.soderer.json.JsonReader;
+import de.soderer.json.JsonWriter;
+import de.soderer.json.path.JsonPath;
+import de.soderer.network.HttpConstants;
+import de.soderer.network.HttpContentType;
+import de.soderer.network.HttpMethod;
+import de.soderer.network.HttpRequest;
+import de.soderer.network.HttpResponse;
+import de.soderer.network.HttpUtilities;
+import de.soderer.network.TlsCheckConfiguration;
+import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
+import de.soderer.pac.utilities.ProxyConfiguration;
+import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.dlg.RestClientDialog;
+import de.soderer.restclient.helper.IdpHelper;
+import de.soderer.restclient.helper.ResponseDataPathEvaluator;
+import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
@@ -23,10 +50,14 @@ import de.soderer.utilities.UpdateableConsoleApplication;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
 import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
+import de.soderer.utilities.collection.CaseInsensitiveMap;
 import de.soderer.utilities.console.ConsoleType;
 import de.soderer.utilities.console.ConsoleUtilities;
 import de.soderer.utilities.swt.ErrorDialog;
 import de.soderer.utilities.worker.WorkerParentDual;
+import de.soderer.yaml.YamlReader;
+import de.soderer.yaml.data.YamlDocument;
+import de.soderer.yaml.data.YamlNode;
 
 public class RestClient extends UpdateableConsoleApplication implements WorkerParentDual {
 	/** The Constant APPLICATION_NAME. */
@@ -176,11 +207,139 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			}
 
 			// Read the parameters
-			for (int i = 0; i < arguments.length; i++) {
-				final boolean wasAllowedParam = false;
+			String cliUrl = null;
+			String cliMethod = null;
+			final Map<String, String> cliHeaders = new LinkedHashMap<>();
+			final Map<String, String> cliUrlParameters = new LinkedHashMap<>();
+			final Map<String, String> cliFormParameters = new LinkedHashMap<>();
+			String cliRequestBody = null;
+			String cliBodyFile = null;
+			String cliProxy = null;
+			Integer cliMaxRedirects = null;
+			String cliTlsCheckType = null;
+			String cliTlsCheckFile = null;
+			String cliTlsCheckPassword = null;
+			Boolean cliTlsCheckCn = null;
+			String cliDownloadTarget = null;
+			String cliResponseDataPath = null;
+			String cliIdpUrl = null;
+			String cliIdpRealm = null;
+			String cliIdpUsername = null;
+			String cliIdpPassword = null;
+			String cliPresetName = null;
+			boolean cliListPresets = false;
+			String cliOutputFile = null;
+			String cliBasicAuth = null;
+			String cliBearerToken = null;
+			boolean cliVerbose = false;
+			boolean cliFail = false;
 
-				if (!wasAllowedParam) {
-					throw new ParameterException(arguments[i], "Invalid parameter");
+			for (int i = 0; i < arguments.length; i++) {
+				final String argument = arguments[i];
+				switch (argument.toLowerCase(Locale.ROOT)) {
+					case "--url":
+						cliUrl = requireValue(arguments, i++, argument);
+						break;
+					case "--method":
+						cliMethod = requireValue(arguments, i++, argument);
+						break;
+					case "--header": {
+						final String headerLine = requireValue(arguments, i++, argument);
+						final int separatorIndex = headerLine.indexOf(':');
+						if (separatorIndex < 0) {
+							throw new ParameterException(argument, "Header must be in the form 'Name: Value'");
+						}
+						cliHeaders.put(headerLine.substring(0, separatorIndex).trim(), headerLine.substring(separatorIndex + 1).trim());
+						break;
+					}
+					case "--url-param": {
+						final String paramLine = requireValue(arguments, i++, argument);
+						final int separatorIndex = paramLine.indexOf('=');
+						if (separatorIndex < 0) {
+							throw new ParameterException(argument, "URL parameter must be in the form 'name=value'");
+						}
+						cliUrlParameters.put(paramLine.substring(0, separatorIndex), paramLine.substring(separatorIndex + 1));
+						break;
+					}
+					case "--form-param": {
+						final String paramLine = requireValue(arguments, i++, argument);
+						final int separatorIndex = paramLine.indexOf('=');
+						if (separatorIndex < 0) {
+							throw new ParameterException(argument, "Form parameter must be in the form 'name=value'");
+						}
+						cliFormParameters.put(paramLine.substring(0, separatorIndex), paramLine.substring(separatorIndex + 1));
+						break;
+					}
+					case "--body":
+						cliRequestBody = requireValue(arguments, i++, argument);
+						break;
+					case "--body-file":
+						cliBodyFile = requireValue(arguments, i++, argument);
+						break;
+					case "--proxy":
+						cliProxy = requireValue(arguments, i++, argument);
+						break;
+					case "--max-redirects":
+						try {
+							cliMaxRedirects = Integer.parseInt(requireValue(arguments, i++, argument));
+						} catch (final NumberFormatException e) {
+							throw new ParameterException(argument, "Must be a whole number");
+						}
+						break;
+					case "--tls-check-type":
+						cliTlsCheckType = requireValue(arguments, i++, argument);
+						break;
+					case "--tls-check-file":
+						cliTlsCheckFile = requireValue(arguments, i++, argument);
+						break;
+					case "--tls-check-password":
+						cliTlsCheckPassword = requireValue(arguments, i++, argument);
+						break;
+					case "--tls-check-cn":
+						cliTlsCheckCn = Utilities.interpretAsBool(requireValue(arguments, i++, argument));
+						break;
+					case "--download-target":
+						cliDownloadTarget = requireValue(arguments, i++, argument);
+						break;
+					case "--response-data-path":
+						cliResponseDataPath = requireValue(arguments, i++, argument);
+						break;
+					case "--idp-url":
+						cliIdpUrl = requireValue(arguments, i++, argument);
+						break;
+					case "--idp-realm":
+						cliIdpRealm = requireValue(arguments, i++, argument);
+						break;
+					case "--idp-username":
+						cliIdpUsername = requireValue(arguments, i++, argument);
+						break;
+					case "--idp-password":
+						cliIdpPassword = requireValue(arguments, i++, argument);
+						break;
+					case "--preset":
+						cliPresetName = requireValue(arguments, i++, argument);
+						break;
+					case "--list-presets":
+						cliListPresets = true;
+						break;
+					case "--output":
+						cliOutputFile = requireValue(arguments, i++, argument);
+						break;
+					case "--basic-auth":
+						cliBasicAuth = requireValue(arguments, i++, argument);
+						break;
+					case "--bearer-token":
+						cliBearerToken = requireValue(arguments, i++, argument);
+						break;
+					case "-v":
+					case "--verbose":
+						cliVerbose = true;
+						break;
+					case "--fail":
+						cliFail = true;
+						break;
+					default:
+						throw new ParameterException(argument, "Invalid parameter");
 				}
 			}
 
@@ -207,9 +366,257 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			} else {
 				LangResources.enforceDefaultLocale();
 
-				System.err.println("No CLI interface supported, yet");
+				if (cliListPresets) {
+					printPresetNames();
+					return 0;
+				}
 
-				return 1;
+				// Values start out as request defaults, then get overwritten by a loaded preset (if any),
+				// then get overwritten again by whatever was explicitly given on the command line - same
+				// precedence as the GUI, where a loaded preset fills the form and the user can still edit
+				// individual fields afterwards.
+				String httpMethod = "GET";
+				String serviceUrl = null;
+				final Map<String, String> httpHeaders = new LinkedHashMap<>();
+				final Map<String, String> urlParameters = new LinkedHashMap<>();
+				final Map<String, String> htmlFormParameters = new LinkedHashMap<>();
+				String requestBody = null;
+				int maxRedirects = 0;
+				String proxyUrl = null;
+				TlsCheckConfiguration tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
+				String downloadTarget = null;
+				String responseDataPath = null;
+				String idpUrl = null;
+				String idpRealm = null;
+				String idpUsername = null;
+				String idpPassword = null;
+
+				if (cliPresetName != null) {
+					if (!REQUEST_PRESETS_FILE.exists()) {
+						throw new ParameterException("preset", "No request presets file found");
+					}
+					final JsonObject requestPresetsJsonObject;
+					try (JsonReader reader = new JsonReader(new FileInputStream(REQUEST_PRESETS_FILE))) {
+						requestPresetsJsonObject = (JsonObject) reader.read();
+					}
+					if (!requestPresetsJsonObject.containsKey(cliPresetName)) {
+						throw new ParameterException("preset", "Unknown preset '" + cliPresetName + "'");
+					}
+					final JsonObject presetJsonObject = (JsonObject) requestPresetsJsonObject.get(cliPresetName);
+
+					proxyUrl = (String) presetJsonObject.getSimpleValue("proxyUrl");
+					final Object maxRedirectsObject = presetJsonObject.getSimpleValue("maxRedirects");
+					maxRedirects = maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue();
+					httpMethod = (String) presetJsonObject.getSimpleValue("httpMethod");
+					serviceUrl = (String) presetJsonObject.getSimpleValue("serviceUrl");
+					final String serviceMethod = (String) presetJsonObject.getSimpleValue("serviceMethod");
+					if (Utilities.isNotBlank(serviceMethod)) {
+						serviceUrl = (serviceUrl == null ? "" : serviceUrl) + "/" + serviceMethod;
+					}
+
+					if (presetJsonObject.containsKey("tlsCheck")) {
+						final JsonObject tlsCheckJsonObject = (JsonObject) presetJsonObject.get("tlsCheck");
+						try {
+							final TlsCheckConfigurationType type = TlsCheckConfigurationType.getTlsCheckConfigurationByName((String) tlsCheckJsonObject.getSimpleValue("type"));
+							final String filePath = (String) tlsCheckJsonObject.getSimpleValue("file");
+							final String trustorePassword = (String) tlsCheckJsonObject.getSimpleValue("trustorePassword");
+							final boolean checkCn = tlsCheckJsonObject.containsKey("checkCn") ? (Boolean) tlsCheckJsonObject.getSimpleValue("checkCn") : type != TlsCheckConfigurationType.NoCheck;
+							tlsCheckConfiguration = new TlsCheckConfiguration(type, filePath == null ? null : new File(filePath), trustorePassword == null ? null : trustorePassword.toCharArray(), checkCn);
+						} catch (@SuppressWarnings("unused") final Exception e) {
+							tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
+						}
+					}
+
+					if (presetJsonObject.containsKey("httpRequestHeaders")) {
+						for (final JsonNode item : ((JsonArray) presetJsonObject.get("httpRequestHeaders")).items()) {
+							final JsonObject headerJsonObject = (JsonObject) item;
+							httpHeaders.put((String) headerJsonObject.getSimpleValue("name"), (String) headerJsonObject.getSimpleValue("value"));
+						}
+					}
+					if (presetJsonObject.containsKey("urlParameters")) {
+						for (final JsonNode item : ((JsonArray) presetJsonObject.get("urlParameters")).items()) {
+							final JsonObject paramJsonObject = (JsonObject) item;
+							urlParameters.put((String) paramJsonObject.getSimpleValue("name"), (String) paramJsonObject.getSimpleValue("value"));
+						}
+					}
+					if (presetJsonObject.containsKey("htmlFormParameters")) {
+						for (final JsonNode item : ((JsonArray) presetJsonObject.get("htmlFormParameters")).items()) {
+							final JsonObject paramJsonObject = (JsonObject) item;
+							htmlFormParameters.put((String) paramJsonObject.getSimpleValue("name"), (String) paramJsonObject.getSimpleValue("value"));
+						}
+					}
+
+					requestBody = (String) presetJsonObject.getSimpleValue("requestBody");
+					downloadTarget = (String) presetJsonObject.getSimpleValue("downloadTarget");
+					responseDataPath = (String) presetJsonObject.getSimpleValue("responseDataPath");
+
+					idpUrl = (String) presetJsonObject.getSimpleValue("idpUrl");
+					idpRealm = (String) presetJsonObject.getSimpleValue("idpRealm");
+					idpUsername = (String) presetJsonObject.getSimpleValue("idpUsername");
+					idpPassword = (String) presetJsonObject.getSimpleValue("idpPassword");
+
+					if (Utilities.isBlank(httpMethod)) {
+						httpMethod = "GET";
+					}
+				}
+
+				// Command line values override whatever a loaded preset set (or the defaults, if no preset was given)
+				if (cliUrl != null) {
+					serviceUrl = cliUrl;
+				}
+				if (cliMethod != null) {
+					httpMethod = cliMethod;
+				}
+				httpHeaders.putAll(cliHeaders);
+				urlParameters.putAll(cliUrlParameters);
+				htmlFormParameters.putAll(cliFormParameters);
+				if (cliBodyFile != null) {
+					if (cliRequestBody != null) {
+						throw new ParameterException("body", "Cannot use --body and --body-file together");
+					}
+					requestBody = Files.readString(Path.of(cliBodyFile), StandardCharsets.UTF_8);
+				} else if (cliRequestBody != null) {
+					requestBody = cliRequestBody;
+				}
+				if (cliProxy != null) {
+					proxyUrl = cliProxy;
+				}
+				if (cliMaxRedirects != null) {
+					maxRedirects = cliMaxRedirects;
+				}
+				if (cliTlsCheckType != null) {
+					final TlsCheckConfigurationType type = TlsCheckConfigurationType.getTlsCheckConfigurationByName(cliTlsCheckType);
+					final boolean checkCn = cliTlsCheckCn != null ? cliTlsCheckCn : type != TlsCheckConfigurationType.NoCheck;
+					tlsCheckConfiguration = new TlsCheckConfiguration(
+							type,
+							cliTlsCheckFile == null ? null : new File(cliTlsCheckFile),
+							cliTlsCheckPassword == null ? null : cliTlsCheckPassword.toCharArray(),
+							checkCn);
+				}
+				if (cliDownloadTarget != null) {
+					downloadTarget = cliDownloadTarget;
+				}
+				if (cliResponseDataPath != null) {
+					responseDataPath = cliResponseDataPath;
+				}
+				if (cliIdpUrl != null) {
+					idpUrl = cliIdpUrl;
+				}
+				if (cliIdpRealm != null) {
+					idpRealm = cliIdpRealm;
+				}
+				if (cliIdpUsername != null) {
+					idpUsername = cliIdpUsername;
+				}
+				if (cliIdpPassword != null) {
+					idpPassword = cliIdpPassword;
+				}
+				if (cliBasicAuth != null) {
+					final int separatorIndex = cliBasicAuth.indexOf(':');
+					if (separatorIndex < 0) {
+						throw new ParameterException("basic-auth", "Must be in the form 'username:password'");
+					}
+					httpHeaders.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION,
+							HttpUtilities.createBasicAuthenticationHeaderValue(cliBasicAuth.substring(0, separatorIndex), cliBasicAuth.substring(separatorIndex + 1)));
+				}
+				if (cliBearerToken != null) {
+					httpHeaders.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + cliBearerToken);
+				}
+
+				if (Utilities.isBlank(serviceUrl)) {
+					if (arguments.length == 0) {
+						// Nothing was requested at all - usage was already printed above (headless, no arguments)
+						return 1;
+					} else {
+						throw new ParameterException("url", "Missing request URL (use --url or --preset)");
+					}
+				}
+
+				// IdP/OAuth login: acquires a bearer token and adds it as an Authorization header, same
+				// as the "Fetch IdP token" button in the GUI (see RequestComponent) - but done automatically
+				// here, since there is no interactive step in CLI mode.
+				if (Utilities.isNotBlank(idpUrl)) {
+					final ProxyConfiguration idpProxyConfiguration = buildIdpProxyConfiguration(proxyUrl);
+					final String idpToken;
+					if (idpUrl.endsWith("/token")) {
+						idpToken = IdpHelper.aquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+					} else {
+						final String idpTokenEndpointUrl = IdpHelper.getIdpTokenEdpointUrl(idpUrl, idpRealm, idpProxyConfiguration);
+						idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+					}
+					if (idpToken != null) {
+						httpHeaders.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
+					}
+				}
+
+				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(httpMethod), serviceUrl);
+				httpRequest.setMaxRedirects(maxRedirects);
+
+				if (Utilities.isNotBlank(downloadTarget)) {
+					httpRequest.setDownloadTarget(new File(downloadTarget));
+				}
+
+				for (final Entry<String, String> entry : httpHeaders.entrySet()) {
+					httpRequest.addHeader(entry.getKey(), entry.getValue());
+				}
+				for (final Entry<String, String> entry : urlParameters.entrySet()) {
+					httpRequest.addUrlParameter(entry.getKey(), entry.getValue());
+				}
+				for (final Entry<String, String> entry : htmlFormParameters.entrySet()) {
+					httpRequest.addPostParameter(entry.getKey(), entry.getValue());
+				}
+
+				// Same restriction as the GUI (see RestClientDialog.executeRequest): an explicit body is
+				// only used for POST/PUT, and only if there are no form parameters (which would become the
+				// body instead)
+				if (("POST".equalsIgnoreCase(httpMethod) || "PUT".equalsIgnoreCase(httpMethod))
+						&& htmlFormParameters.isEmpty() && Utilities.isNotBlank(requestBody)) {
+					httpRequest.setRequestBody(requestBody);
+				}
+
+				final Proxy proxy = resolveProxy(proxyUrl, httpRequest.getUrl());
+
+				final RestClient restClient = new RestClient();
+				final ExecuteHttpRequestWorker worker = new ExecuteHttpRequestWorker(restClient, httpRequest, proxy, tlsCheckConfiguration.getTrustManager(), !tlsCheckConfiguration.getCheckCn());
+				worker.run();
+				final HttpResponse httpResponse;
+				try {
+					httpResponse = worker.get();
+				} catch (final ExecutionException e) {
+					throw e.getCause() instanceof Exception ? (Exception) e.getCause() : e;
+				}
+
+				if (cliVerbose) {
+					System.err.println("HTTP " + httpResponse.getHttpCode());
+					if (httpResponse.getHeaders() != null) {
+						for (final Entry<String, String> headerEntry : httpResponse.getHeaders().entrySet()) {
+							System.err.println(headerEntry.getKey() + ": " + headerEntry.getValue());
+						}
+					}
+					System.err.println();
+				}
+
+				final String displayBody = renderResponseBody(httpResponse, responseDataPath);
+
+				if (Utilities.isNotBlank(cliOutputFile)) {
+					Files.writeString(Path.of(cliOutputFile), displayBody != null ? displayBody : "", StandardCharsets.UTF_8);
+				} else {
+					System.out.println(displayBody != null ? displayBody : "");
+				}
+
+				if (httpResponse.getDownloadedFilePath() != null) {
+					System.out.println("File downloaded to '" + httpResponse.getDownloadedFilePath() + "'");
+				}
+
+				// Matches curl's default behaviour: exit 0 means the request itself was carried out
+				// (a response was received), independent of the HTTP status code it returned -
+				// unless --fail was given, in which case a 4xx/5xx status code itself is treated
+				// as a failure (also matching curl's --fail).
+				if (cliFail && httpResponse.getHttpCode() >= 400) {
+					System.err.println("Request failed with HTTP " + httpResponse.getHttpCode());
+					return 1;
+				}
+				return 0;
 			}
 		} catch (final ParameterException e) {
 			System.err.println(e.getMessage());
@@ -219,6 +626,109 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		} catch (final Exception e) {
 			System.err.println(e.getMessage());
 			return 1;
+		}
+	}
+
+	/**
+	 * Returns the argument following {@code arguments[index]}, or throws if {@code arguments[index]}
+	 * is the last argument (no value follows the flag). {@code flagName} is the flag as given on the
+	 * command line (e.g. "--url"), used only for the exception message.
+	 */
+	private static String requireValue(final String[] arguments, final int index, final String flagName) throws ParameterException {
+		if (index + 1 >= arguments.length) {
+			throw new ParameterException(flagName, "Missing value for parameter");
+		}
+		return arguments[index + 1];
+	}
+
+	private static void printPresetNames() throws Exception {
+		if (!REQUEST_PRESETS_FILE.exists()) {
+			System.out.println("No presets found");
+			return;
+		}
+		final JsonObject requestPresetsJsonObject;
+		try (JsonReader reader = new JsonReader(new FileInputStream(REQUEST_PRESETS_FILE))) {
+			requestPresetsJsonObject = (JsonObject) reader.read();
+		}
+		for (final Object presetName : requestPresetsJsonObject.keySet()) {
+			System.out.println(presetName);
+		}
+	}
+
+	/**
+	 * Resolves the request proxy the same way {@link RestClientDialog#executeRequest()} does:
+	 * "DIRECT" bypasses any proxy, "WPAD" autodetects one, anything else is parsed as a literal
+	 * proxy URL (or left as no proxy if blank).
+	 */
+	private static Proxy resolveProxy(final String proxyUrl, final String url) throws Exception {
+		if (Utilities.isBlank(proxyUrl)) {
+			return null;
+		} else if ("DIRECT".equalsIgnoreCase(proxyUrl)) {
+			return Proxy.NO_PROXY;
+		} else if ("WPAD".equalsIgnoreCase(proxyUrl)) {
+			final ProxyConfiguration wpadProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+			return wpadProxyConfiguration.getProxy(url);
+		} else {
+			return HttpUtilities.getProxyFromString(proxyUrl);
+		}
+	}
+
+	/**
+	 * Builds the {@link ProxyConfiguration} used for the separate IdP token request, the same way
+	 * {@link de.soderer.restclient.dlg.RequestComponent}'s "Fetch IdP token" button does.
+	 */
+	private static ProxyConfiguration buildIdpProxyConfiguration(final String proxyUrl) {
+		if (Utilities.isBlank(proxyUrl) || "DIRECT".equalsIgnoreCase(proxyUrl)) {
+			return new ProxyConfiguration(ProxyConfigurationType.None);
+		} else if ("WPAD".equalsIgnoreCase(proxyUrl)) {
+			return new ProxyConfiguration(ProxyConfigurationType.WPAD);
+		} else {
+			return new ProxyConfiguration(ProxyConfigurationType.ProxyURL, proxyUrl);
+		}
+	}
+
+	/**
+	 * Renders the response body for CLI output the same way {@link de.soderer.restclient.dlg.ResponseComponent}
+	 * renders it for the GUI (see there for the full behaviour by content type): JSON is always
+	 * pretty-printed and, if {@code responseDataPath} is set, narrowed down via JsonPath; YAML/XML
+	 * are only touched (evaluated as the same path syntax / as XPath respectively) if a path is set,
+	 * otherwise shown unchanged. Parse/path errors are reported on stderr and fall back to the raw body.
+	 */
+	private static String renderResponseBody(final HttpResponse httpResponse, final String responseDataPath) {
+		final String body = httpResponse.getContent();
+		final String contentType = new CaseInsensitiveMap<>(httpResponse.getHeaders() == null ? new LinkedHashMap<String, String>() : httpResponse.getHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
+
+		if (body != null && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
+			try {
+				final JsonNode jsonRootNode = JsonReader.readJsonItemString(body);
+				if (Utilities.isNotBlank(responseDataPath)) {
+					final JsonNode jsonDataNode = jsonRootNode.getDataByJsonPath(new JsonPath(responseDataPath));
+					return JsonWriter.getJsonItemString(jsonDataNode);
+				} else {
+					return JsonWriter.getJsonItemString(jsonRootNode);
+				}
+			} catch (final Exception e) {
+				System.err.println("JsonParserError: " + e.getMessage());
+				return body;
+			}
+		} else if (body != null && Utilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
+			try {
+				final YamlDocument yamlDocument = YamlReader.readDocument(body);
+				final YamlNode yamlDataNode = ResponseDataPathEvaluator.getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(responseDataPath));
+				return ResponseDataPathEvaluator.yamlNodeToDisplayString(yamlDataNode);
+			} catch (final Exception e) {
+				System.err.println("YamlParserError: " + e.getMessage());
+				return body;
+			}
+		} else if (body != null && Utilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
+			try {
+				return ResponseDataPathEvaluator.evaluateXPath(body, responseDataPath);
+			} catch (final Exception e) {
+				System.err.println("XPathError: " + e.getMessage());
+				return body;
+			}
+		} else {
+			return body;
 		}
 	}
 

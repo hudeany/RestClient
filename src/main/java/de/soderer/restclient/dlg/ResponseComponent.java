@@ -1,24 +1,9 @@
 package de.soderer.restclient.dlg;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
@@ -39,30 +24,20 @@ import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonReader;
 import de.soderer.json.JsonWriter;
 import de.soderer.json.path.JsonPath;
-import de.soderer.json.path.JsonPathArrayElement;
-import de.soderer.json.path.JsonPathElement;
-import de.soderer.json.path.JsonPathPropertyElement;
-import de.soderer.json.path.JsonPathRoot;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
+import de.soderer.restclient.helper.ResponseDataPathEvaluator;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
 import de.soderer.yaml.YamlReader;
-import de.soderer.yaml.YamlWriter;
 import de.soderer.yaml.data.YamlDocument;
-import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;
-import de.soderer.yaml.data.YamlScalar;
-import de.soderer.yaml.data.YamlSequence;
 
 public class ResponseComponent extends Composite {
 	private Text ipAddressText;
@@ -145,7 +120,7 @@ public class ResponseComponent extends Composite {
 	 *   <li>JSON: always pretty-printed; if a data path is set, it is evaluated as a JsonPath
 	 *       (see {@link JsonNode#getDataByJsonPath(JsonPath)}) and only the matching part is shown</li>
 	 *   <li>YAML: shown unchanged unless a data path is set, in which case it is evaluated using
-	 *       the same dot/bracket path syntax as JSON (see {@link #getYamlNodeByPath(YamlNode, JsonPath)})</li>
+	 *       the same dot/bracket path syntax as JSON (see {@link ResponseDataPathEvaluator#getYamlNodeByPath(YamlNode, JsonPath)})</li>
 	 *   <li>XML: shown unchanged unless a data path is set, in which case it is evaluated as XPath</li>
 	 *   <li>anything else, or no content type known: shown unchanged</li>
 	 * </ul>
@@ -155,7 +130,7 @@ public class ResponseComponent extends Composite {
 		final String contentType = new CaseInsensitiveMap<>(getResponseHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
 		final String dataPath = responseDataPathText.getText();
 
-		if (body != null && contentType != null && isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
+		if (body != null && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
 			try {
 				final JsonNode jsonRootNode = JsonReader.readJsonItemString(body);
 				if (Utilities.isNotBlank(dataPath)) {
@@ -167,129 +142,23 @@ public class ResponseComponent extends Composite {
 			} catch (final Exception e) {
 				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body);
 			}
-		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
+		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
 			try {
 				final YamlDocument yamlDocument = YamlReader.readDocument(body);
-				final YamlNode yamlDataNode = getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(dataPath));
-				responseBodyText.setText(yamlNodeToDisplayString(yamlDataNode));
+				final YamlNode yamlDataNode = ResponseDataPathEvaluator.getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(dataPath));
+				responseBodyText.setText(ResponseDataPathEvaluator.yamlNodeToDisplayString(yamlDataNode));
 			} catch (final Exception e) {
 				responseBodyText.setText("RestClient YamlParserError: \n" + e.getMessage() + "\n\n" + body);
 			}
-		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
+		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
 			try {
-				responseBodyText.setText(evaluateXPath(body, dataPath));
+				responseBodyText.setText(ResponseDataPathEvaluator.evaluateXPath(body, dataPath));
 			} catch (final Exception e) {
 				responseBodyText.setText("RestClient XPathError: \n" + e.getMessage() + "\n\n" + body);
 			}
 		} else {
 			responseBodyText.setText(body != null ? body : "");
 		}
-	}
-
-	private static boolean isContentType(final String contentType, final HttpContentType... candidateTypes) {
-		for (final HttpContentType candidateType : candidateTypes) {
-			final String representation = candidateType.getStringRepresentation();
-			if (contentType.equals(representation) || contentType.startsWith(representation + ";")) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Navigates a parsed YAML tree along a {@link JsonPath} (reused here purely as a generic
-	 * dot/bracket path parser, not tied to JSON data itself). Property elements require a
-	 * {@link YamlMapping} node, array elements require a {@link YamlSequence} node at the
-	 * respective position in the tree.
-	 */
-	private static YamlNode getYamlNodeByPath(final YamlNode rootNode, final JsonPath path) throws Exception {
-		YamlNode currentNode = rootNode;
-		for (final JsonPathElement pathPart : path.getPathParts()) {
-			if (pathPart instanceof JsonPathRoot) {
-				// Nothing to do, currentNode already points to the document root
-			} else if (pathPart instanceof JsonPathPropertyElement) {
-				final String propertyKey = ((JsonPathPropertyElement) pathPart).getPropertyKey();
-				if (!(currentNode instanceof YamlMapping) || !((YamlMapping) currentNode).containsKey(propertyKey)) {
-					throw new Exception("YAML data does not contain path element '" + propertyKey + "'");
-				}
-				currentNode = ((YamlMapping) currentNode).get(propertyKey);
-			} else if (pathPart instanceof JsonPathArrayElement) {
-				final int index = ((JsonPathArrayElement) pathPart).getIndex();
-				if (!(currentNode instanceof YamlSequence) || index >= ((YamlSequence) currentNode).size()) {
-					throw new Exception("YAML data does not contain path element [" + index + "]");
-				}
-				currentNode = ((YamlSequence) currentNode).get(index);
-			} else {
-				throw new Exception("Unexpected path element: " + pathPart);
-			}
-		}
-		return currentNode;
-	}
-
-	private static String yamlNodeToDisplayString(final YamlNode node) throws Exception {
-		if (node instanceof YamlMapping) {
-			return YamlWriter.toString((YamlMapping) node);
-		} else if (node instanceof YamlSequence) {
-			return YamlWriter.toString((YamlSequence) node);
-		} else if (node instanceof YamlScalar) {
-			return ((YamlScalar) node).getValueString();
-		} else {
-			return node != null ? node.toString() : "";
-		}
-	}
-
-	/**
-	 * Parses the response body as XML and evaluates the given XPath expression against it.
-	 * Disables DOCTYPE declarations to prevent XXE attacks via a malicious response.
-	 * Node-set results are serialized as XML fragments (or raw text for text/attribute nodes),
-	 * joined by newlines for multiple matches; non-node-set expressions (e.g. count(...), a
-	 * boolean or a number) fall back to a plain string evaluation.
-	 */
-	private static String evaluateXPath(final String xmlBody, final String xPathExpression) throws Exception {
-		final DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
-		documentBuilderFactory.setNamespaceAware(true);
-		documentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-		final DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
-
-		final Document document;
-		try (ByteArrayInputStream inputStream = new ByteArrayInputStream(xmlBody.getBytes(StandardCharsets.UTF_8))) {
-			document = documentBuilder.parse(inputStream);
-		}
-
-		final XPath xPath = XPathFactory.newInstance().newXPath();
-
-		NodeList nodeList;
-		try {
-			nodeList = (NodeList) xPath.evaluate(xPathExpression, document, XPathConstants.NODESET);
-		} catch (@SuppressWarnings("unused") final XPathExpressionException e) {
-			// Expression does not evaluate to a node-set (e.g. count(...), a boolean or a number)
-			nodeList = null;
-		}
-
-		if (nodeList == null) {
-			final String stringResult = xPath.evaluate(xPathExpression, document);
-			return stringResult != null ? stringResult : "";
-		}
-
-		final Transformer transformer = TransformerFactory.newInstance().newTransformer();
-		transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-
-		final StringBuilder result = new StringBuilder();
-		for (int i = 0; i < nodeList.getLength(); i++) {
-			final Node node = nodeList.item(i);
-			if (i > 0) {
-				result.append("\n");
-			}
-			if (node.getNodeType() == Node.ELEMENT_NODE) {
-				final StringWriter writer = new StringWriter();
-				transformer.transform(new DOMSource(node), new StreamResult(writer));
-				result.append(writer.toString());
-			} else {
-				result.append(node.getNodeValue());
-			}
-		}
-		return result.toString();
 	}
 
 	public void setResponseHeaders(final Map<String, String> headers) {
