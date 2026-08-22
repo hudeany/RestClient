@@ -518,6 +518,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpRealm("");
 			requestPart.setIdpUsername("");
 			requestPart.setIdpPassword(new char[0]);
+
+			responsePart.setDownloadTarget("");
+			responsePart.setResponseDataPath("");
 		} else {
 			requestPart.setProxyUrl((String) jsonObject.getSimpleValue("proxyUrl"));
 			// Older presets saved before this field existed simply won't have it -> default to 0 (off)
@@ -594,6 +597,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			requestPart.setRequestBody((String) jsonObject.getSimpleValue("requestBody"));
 
+			responsePart.setDownloadTarget((String) jsonObject.getSimpleValue("downloadTarget"));
+			responsePart.setResponseDataPath((String) jsonObject.getSimpleValue("responseDataPath"));
+
 			requestPart.setIdpUrl((String) jsonObject.getSimpleValue("idpUrl"));
 			requestPart.setIdpRealm((String) jsonObject.getSimpleValue("idpRealm"));
 			requestPart.setIdpUsername((String) jsonObject.getSimpleValue("idpUsername"));
@@ -664,6 +670,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPresetJsonObject.add("htmlFormParameters", htmlFromParametersJsonArray);
 
 		requestPresetJsonObject.add("requestBody", requestPart.getRequestBody());
+
+		requestPresetJsonObject.add("downloadTarget", responsePart.getDownloadTarget());
+		requestPresetJsonObject.add("responseDataPath", responsePart.getResponseDataPath());
 
 		if (Utilities.isNotBlank(requestPart.getIdpUrl())) {
 			requestPresetJsonObject.add("idpUrl", requestPart.getIdpUrl());
@@ -1259,6 +1268,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (Utilities.isNotBlank(responsePart.getTime())) {
 			responseYamlMapping.add("time", responsePart.getTime());
 		}
+		if (Utilities.isNotBlank(responsePart.getDownloadTarget())) {
+			responseYamlMapping.add("downloadTarget", responsePart.getDownloadTarget());
+		}
+		if (Utilities.isNotBlank(responsePart.getResponseDataPath())) {
+			responseYamlMapping.add("responseDataPath", responsePart.getResponseDataPath());
+		}
 
 		if (!responsePart.getResponseHeaders().isEmpty()) {
 			final YamlSequence responseHeadersYamlSequence = new YamlSequence();
@@ -1392,6 +1407,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart.setHttpCode((Integer) responseYamlMapping.getSimpleValue("httpCode"));
 		responsePart.setIpAddress((String) responseYamlMapping.getSimpleValue("ipAddress"));
 		responsePart.setTime((String) responseYamlMapping.getSimpleValue("time"));
+		responsePart.setDownloadTarget((String) responseYamlMapping.getSimpleValue("downloadTarget"));
 
 		final Map<String, String> responseHeaders = new LinkedHashMap<>();
 		if (responseYamlMapping.containsKey("responseHeaders")) {
@@ -1402,6 +1418,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		}
 		responsePart.setResponseHeaders(responseHeaders);
 
+		// Set before responseBody, so setResponseBody() below already renders using the
+		// imported path instead of the one still left over from the previous response.
+		responsePart.setResponseDataPath((String) responseYamlMapping.getSimpleValue("responseDataPath"));
 		responsePart.setResponseBody((String) responseYamlMapping.getSimpleValue("responseBody"));
 		responsePart.setRedirectInfo(0, null, false);
 		responsePart.setRandomParameters(null);
