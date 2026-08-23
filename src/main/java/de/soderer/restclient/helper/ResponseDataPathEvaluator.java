@@ -3,6 +3,7 @@ package de.soderer.restclient.helper;
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -20,12 +21,16 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import de.soderer.json.JsonArray;
+import de.soderer.json.JsonNode;
+import de.soderer.json.JsonWriter;
 import de.soderer.json.path.JsonPath;
 import de.soderer.json.path.JsonPathArrayElement;
 import de.soderer.json.path.JsonPathElement;
 import de.soderer.json.path.JsonPathPropertyElement;
 import de.soderer.json.path.JsonPathRoot;
 import de.soderer.network.HttpContentType;
+import de.soderer.utilities.Utilities;
 import de.soderer.yaml.YamlWriter;
 import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;
@@ -33,13 +38,12 @@ import de.soderer.yaml.data.YamlScalar;
 import de.soderer.yaml.data.YamlSequence;
 
 /**
- * Shared logic behind the "Response content data path" feature: evaluating a JsonPath-style
- * path against a parsed YAML tree, and evaluating an XPath expression against an XML response
- * body. Used by both {@link de.soderer.restclient.dlg.ResponseComponent} (GUI) and
- * {@link de.soderer.restclient.RestClient} (CLI's {@code --response-data-path} parameter), kept
- * separate from both so these two very different environments don't each carry their own copy
- * of this logic. The (much simpler) JSON case needs no shared helper - it is just a direct call
- * to {@code JsonNode.getDataByJsonPath(...)} in both places.
+ * Shared logic behind the "Response content data path" feature: evaluating a JsonPath (including
+ * its wildcard/filter extensions) against a parsed JSON tree, the same path syntax against a
+ * parsed YAML tree, and an XPath expression against an XML response body. Used by both
+ * {@link de.soderer.restclient.dlg.ResponseComponent} (GUI) and {@link de.soderer.restclient.RestClient}
+ * (CLI's {@code --response-data-path} parameter), kept separate from both so these two very
+ * different environments don't each carry their own copy of this logic.
  */
 public class ResponseDataPathEvaluator {
 	private ResponseDataPathEvaluator() {
@@ -54,6 +58,31 @@ public class ResponseDataPathEvaluator {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Pretty-prints {@code jsonRootNode} as-is if {@code dataPath} is blank. Otherwise evaluates
+	 * the path via {@link JsonNode#getDataListByJsonPath(JsonPath)} (which also supports the
+	 * wildcard/filter extensions, e.g. {@code $.*[?(@.version=='1.0')]}): a single match is
+	 * printed unwrapped (same as before wildcards/filters existed), while zero or several matches
+	 * are printed as a JSON array of the matching values, since there is no single node left to
+	 * print on its own.
+	 */
+	public static String evaluateJsonPath(final JsonNode jsonRootNode, final String dataPath) throws Exception {
+		if (Utilities.isBlank(dataPath)) {
+			return JsonWriter.getJsonItemString(jsonRootNode);
+		}
+
+		final List<JsonNode> matches = jsonRootNode.getDataListByJsonPath(new JsonPath(dataPath));
+		if (matches.size() == 1) {
+			return JsonWriter.getJsonItemString(matches.get(0));
+		} else {
+			final JsonArray matchesArray = new JsonArray();
+			for (final JsonNode match : matches) {
+				matchesArray.add(match);
+			}
+			return JsonWriter.getJsonItemString(matchesArray);
+		}
 	}
 
 	/**

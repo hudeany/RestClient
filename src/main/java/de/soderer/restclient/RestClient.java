@@ -25,7 +25,6 @@ import de.soderer.json.JsonArray;
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonObject;
 import de.soderer.json.JsonReader;
-import de.soderer.json.JsonWriter;
 import de.soderer.json.path.JsonPath;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
@@ -774,7 +773,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	/**
 	 * Renders the response body for CLI output the same way {@link de.soderer.restclient.dlg.ResponseComponent}
 	 * renders it for the GUI (see there for the full behaviour by content type): JSON is always
-	 * pretty-printed and, if {@code responseDataPath} is set, narrowed down via JsonPath; YAML/XML
+	 * pretty-printed and, if {@code responseDataPath} is set, narrowed down via
+	 * {@link ResponseDataPathEvaluator#evaluateJsonPath(JsonNode, String)} (a plain JsonPath shows
+	 * only the matching part, a wildcard/filter path shows all matches as a JSON array); YAML/XML
 	 * are only touched (evaluated as the same path syntax / as XPath respectively) if a path is set,
 	 * otherwise shown unchanged. Parse/path errors are reported on stderr and fall back to the raw body.
 	 */
@@ -785,12 +786,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		if (body != null && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
 			try {
 				final JsonNode jsonRootNode = JsonReader.readJsonItemString(body);
-				if (Utilities.isNotBlank(responseDataPath)) {
-					final JsonNode jsonDataNode = jsonRootNode.getDataByJsonPath(new JsonPath(responseDataPath));
-					return JsonWriter.getJsonItemString(jsonDataNode);
-				} else {
-					return JsonWriter.getJsonItemString(jsonRootNode);
-				}
+				return ResponseDataPathEvaluator.evaluateJsonPath(jsonRootNode, responseDataPath);
 			} catch (final Exception e) {
 				System.err.println("JsonParserError: " + e.getMessage());
 				return body;

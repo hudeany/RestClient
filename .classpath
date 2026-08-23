@@ -13,6 +13,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/soderer-utilities-26.2.48.jar"/>
-	<classpathentry kind="lib" path="lib/network-26.0.30.jar"/>
+	<classpathentry kind="lib" path="lib/network-26.0.30.jar" sourcepath="lib/network-26.0.30_sources.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

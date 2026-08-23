@@ -27,7 +27,6 @@ import org.eclipse.swt.widgets.Text;
 
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonReader;
-import de.soderer.json.JsonWriter;
 import de.soderer.json.path.JsonPath;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
@@ -117,8 +116,10 @@ public class ResponseComponent extends Composite {
 	 *
 	 * Behaviour by content type:
 	 * <ul>
-	 *   <li>JSON: always pretty-printed; if a data path is set, it is evaluated as a JsonPath
-	 *       (see {@link JsonNode#getDataByJsonPath(JsonPath)}) and only the matching part is shown</li>
+	 *   <li>JSON: always pretty-printed; if a data path is set, it is evaluated via
+	 *       {@link ResponseDataPathEvaluator#evaluateJsonPath(JsonNode, String)} - a plain JsonPath
+	 *       shows only the matching part, a path using the wildcard/filter extensions
+	 *       (e.g. {@code $.*[?(@.version=='1.0')]}) shows all matches as a JSON array</li>
 	 *   <li>YAML: shown unchanged unless a data path is set, in which case it is evaluated using
 	 *       the same dot/bracket path syntax as JSON (see {@link ResponseDataPathEvaluator#getYamlNodeByPath(YamlNode, JsonPath)})</li>
 	 *   <li>XML: shown unchanged unless a data path is set, in which case it is evaluated as XPath</li>
@@ -133,12 +134,7 @@ public class ResponseComponent extends Composite {
 		if (body != null && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
 			try {
 				final JsonNode jsonRootNode = JsonReader.readJsonItemString(body);
-				if (Utilities.isNotBlank(dataPath)) {
-					final JsonNode jsonDataNode = jsonRootNode.getDataByJsonPath(new JsonPath(dataPath));
-					responseBodyText.setText(JsonWriter.getJsonItemString(jsonDataNode));
-				} else {
-					responseBodyText.setText(JsonWriter.getJsonItemString(jsonRootNode));
-				}
+				responseBodyText.setText(ResponseDataPathEvaluator.evaluateJsonPath(jsonRootNode, dataPath));
 			} catch (final Exception e) {
 				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body);
 			}

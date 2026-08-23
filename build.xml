@@ -119,6 +119,14 @@
 			<fileset dir="lib" includes="network-*.jar" />
 		</delete>
 		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}.jar" dest="lib/" />
+	</target>
+
+	<available file="lib/network-${network.version}_sources.jar" property="network_sources.available" />
+	<target name="get_network_sources" unless="network_sources.available" depends="proxy">
+		<mkdir dir="lib/" />
+		<delete>
+			<fileset dir="lib" includes="network-*_sources.jar" />
+		</delete>
 		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}_sources.jar" dest="lib/" />
 	</target>
 
@@ -172,7 +180,7 @@
 		<delete file="lib/swt_linux.zip" />
 	</target>
 
-	<target name="download_dependencies" depends="get_mailapi, get_csv, get_json, get_proxyautoconfig, get_network, get_soderer_utilities, get_soderer_utilities_sources, get_swt_win, get_swt_linux" />
+	<target name="download_dependencies" depends="get_mailapi, get_csv, get_json, get_proxyautoconfig, get_network, get_network_sources, get_soderer_utilities, get_soderer_utilities_sources, get_swt_win, get_swt_linux" />
 
 	<target name="compile" depends="download_dependencies">
 		<path id="build.classpath">
