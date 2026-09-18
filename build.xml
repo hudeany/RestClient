@@ -91,8 +91,8 @@
 		<getDependency name="swt-win" version="${swt.version}-win32-win32-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-win32-win32-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
 		<getDependency name="swt-linux" version="${swt.version}-gtk-linux-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-gtk-linux-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
 
-		<getDependency name="network_sources" version="${network.version}_sources" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}_sources.jar" />
-		<getDependency name="soderer-utilities_sources" version="${soderer-utilities.version}_sources" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}-sources.jar" />
+		<getDependency name="network_sources" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}_sources.jar" />
+		<getDependency name="soderer-utilities_sources" version="${soderer-utilities.version}" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}-sources.jar" />
 	</target>
 
 	<target name="compile" depends="download_dependencies">
