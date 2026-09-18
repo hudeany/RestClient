@@ -5,11 +5,13 @@
 	<property name="json.version" value="26.2.2" />
 	<property name="proxyautoconfig.version" value="26.1.0" />
 	<property name="network.version" value="26.0.30" />
-	<property name="soderer-utilities.version" value="26.2.48" />
+	<property name="soderer-utilities.version" value="26.2.51" />
 
 	<property name="swt.version" value="4.38" />
 	<property name="swt.build" value="R-4.38-202512010920" />
-	
+
+	<typedef resource="de/soderer/antbuildhelp/antlib.xml" classpath="lib_build/antbuildhelp-26.0.1.jar" />
+
 	<target name="build_jar" depends="build_setup, cleanup_before, create_jar, sign_jar, cleanup_after" />
 
 	<target name="probe-proxy">
@@ -76,111 +78,22 @@
 		<mkdir dir="${buildPath}/bin" />
 	</target>
 
-	<available file="lib/mailapi-${mailapi.version}.jar" property="mailapi.available" />
-	<target name="get_mailapi" unless="mailapi.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="mailapi-*.jar" />
-		</delete>
-		<get src="https://repo1.maven.org/maven2/com/sun/mail/mailapi/${mailapi.version}/mailapi-${mailapi.version}.jar" dest="lib/" />
-	</target>
+	<target name="download_dependencies">
+		<getDependency url="https://repo1.maven.org/maven2" groupId="com.sun.mail" artifactId="mailapi" version="2.0.2" />
+		
+		<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
+		<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
+		<getDependency name="proxyautoconfig" version="${proxyautoconfig.version}" url="https://github.com/hudeany/ProxyAutoConfig/releases/download/{version}/proxyautoconfig-{version}.jar" />
+		<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
+		<getDependency name="soderer-utilities" version="${soderer-utilities.version}" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}.jar" />
 
-	<available file="lib/csv-${csv.version}.jar" property="csv.available" />
-	<target name="get_csv" unless="csv.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="csv-*.jar" />
-		</delete>
-		<get src="https://github.com/hudeany/csv/releases/download/${csv.version}/csv-${csv.version}.jar" dest="lib/" />
-	</target>
+		<!-- SWT Windows or Linux: JarInJarLoader decides by OS type which SWT jar to load-->
+		<getDependency name="swt-win" version="${swt.version}-win32-win32-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-win32-win32-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
+		<getDependency name="swt-linux" version="${swt.version}-gtk-linux-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-gtk-linux-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
 
-	<available file="lib/json-${json.version}.jar" property="json.available" />
-	<target name="get_json" unless="json.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="json-*.jar" />
-		</delete>
-		<get src="https://github.com/hudeany/json/releases/download/${json.version}/json-${json.version}.jar" dest="lib/" />
+		<getDependency name="network_sources" version="${network.version}_sources" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}_sources.jar" />
+		<getDependency name="soderer-utilities_sources" version="${soderer-utilities.version}_sources" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}-sources.jar" />
 	</target>
-
-	<available file="lib/proxyautoconfig-${proxyautoconfig.version}.jar" property="proxyautoconfig.available" />
-	<target name="get_proxyautoconfig" unless="proxyautoconfig.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="proxyautoconfig-*.jar" />
-		</delete>
-		<get src="https://github.com/hudeany/ProxyAutoConfig/releases/download/${proxyautoconfig.version}/proxyautoconfig-${proxyautoconfig.version}.jar" dest="lib/" />
-	</target>
-
-	<available file="lib/network-${network.version}.jar" property="network.available" />
-	<target name="get_network" unless="network.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="network-*.jar" />
-		</delete>
-		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}.jar" dest="lib/" />
-	</target>
-
-	<available file="lib/network-${network.version}_sources.jar" property="network_sources.available" />
-	<target name="get_network_sources" unless="network_sources.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="network-*_sources.jar" />
-		</delete>
-		<get src="https://github.com/hudeany/network/releases/download/${network.version}/network-${network.version}_sources.jar" dest="lib/" />
-	</target>
-
-	<available file="lib/soderer-utilities-${soderer-utilities.version}.jar" property="soderer-utilities.available" />
-	<target name="get_soderer_utilities" unless="soderer-utilities.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="soderer-utilities-*.jar" excludes="soderer-utilities-*-sources.jar" />
-		</delete>
-		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}.jar" dest="lib/" />
-	</target>
-
-	<available file="lib/soderer-utilities-${soderer-utilities.version}-sources.jar" property="soderer-utilities-sources.available" />
-	<target name="get_soderer_utilities_sources" unless="soderer-utilities-sources.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="soderer-utilities-*-sources.jar" />
-		</delete>
-		<get src="https://soderer.de/maven2/de/soderer/JavaUtilities/${soderer-utilities.version}/soderer-utilities-${soderer-utilities.version}-sources.jar" dest="lib/" />
-	</target>
-
-	<!-- SWT Windows: JarInJarLoader decides by OS type which SWT jar to load-->
-	<!-- https://archive.eclipse.org/eclipse/downloads/ -->
-	<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
-	<available file="lib/swt-${swt.version}-win32-win32-x86_64.jar" property="swt-win.available" />
-	<target name="get_swt_win" unless="swt-win.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="swt-*-win32-win32-x86_64.jar" />
-		</delete>
-		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-win32-win32-x86_64.zip" dest="lib/swt_win.zip" />
-		<unzip src="lib/swt_win.zip" dest="lib/swt_win" />
-		<move file="lib/swt_win/swt.jar" tofile="lib/swt-${swt.version}-win32-win32-x86_64.jar" />
-		<delete dir="lib/swt_win" />
-		<delete file="lib/swt_win.zip" />
-	</target>
-
-	<!-- SWT Linux: JarInJarLoader decides by OS type which SWT jar to load-->
-	<!-- https://archive.eclipse.org/eclipse/downloads/ -->
-	<!-- https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4 -->
-	<available file="lib/swt-${swt.version}-gtk-linux-x86_64.jar" property="swt-linux.available" />
-	<target name="get_swt_linux" unless="swt-linux.available" depends="proxy">
-		<mkdir dir="lib/" />
-		<delete>
-			<fileset dir="lib" includes="swt-*-gtk-linux-x86_64.jar" />
-		</delete>
-		<get src="https://mirrors.dotsrc.org/eclipse/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-gtk-linux-x86_64.zip" dest="lib/swt_linux.zip" />
-		<unzip src="lib/swt_linux.zip" dest="lib/swt_linux" />
-		<move file="lib/swt_linux/swt.jar" tofile="lib/swt-${swt.version}-gtk-linux-x86_64.jar" />
-		<delete dir="lib/swt_linux" />
-		<delete file="lib/swt_linux.zip" />
-	</target>
-
-	<target name="download_dependencies" depends="get_mailapi, get_csv, get_json, get_proxyautoconfig, get_network, get_network_sources, get_soderer_utilities, get_soderer_utilities_sources, get_swt_win, get_swt_linux" />
 
 	<target name="compile" depends="download_dependencies">
 		<path id="build.classpath">
@@ -243,30 +156,6 @@
 
 		<copy file="${buildPath}/RestClient.jar" tofile="${buildPath}/RestClient-${build.version}.jar" />
 	</target>
-
-	<macrodef name="unsignjar">
-		<attribute name="jar" />
-		<sequential>
-			<!-- Remove any existing signatures from a JAR file. -->
-			<tempfile prefix="unsignjar-" destdir="${java.io.tmpdir}" property="temp.file" />
-			<echo message="Removing signatures from JAR: @{jar}" />
-			<mkdir dir="${temp.file}" />
-			<unjar src="@{jar}" dest="${temp.file}">
-				<patternset>
-					<include name="**" />
-					<exclude name="META-INF/*.SF" />
-					<exclude name="META-INF/*.DSA" />
-					<exclude name="META-INF/*.RSA" />
-				</patternset>
-			</unjar>
-			<delete file="@{jar}" failonerror="true" />
-			<!-- Touch META-INF/MANIFEST.MF in case the jar file didn't have a manifest. Otherwise the JAR task below will fail if the manifest file doesn't exist. -->
-			<mkdir dir="${temp.file}/META-INF" />
-			<touch file="${temp.file}/META-INF/MANIFEST.MF" />
-			<jar destfile="@{jar}" basedir="${temp.file}" includes="**" manifest="${temp.file}/META-INF/MANIFEST.MF" />
-			<delete dir="${temp.file}" failonerror="true" />
-		</sequential>
-	</macrodef>
 
 	<target name="cleanup_after">
 		<delete dir="${buildPath}/bin" />
