@@ -85,14 +85,15 @@
 		<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
 		<getDependency name="proxyautoconfig" version="${proxyautoconfig.version}" url="https://github.com/hudeany/ProxyAutoConfig/releases/download/{version}/proxyautoconfig-{version}.jar" />
 		<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
-		<getDependency name="soderer-utilities" version="${soderer-utilities.version}" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}.jar" />
+		
+		<getDependency url="https://soderer.de/maven2" groupId="de.soderer" artifactid="soderer-utilities" version="${soderer-utilities.version}" />
 
 		<!-- SWT Windows or Linux: JarInJarLoader decides by OS type which SWT jar to load-->
 		<getDependency name="swt-win" version="${swt.version}-win32-win32-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-win32-win32-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
 		<getDependency name="swt-linux" version="${swt.version}-gtk-linux-x86_64" url="https://archive.eclipse.org/eclipse/downloads/drops4/${swt.build}/swt-${swt.version}-gtk-linux-x86_64.zip" zipEntry="swt.jar" groupId="org.eclipse.swt" />
 
 		<getDependency name="network_sources" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}_sources.jar" />
-		<getDependency name="soderer-utilities_sources" version="${soderer-utilities.version}" url="https://soderer.de/maven2/de/soderer/JavaUtilities/{version}/soderer-utilities-{version}-sources.jar" />
+		<getDependency url="https://soderer.de/maven2" groupId="de.soderer" artifactid="soderer-utilities" version="${soderer-utilities.version}" classifier="sources" />
 	</target>
 
 	<target name="compile" depends="download_dependencies">
