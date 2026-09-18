@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project default="build_jar" name="Create all Jars for Project RestClient">
+	<typedef resource="de/soderer/antbuildhelp/antlib.xml" classpath="lib_build/antbuildhelp-26.0.1.jar" />
+	
 	<property name="csv.version" value="26.1.1" />
 	<property name="mailapi.version" value="2.0.1" />
 	<property name="json.version" value="26.2.2" />
@@ -9,8 +11,6 @@
 
 	<property name="swt.version" value="4.38" />
 	<property name="swt.build" value="R-4.38-202512010920" />
-
-	<typedef resource="de/soderer/antbuildhelp/antlib.xml" classpath="lib_build/antbuildhelp-26.0.1.jar" />
 
 	<target name="build_jar" depends="build_setup, cleanup_before, create_jar, sign_jar, cleanup_after" />
 
