@@ -144,7 +144,7 @@
 
 			<zipfileset file="${CaPublicKey}" />
 			<zipfileset file="${CaPublicKeyOld}" />
-			<zipfileset dir="lib" includes="*.jar" excludes="*sources.jar" />
+			<zipfileset dir="lib" includes="*.jar" excludes="*-sources*.jar" />
 		</jar>
 	</target>
 
