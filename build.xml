@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project default="build_jar" name="Create all Jars for Project RestClient">
-	<property name="antbuildhelp.version" value="26.0.1" />
+	<property name="antbuildhelp.version" value="26.0.2" />
 	<property name="csv.version" value="26.1.1" />
 	<property name="mailapi.version" value="2.0.1" />
 	<property name="json.version" value="26.2.2" />
@@ -88,7 +88,7 @@
 		<mkdir dir="${buildPath}/bin" />
 	</target>
 
-	<target name="download_dependencies">
+	<target name="download_dependencies" depends="proxy">
 		<getDependency url="https://repo1.maven.org/maven2" groupId="com.sun.mail" artifactId="mailapi" version="2.0.2" />
 		
 		<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
