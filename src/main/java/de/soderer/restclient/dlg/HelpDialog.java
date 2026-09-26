@@ -88,7 +88,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 			@Override
 			public void widgetSelected(final SelectionEvent e) {
 				try {
-					ApplicationUpdateUtilities.executeUpdate(applicationDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, null, true, false);
+					ApplicationUpdateUtilities.executeUpdate(applicationDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);
 				} catch (final Exception e1) {
 					showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e1.getMessage()));
 				}
