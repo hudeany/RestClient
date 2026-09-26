@@ -21,7 +21,6 @@ import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
@@ -63,6 +62,8 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
 public class RequestComponent extends Composite {
+	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
+
 	private DropDown presetCombo;
 	private Button saveButton;
 	private Button deleteButton;
@@ -71,7 +72,7 @@ public class RequestComponent extends Composite {
 	private Runnable presetSelectionListener;
 	private java.util.function.Consumer<List<String>> presetsReorderedListener;
 
-	private Combo httpMethodCombo;
+	private DropDown httpMethodCombo;
 	private Text serviceUrlText;
 	private Button tlsCheckButton;
 	private Text serviceMethodText;
@@ -112,13 +113,18 @@ public class RequestComponent extends Composite {
 	}
 
 	public String getHttpMethod() {
+		// DropDown returns null while the typed text is no valid entry (allowCustomValues=false)
 		return httpMethodCombo.getText();
 	}
 
 	public void setHttpMethod(final String method) {
 		if (method != null) {
-			final int index = httpMethodCombo.indexOf(method);
-			if (index >= 0) httpMethodCombo.select(index);
+			for (final String httpMethod : HTTP_METHODS) {
+				if (httpMethod.equalsIgnoreCase(method)) {
+					httpMethodCombo.setText(httpMethod);
+					break;
+				}
+			}
 		}
 
 		checkRequestContentStatus();
@@ -474,16 +480,20 @@ public class RequestComponent extends Composite {
 		final Label methodLabel = new Label(methodCol, SWT.NONE);
 		methodLabel.setText(LangResources.get("httpMethod"));
 
-		httpMethodCombo = new Combo(methodCol, SWT.DROP_DOWN | SWT.READ_ONLY);
-		httpMethodCombo.setItems(new String[] {"GET", "POST", "PUT", "DELETE", "HEAD"});
-		httpMethodCombo.select(0);
-		httpMethodCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		httpMethodCombo.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				checkRequestContentStatus();
-			}
-		});
+		// Fixed list of HTTP methods: no custom values, no reordering (replaces the former read-only SWT Combo)
+		httpMethodCombo = new DropDown(methodCol, SWT.NONE);
+		final GridData httpMethodComboLayoutData = new GridData(SWT.FILL, SWT.FILL, true, false);
+		// Same height as the other DropDowns (see proxyUrlCombo), since it sits alone in its column
+		httpMethodComboLayoutData.heightHint = saveButton.computeSize(SWT.DEFAULT, SWT.DEFAULT).y;
+		httpMethodCombo.setLayoutData(httpMethodComboLayoutData);
+		httpMethodCombo.setCaseSensitive(false);
+		httpMethodCombo.setMatchMode(MatchMode.STARTS_WITH);
+		httpMethodCombo.setAllowCustomValues(false);
+		httpMethodCombo.setItems(HTTP_METHODS);
+		httpMethodCombo.setText(HTTP_METHODS.get(0));
+		httpMethodCombo.addListener(SWT.Selection, e -> checkRequestContentStatus());
+		// Invalid (red) text makes getHttpMethod() return null, so re-evaluate on validity changes too
+		httpMethodCombo.addValidationListener(valid -> checkRequestContentStatus());
 
 		final Composite urlCol = new Composite(methodUrlRow, SWT.NONE);
 		urlCol.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));

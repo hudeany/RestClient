@@ -1,6 +1,8 @@
 package de.soderer.restclient.dlg;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -8,7 +10,6 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
@@ -19,6 +20,8 @@ import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
+import de.soderer.utilities.swt.DropDown;
+import de.soderer.utilities.swt.DropDown.MatchMode;
 import de.soderer.utilities.swt.ModalDialog;
 import de.soderer.utilities.swt.SwtUtilities;
 
@@ -57,10 +60,16 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 
 		final Label typeLabel = new Label(mainComposite, SWT.NONE);
 		typeLabel.setText(LangResources.get("tlsCheckType") + ":");
-		final Combo typeCombo = new Combo(mainComposite, SWT.DROP_DOWN | SWT.READ_ONLY);
+		// Fixed list of enum names: no custom values (replaces the former read-only SWT Combo)
+		final List<String> typeItems = new ArrayList<>();
 		for (final TlsCheckConfigurationType type : TlsCheckConfigurationType.values()) {
-			typeCombo.add(type.name());
+			typeItems.add(type.name());
 		}
+		final DropDown typeCombo = new DropDown(mainComposite, SWT.NONE);
+		typeCombo.setCaseSensitive(false);
+		typeCombo.setMatchMode(MatchMode.CONTAINS);
+		typeCombo.setAllowCustomValues(false);
+		typeCombo.setItems(typeItems);
 		typeCombo.setText(selectedType.name());
 		typeCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -103,23 +112,35 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 
 		updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
 
-		typeCombo.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				selectedType = TlsCheckConfigurationType.valueOf(typeCombo.getText());
+		typeCombo.addListener(SWT.Selection, e -> {
+			final String typeText = typeCombo.getText();
+			if (typeText == null) {
+				// Only valid entries are accepted, but stay defensive
+				return;
+			}
+			selectedType = TlsCheckConfigurationType.valueOf(typeText);
 
-				if (!selectedType.isFilePathSupported()) {
-					fileText.setText("");
-					selectedFile = null;
-				}
+			if (!selectedType.isFilePathSupported()) {
+				fileText.setText("");
+				selectedFile = null;
+			}
 
-				if (!selectedType.isPasswordSupported()) {
-					passwordText.setText("");
-					password = null;
-				}
+			if (!selectedType.isPasswordSupported()) {
+				passwordText.setText("");
+				password = null;
+			}
 
-				updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
+			updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
+			checkButtonStatus(fileText);
+		});
+
+		// While the typed type text is invalid (red), "selectedType" still holds the last valid type,
+		// so block OK to avoid confirming a type the user no longer sees
+		typeCombo.addValidationListener(valid -> {
+			if (valid) {
 				checkButtonStatus(fileText);
+			} else {
+				okButton.setEnabled(false);
 			}
 		});
 
