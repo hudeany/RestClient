@@ -19,8 +19,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-import org.eclipse.swt.widgets.Display;
-
 import de.soderer.json.JsonArray;
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonObject;
@@ -52,7 +50,7 @@ import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
 import de.soderer.utilities.console.ConsoleType;
 import de.soderer.utilities.console.ConsoleUtilities;
-import de.soderer.utilities.swt.ErrorDialog;
+import de.soderer.utilities.swing.ErrorDialog;
 import de.soderer.utilities.worker.WorkerParentDual;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.data.YamlDocument;
@@ -349,25 +347,30 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			}
 
 			if (openGui) {
-				Display display = null;
-				try {
-					display = new Display();
-					final RestClientDialog mainDialog = new RestClientDialog(display, applicationConfiguration);
-					mainDialog.run();
-					return -1;
-				} catch (final Exception ex) {
-					if (display != null) {
-						new ErrorDialog(display.getActiveShell(), RestClient.APPLICATION_NAME, RestClient.VERSION.toString(), RestClient.APPLICATION_ERROR_EMAIL_ADRESS, ex).open();
-					} else {
-						System.out.println(ex.toString());
-						ex.printStackTrace();
+				// Allows pinning the application to the Linux Gnome dock (needs "--add-opens=java.desktop/sun.awt.X11=ALL-UNNAMED")
+				de.soderer.utilities.swing.SwingUtilities.setAwtWmClass(APPLICATION_STARTUPCLASS_NAME);
+				de.soderer.utilities.swing.SwingUtilities.setSystemLookAndFeel();
+
+				final ConfigurationProperties guiApplicationConfiguration = applicationConfiguration;
+				final int[] guiReturnCode = new int[] { -1 };
+				javax.swing.SwingUtilities.invokeAndWait(() -> {
+					try {
+						final RestClientDialog mainDialog = new RestClientDialog(guiApplicationConfiguration);
+						mainDialog.setVisible(true);
+					} catch (final Exception ex) {
+						guiReturnCode[0] = 1;
+						try {
+							new ErrorDialog(null, RestClient.APPLICATION_NAME, RestClient.VERSION.toString(), RestClient.APPLICATION_ERROR_EMAIL_ADRESS, ex).open();
+						} catch (final Exception dialogException) {
+							System.out.println(ex.toString());
+							ex.printStackTrace();
+							dialogException.printStackTrace();
+						}
 					}
-					return 1;
-				} finally {
-					if (display != null) {
-						display.dispose();
-					}
-				}
+				});
+
+				// -1: The GUI keeps running on the Swing event dispatch thread, so main() must not call System.exit()
+				return guiReturnCode[0];
 			} else {
 				LangResources.enforceDefaultLocale();
 

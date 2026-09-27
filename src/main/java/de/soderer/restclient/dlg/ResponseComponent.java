@@ -1,29 +1,33 @@
 package de.soderer.restclient.dlg;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.ScrolledComposite;
-import org.eclipse.swt.events.KeyAdapter;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Color;
-import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
-import org.eclipse.swt.widgets.DirectoryDialog;
-import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Text;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.ScrollPaneConstants;
+import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonReader;
@@ -38,22 +42,30 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.data.YamlDocument;
 import de.soderer.yaml.data.YamlNode;
 
-public class ResponseComponent extends Composite {
-	private Text ipAddressText;
-	private Text httpCodeText;
-	private Text timeText;
-	private Label redirectHintLabel;
-	private Color redirectWarningColor;
-	private Composite headerContainer;
-	private ScrolledComposite headerScrolled;
-	private Text responseBodyText;
-	private Text responseDataPathText;
-	private Text downloadTargetText;
-	private Button downloadTargetBrowseFileButton;
-	private Button downloadTargetBrowseDirectoryButton;
-	private Label randomParamsLabel;
-	private Composite randomParamsContainer;
-	private ScrolledComposite randomParamsScrolled;
+public class ResponseComponent extends JPanel {
+	private static final long serialVersionUID = -3418745931227019654L;
+
+	private static final int KEY_FIELD_WIDTH = 150;
+	private static final int LIST_HEIGHT = 75;
+	private static final Color REDIRECT_WARNING_COLOR = new Color(170, 0, 0);
+
+	private JTextField ipAddressText;
+	private JTextField httpCodeText;
+	private JTextField timeText;
+	private WrappingLabel redirectHintLabel;
+	private ViewportWidthPanel headerContainer;
+	private JTextArea responseBodyText;
+	private HintTextField responseDataPathText;
+	private HintTextField downloadTargetText;
+	private JLabel randomParamsLabel;
+	private ViewportWidthPanel randomParamsContainer;
+	private JScrollPane randomParamsScrolled;
+
+	/** Response headers as currently shown, in display order */
+	private Map<String, String> responseHeaders = new LinkedHashMap<>();
+
+	/** Parts hidden by {@link #clearResponse()} and shown again by {@link #showResponse()} */
+	private final List<JComponent> responseDisplayComponents = new ArrayList<>();
 
 	/**
 	 * Body of the last received response, kept so {@link #refreshResponseBodyDisplay()} can
@@ -62,8 +74,8 @@ public class ResponseComponent extends Composite {
 	 */
 	private String lastResponseBody;
 
-	public ResponseComponent(final Composite parent, final int style) {
-		super(parent, style);
+	public ResponseComponent() {
+		super(new GridBagLayout());
 		createUI();
 	}
 
@@ -76,7 +88,7 @@ public class ResponseComponent extends Composite {
 	}
 
 	public void setTime(final String duration) {
-		timeText.setText(duration);
+		timeText.setText(duration != null ? duration : "");
 	}
 
 	/**
@@ -93,14 +105,13 @@ public class ResponseComponent extends Composite {
 				hintText += " " + LangResources.get("redirectCredentialsDroppedHint");
 			}
 			redirectHintLabel.setText(hintText);
-			redirectHintLabel.setForeground(credentialsDroppedOnRedirect ? redirectWarningColor : null);
+			redirectHintLabel.setForeground(credentialsDroppedOnRedirect ? REDIRECT_WARNING_COLOR : UIManager.getColor("Label.foreground"));
 		} else {
 			redirectHintLabel.setText("");
-			redirectHintLabel.setForeground(null);
 		}
 		redirectHintLabel.setVisible(hasRedirectInfo);
-		((GridData) redirectHintLabel.getLayoutData()).exclude = !hasRedirectInfo;
-		layout(true, true);
+		revalidate();
+		repaint();
 	}
 
 	public void setResponseBody(final String body) {
@@ -131,58 +142,46 @@ public class ResponseComponent extends Composite {
 		final String contentType = new CaseInsensitiveMap<>(getResponseHeaders()).get(HttpConstants.HTTPHEADERNAME_CONTENTTYPE);
 		final String dataPath = responseDataPathText.getText();
 
+		String displayText;
 		if (body != null && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Json, HttpContentType.TextJson)) {
 			try {
 				final JsonNode jsonRootNode = JsonReader.readJsonItemString(body);
-				responseBodyText.setText(ResponseDataPathEvaluator.evaluateJsonPath(jsonRootNode, dataPath));
+				displayText = ResponseDataPathEvaluator.evaluateJsonPath(jsonRootNode, dataPath);
 			} catch (final Exception e) {
-				responseBodyText.setText("RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body);
+				displayText = "RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body;
 			}
 		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
 			try {
 				final YamlDocument yamlDocument = YamlReader.readDocument(body);
 				final YamlNode yamlDataNode = ResponseDataPathEvaluator.getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(dataPath));
-				responseBodyText.setText(ResponseDataPathEvaluator.yamlNodeToDisplayString(yamlDataNode));
+				displayText = ResponseDataPathEvaluator.yamlNodeToDisplayString(yamlDataNode);
 			} catch (final Exception e) {
-				responseBodyText.setText("RestClient YamlParserError: \n" + e.getMessage() + "\n\n" + body);
+				displayText = "RestClient YamlParserError: \n" + e.getMessage() + "\n\n" + body;
 			}
 		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
 			try {
-				responseBodyText.setText(ResponseDataPathEvaluator.evaluateXPath(body, dataPath));
+				displayText = ResponseDataPathEvaluator.evaluateXPath(body, dataPath);
 			} catch (final Exception e) {
-				responseBodyText.setText("RestClient XPathError: \n" + e.getMessage() + "\n\n" + body);
+				displayText = "RestClient XPathError: \n" + e.getMessage() + "\n\n" + body;
 			}
 		} else {
-			responseBodyText.setText(body != null ? body : "");
+			displayText = body;
 		}
+
+		responseBodyText.setText(displayText != null ? displayText : "");
+		responseBodyText.setCaretPosition(0);
 	}
 
 	public void setResponseHeaders(final Map<String, String> headers) {
-		for (final Control c : headerContainer.getChildren()) {
-			c.dispose();
-		}
-
+		responseHeaders = new LinkedHashMap<>();
 		if (headers != null) {
 			for (final Map.Entry<String, String> entry : headers.entrySet()) {
-				addHeaderRow(entry.getKey(), entry.getValue());
+				if (entry.getKey() != null && !entry.getKey().isBlank()) {
+					responseHeaders.put(entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+				}
 			}
 		}
-		refreshScrolledArea(headerContainer, headerScrolled);
-	}
-
-	private void addHeaderRow(final String name, final String value) {
-		final Text nameText = new Text(headerContainer, SWT.BORDER | SWT.READ_ONLY);
-		nameText.setText(name != null ? name : "");
-		final GridData gridDataName = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-		gridDataName.widthHint = 150;
-		nameText.setLayoutData(gridDataName);
-
-		final Text valueText = new Text(headerContainer, SWT.BORDER | SWT.READ_ONLY);
-		valueText.setText(value != null ? value : "");
-		final GridData gridDataValue = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		valueText.setLayoutData(gridDataValue);
-
-		updateHeaderMinSize();
+		fillKeyValueRows(headerContainer, responseHeaders.entrySet().stream().map(entry -> new String[] { entry.getKey(), entry.getValue() }).toList());
 	}
 
 	public Integer getHttpCode() {
@@ -206,7 +205,7 @@ public class ResponseComponent extends Composite {
 	 * according to the response's Content-Type header: JsonPath for JSON, the same path syntax
 	 * for YAML, and XPath for XML. Only the part of the content matched by the path is then
 	 * shown in the response body area; if empty, the full (unmodified/pretty-printed) content is
-	 * shown, same as before this field existed.
+	 * shown.
 	 */
 	public String getResponseDataPath() {
 		return responseDataPathText.getText();
@@ -232,182 +231,209 @@ public class ResponseComponent extends Composite {
 	}
 
 	public Map<String, String> getResponseHeaders() {
-		final Map<String, String> map = new LinkedHashMap<>();
-		final Control[] children = headerContainer.getChildren();
-		for (int i = 0; i < children.length - 1; i += 2) {
-			if (children[i] instanceof final Text nameText && children[i + 1] instanceof final Text valueText) {
-				final String name = nameText.getText();
-				final String value = valueText.getText();
-				if (!name.isBlank()) {
-					map.put(name, value);
-				}
-			}
-		}
-		return map;
+		return new LinkedHashMap<>(responseHeaders);
 	}
 
 	private void createUI() {
-		setLayout(new GridLayout(1, false));
+		setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-		final Composite sectionCodeAndTime = new Composite(this, SWT.NONE);
-		sectionCodeAndTime.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		sectionCodeAndTime.setLayout(new GridLayout(3, false));
+		int row = 0;
 
-		final Label codeLabel = new Label(sectionCodeAndTime, SWT.NONE);
-		codeLabel.setText(LangResources.get("httpResponseCode"));
+		// Code, IP address and time: labels in the first row, read-only fields in the second
+		final JPanel sectionCodeAndTime = new JPanel(new GridBagLayout());
+		final GridBagConstraints codeAndTimeConstraints = new GridBagConstraints();
+		codeAndTimeConstraints.weightx = 1;
+		codeAndTimeConstraints.fill = GridBagConstraints.HORIZONTAL;
+		codeAndTimeConstraints.insets = new Insets(0, 0, 2, 5);
+		codeAndTimeConstraints.gridy = 0;
+		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseCode")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseIpAddress")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseTime")), codeAndTimeConstraints);
+		codeAndTimeConstraints.gridy = 1;
+		httpCodeText = createReadOnlyField();
+		sectionCodeAndTime.add(httpCodeText, codeAndTimeConstraints);
+		ipAddressText = createReadOnlyField();
+		sectionCodeAndTime.add(ipAddressText, codeAndTimeConstraints);
+		timeText = createReadOnlyField();
+		sectionCodeAndTime.add(timeText, codeAndTimeConstraints);
+		add(sectionCodeAndTime, rowConstraints(row++, 0));
+		responseDisplayComponents.add(httpCodeText);
+		responseDisplayComponents.add(ipAddressText);
+		responseDisplayComponents.add(timeText);
 
-		final Label ipAddressLabel = new Label(sectionCodeAndTime, SWT.NONE);
-		ipAddressLabel.setText(LangResources.get("httpResponseIpAddress"));
-
-		final Label timeLabel = new Label(sectionCodeAndTime, SWT.NONE);
-		timeLabel.setText(LangResources.get("httpResponseTime"));
-
-		httpCodeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
-		httpCodeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		ipAddressText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
-		ipAddressText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		timeText = new Text(sectionCodeAndTime, SWT.BORDER | SWT.READ_ONLY | SWT.SINGLE);
-		timeText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		redirectWarningColor = new Color(getDisplay(), 170, 0, 0);
-		addDisposeListener(e -> redirectWarningColor.dispose());
-
-		redirectHintLabel = new Label(this, SWT.WRAP);
-		redirectHintLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		redirectHintLabel = new WrappingLabel();
 		redirectHintLabel.setVisible(false);
-		((GridData) redirectHintLabel.getLayoutData()).exclude = true;
+		add(redirectHintLabel, rowConstraints(row++, 0));
 
-		createKeyValueSection(LangResources.get("httpResponseHeader"));
+		final JLabel headerLabel = new JLabel(LangResources.get("httpResponseHeader"));
+		add(headerLabel, rowConstraints(row++, 0));
+		headerContainer = createKeyValueContainer();
+		final JScrollPane headerScrolled = createListScrollPane(headerContainer);
+		add(headerScrolled, rowConstraints(row++, 0));
+		responseDisplayComponents.add(headerLabel);
+		responseDisplayComponents.add(headerScrolled);
 
-		final Label bodyLabel = new Label(this, SWT.NONE);
-		bodyLabel.setText(LangResources.get("responseBody"));
+		final JLabel bodyLabel = new JLabel(LangResources.get("responseBody"));
+		add(bodyLabel, rowConstraints(row++, 0));
 
-		responseBodyText = new Text(this,
-				SWT.MULTI
-				| SWT.BORDER
-				| SWT.READ_ONLY
-				| SWT.V_SCROLL
-				| SWT.H_SCROLL);
+		// JTextArea already supports Ctrl+A / Ctrl+C, which the SWT variant had to add by hand
+		responseBodyText = new JTextArea();
+		responseBodyText.setEditable(false);
+		final JScrollPane responseBodyScrolled = new JScrollPane(responseBodyText);
+		final GridBagConstraints bodyConstraints = rowConstraints(row++, 1);
+		bodyConstraints.fill = GridBagConstraints.BOTH;
+		add(responseBodyScrolled, bodyConstraints);
+		responseDisplayComponents.add(bodyLabel);
+		responseDisplayComponents.add(responseBodyScrolled);
 
-		responseBodyText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+		// Takes the body's space while the body is hidden, so the rows below stay at the bottom
+		final GridBagConstraints fillerConstraints = rowConstraints(row++, 0.0001);
+		fillerConstraints.fill = GridBagConstraints.BOTH;
+		add(Box.createGlue(), fillerConstraints);
 
-		responseBodyText.addKeyListener(new KeyAdapter() {
-			@Override
-			public void keyPressed(final KeyEvent e) {
-				if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'a' || e.keyCode == 'A')) {
-					responseBodyText.selectAll();
-					e.doit = false;
-				} else if ((e.stateMask & SWT.MOD1) != 0 && (e.keyCode == 'c' || e.keyCode == 'C')) {
-					responseBodyText.copy();
-					e.doit = false;
-				}
-			}
-		});
-
-		final Composite responseDataPathRow = new Composite(this, SWT.NONE);
-		responseDataPathRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout responseDataPathLayout = new GridLayout(2, false);
-		responseDataPathLayout.marginWidth = 0;
-		responseDataPathLayout.marginHeight = 0;
-		responseDataPathRow.setLayout(responseDataPathLayout);
-
-		final Label responseDataPathLabel = new Label(responseDataPathRow, SWT.NONE);
-		responseDataPathLabel.setText(LangResources.get("responseDataPath"));
-
-		responseDataPathText = new Text(responseDataPathRow, SWT.BORDER | SWT.SINGLE);
-		responseDataPathText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		responseDataPathText.setMessage(LangResources.get("responseDataPathHint"));
+		final JPanel responseDataPathRow = new JPanel(new BorderLayout(5, 0));
+		responseDataPathRow.add(new JLabel(LangResources.get("responseDataPath")), BorderLayout.WEST);
+		responseDataPathText = new HintTextField(LangResources.get("responseDataPathHint"));
 		responseDataPathText.setToolTipText(LangResources.get("responseDataPathTooltip"));
-		responseDataPathText.addModifyListener(new ModifyListener() {
+		responseDataPathText.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
-			public void modifyText(final ModifyEvent e) {
+			public void insertUpdate(final DocumentEvent event) {
 				refreshResponseBodyDisplay();
 			}
+
+			@Override
+			public void removeUpdate(final DocumentEvent event) {
+				refreshResponseBodyDisplay();
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent event) {
+				// Attribute changes only
+			}
 		});
+		responseDataPathRow.add(responseDataPathText, BorderLayout.CENTER);
+		add(responseDataPathRow, rowConstraints(row++, 0));
 
-		final Composite downloadTargetRow = new Composite(this, SWT.NONE);
-		downloadTargetRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout downloadTargetLayout = new GridLayout(4, false);
-		downloadTargetLayout.marginWidth = 0;
-		downloadTargetLayout.marginHeight = 0;
-		downloadTargetRow.setLayout(downloadTargetLayout);
-
-		final Label downloadTargetLabel = new Label(downloadTargetRow, SWT.NONE);
-		downloadTargetLabel.setText(LangResources.get("downloadTarget"));
-
-		downloadTargetText = new Text(downloadTargetRow, SWT.BORDER | SWT.SINGLE);
-		downloadTargetText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final JPanel downloadTargetRow = new JPanel(new GridBagLayout());
+		final GridBagConstraints downloadConstraints = new GridBagConstraints();
+		downloadConstraints.insets = new Insets(0, 0, 0, 5);
+		downloadTargetRow.add(new JLabel(LangResources.get("downloadTarget")), downloadConstraints);
+		downloadTargetText = new HintTextField(LangResources.get("downloadTargetHint"));
 		downloadTargetText.setText(Utilities.getUsersDefaultDownloadDirectory());
-		downloadTargetText.setMessage(LangResources.get("downloadTargetHint"));
 		downloadTargetText.setToolTipText(LangResources.get("downloadTargetTooltip"));
+		// GridBagLayout shrinks to minimum sizes when space gets tight, keep the path field usable
+		downloadTargetText.setMinimumSize(new Dimension(150, downloadTargetText.getPreferredSize().height));
+		downloadConstraints.weightx = 1;
+		downloadConstraints.fill = GridBagConstraints.HORIZONTAL;
+		downloadTargetRow.add(downloadTargetText, downloadConstraints);
+		downloadConstraints.weightx = 0;
+		downloadConstraints.fill = GridBagConstraints.NONE;
+		final JButton downloadTargetBrowseFileButton = new JButton(LangResources.get("downloadTargetBrowseFile"));
+		downloadTargetBrowseFileButton.addActionListener(event -> browseDownloadTarget(false));
+		downloadTargetRow.add(downloadTargetBrowseFileButton, downloadConstraints);
+		downloadConstraints.insets = new Insets(0, 0, 0, 0);
+		final JButton downloadTargetBrowseDirectoryButton = new JButton(LangResources.get("downloadTargetBrowseDirectory"));
+		downloadTargetBrowseDirectoryButton.addActionListener(event -> browseDownloadTarget(true));
+		downloadTargetRow.add(downloadTargetBrowseDirectoryButton, downloadConstraints);
+		add(downloadTargetRow, rowConstraints(row++, 0));
 
-		downloadTargetBrowseFileButton = new Button(downloadTargetRow, SWT.PUSH);
-		downloadTargetBrowseFileButton.setText(LangResources.get("downloadTargetBrowseFile"));
-		downloadTargetBrowseFileButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				final FileDialog dialog = new FileDialog(getShell(), SWT.SAVE);
-				final String current = downloadTargetText.getText();
-				if (Utilities.isNotBlank(current)) {
-					final File currentFile = new File(current);
-					final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
-					if (currentDir != null) {
-						dialog.setFilterPath(currentDir.getAbsolutePath());
-					}
-					if (!currentFile.isDirectory()) {
-						dialog.setFileName(currentFile.getName());
-					}
-				}
-				final String selected = dialog.open();
-				if (selected != null) {
-					downloadTargetText.setText(selected);
-				}
-			}
-		});
+		randomParamsLabel = new JLabel(LangResources.get("randomParameters"));
+		randomParamsLabel.setVisible(false);
+		add(randomParamsLabel, rowConstraints(row++, 0));
 
-		downloadTargetBrowseDirectoryButton = new Button(downloadTargetRow, SWT.PUSH);
-		downloadTargetBrowseDirectoryButton.setText(LangResources.get("downloadTargetBrowseDirectory"));
-		downloadTargetBrowseDirectoryButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				final DirectoryDialog dialog = new DirectoryDialog(getShell());
-				final String current = downloadTargetText.getText();
-				if (Utilities.isNotBlank(current)) {
-					final File currentFile = new File(current);
-					final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
-					if (currentDir != null) {
-						dialog.setFilterPath(currentDir.getAbsolutePath());
-					}
-				}
-				final String selected = dialog.open();
-				if (selected != null) {
-					downloadTargetText.setText(selected);
-				}
-			}
-		});
-
-		randomParamsLabel = new Label(this, SWT.NONE);
-		randomParamsLabel.setText(LangResources.get("randomParameters"));
-		randomParamsLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-		randomParamsScrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
-		final GridData randomParamsGd = new GridData(SWT.FILL, SWT.FILL, true, false);
-		randomParamsGd.heightHint = 75;
-		randomParamsScrolled.setLayoutData(randomParamsGd);
-		randomParamsScrolled.setExpandHorizontal(true);
-		randomParamsScrolled.setExpandVertical(true);
-
-		randomParamsContainer = new Composite(randomParamsScrolled, SWT.NONE);
-		randomParamsContainer.setLayout(new GridLayout(2, false));
-		randomParamsScrolled.setContent(randomParamsContainer);
+		randomParamsContainer = createKeyValueContainer();
+		randomParamsScrolled = createListScrollPane(randomParamsContainer);
+		randomParamsScrolled.setVisible(false);
+		add(randomParamsScrolled, rowConstraints(row++, 0));
 	}
 
-	private void updateHeaderMinSize() {
-		headerContainer.setLayout(new GridLayout(2, false));
-		final Point size = headerContainer.computeSize(SWT.DEFAULT, SWT.DEFAULT);
-		headerScrolled.setMinSize(size);
+	private void browseDownloadTarget(final boolean directory) {
+		final JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setFileSelectionMode(directory ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
+		final String current = downloadTargetText.getText();
+		if (Utilities.isNotBlank(current)) {
+			final File currentFile = new File(current);
+			final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
+			if (currentDir != null) {
+				fileChooser.setCurrentDirectory(currentDir);
+			}
+			if (!directory && !currentFile.isDirectory()) {
+				fileChooser.setSelectedFile(currentFile);
+			}
+		}
+		final int result = directory ? fileChooser.showOpenDialog(this) : fileChooser.showSaveDialog(this);
+		if (result == JFileChooser.APPROVE_OPTION) {
+			downloadTargetText.setText(fileChooser.getSelectedFile().getAbsolutePath());
+		}
+	}
+
+	private static GridBagConstraints rowConstraints(final int row, final double weighty) {
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridx = 0;
+		constraints.gridy = row;
+		constraints.weightx = 1;
+		constraints.weighty = weighty;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.FIRST_LINE_START;
+		constraints.insets = new Insets(2, 0, 2, 0);
+		return constraints;
+	}
+
+	private static JTextField createReadOnlyField() {
+		final JTextField field = new JTextField();
+		field.setEditable(false);
+		return field;
+	}
+
+	private static ViewportWidthPanel createKeyValueContainer() {
+		return new ViewportWidthPanel(new GridBagLayout());
+	}
+
+	private static JScrollPane createListScrollPane(final ViewportWidthPanel container) {
+		final JScrollPane scrollPane = new JScrollPane(container, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		scrollPane.setPreferredSize(new Dimension(100, LIST_HEIGHT));
+		scrollPane.setMinimumSize(new Dimension(100, LIST_HEIGHT));
+		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+		return scrollPane;
+	}
+
+	/**
+	 * Replaces the content of a key/value container by read-only "key | value"
+	 * rows.
+	 */
+	private static void fillKeyValueRows(final ViewportWidthPanel container, final List<String[]> keyValuePairs) {
+		container.removeAll();
+
+		int row = 0;
+		for (final String[] keyValuePair : keyValuePairs) {
+			final GridBagConstraints constraints = new GridBagConstraints();
+			constraints.gridy = row++;
+			constraints.insets = new Insets(1, 2, 1, 2);
+
+			final JTextField keyText = createReadOnlyField();
+			keyText.setText(keyValuePair[0]);
+			keyText.setCaretPosition(0);
+			keyText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, keyText.getPreferredSize().height));
+			constraints.gridx = 0;
+			container.add(keyText, constraints);
+
+			final JTextField valueText = createReadOnlyField();
+			valueText.setText(keyValuePair[1]);
+			valueText.setCaretPosition(0);
+			constraints.gridx = 1;
+			constraints.weightx = 1;
+			constraints.fill = GridBagConstraints.HORIZONTAL;
+			container.add(valueText, constraints);
+		}
+
+		// Keeps the rows at the top
+		final GridBagConstraints fillerConstraints = new GridBagConstraints();
+		fillerConstraints.gridy = row;
+		fillerConstraints.weighty = 1;
+		container.add(Box.createGlue(), fillerConstraints);
+
+		container.revalidate();
+		container.repaint();
 	}
 
 	public void clearResponse() {
@@ -417,111 +443,79 @@ public class ResponseComponent extends Composite {
 		timeText.setText("");
 		responseBodyText.setText("");
 
-		httpCodeText.setVisible(false);
-		ipAddressText.setVisible(false);
-		timeText.setVisible(false);
-
-		headerContainer.setVisible(false);
-		headerScrolled.setVisible(false);
-
-		responseBodyText.setVisible(false);
+		for (final JComponent component : responseDisplayComponents) {
+			component.setVisible(false);
+		}
 
 		setRandomParameters(null);
 		setRedirectInfo(0, null, false);
 
-		for (final Control c : getChildren()) {
-			if (c instanceof Label && c != redirectHintLabel) {
-				c.setVisible(false);
-			}
-		}
-
-		layout(true, true);
+		revalidate();
+		repaint();
 	}
 
 	public void showResponse() {
-		httpCodeText.setVisible(true);
-		ipAddressText.setVisible(true);
-		timeText.setVisible(true);
-
-		headerContainer.setVisible(true);
-		headerScrolled.setVisible(true);
-
-		responseBodyText.setVisible(true);
-
-		for (final Control c : getChildren()) {
-			if (c instanceof Label && c != redirectHintLabel) {
-				c.setVisible(true);
-			}
+		for (final JComponent component : responseDisplayComponents) {
+			component.setVisible(true);
 		}
 
-		layout(true, true);
+		revalidate();
+		repaint();
 	}
 
-	private void createKeyValueSection(final String title) {
-		final Composite sectionHeader = new Composite(this, SWT.NONE);
-		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		sectionHeader.setLayout(new GridLayout(2, false));
-
-		final Label label = new Label(this, SWT.NONE);
-		label.setText(title);
-		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-		final ScrolledComposite scrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.BORDER);
-		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
-		gd.heightHint = 75;
-		scrolled.setLayoutData(gd);
-		scrolled.setExpandHorizontal(true);
-		scrolled.setExpandVertical(true);
-
-		final Composite container = new Composite(scrolled, SWT.NONE);
-		container.setLayout(new GridLayout(1, false));
-		scrolled.setContent(container);
-
-		headerContainer = container;
-		headerScrolled = scrolled;
-	}
-
-	private static void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
-		refreshScrolledAreaParent.layout(true, true);
-
-		final int width = scrolled.getClientArea().width;
-		final int height = Math.max(refreshScrolledAreaParent.computeSize(SWT.DEFAULT, SWT.DEFAULT).y, 80);
-		scrolled.setMinSize(width, height);
-
-		scrolled.layout(true, true);
-	}
-
-	@SuppressWarnings("null")
 	public void setRandomParameters(final Map<String, List<String>> params) {
-		for (final Control c : randomParamsContainer.getChildren()) {
-			c.dispose();
-		}
-
-		final boolean hasParams = params != null && !params.isEmpty();
-
-		if (hasParams) {
+		final List<String[]> keyValuePairs = new ArrayList<>();
+		if (params != null && !params.isEmpty()) {
 			for (final Map.Entry<String, List<String>> entry : params.entrySet()) {
 				for (final String entryValue : entry.getValue()) {
-					final Text keyText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
-					keyText.setText(entry.getKey() != null ? entry.getKey() : "");
-					final GridData gdKey = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-					gdKey.widthHint = 150;
-					keyText.setLayoutData(gdKey);
-
-					final Text valueText = new Text(randomParamsContainer, SWT.BORDER | SWT.READ_ONLY);
-					valueText.setText(entryValue != null ? entryValue : "");
-					valueText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+					keyValuePairs.add(new String[] { entry.getKey() != null ? entry.getKey() : "", entryValue != null ? entryValue : "" });
 				}
 			}
-			refreshScrolledArea(randomParamsContainer, randomParamsScrolled);
+		}
+		fillKeyValueRows(randomParamsContainer, keyValuePairs);
+
+		final boolean hasParams = params != null && !params.isEmpty();
+		randomParamsLabel.setVisible(hasParams);
+		randomParamsScrolled.setVisible(hasParams);
+
+		revalidate();
+		repaint();
+	}
+
+	/**
+	 * Read-only, word wrapping text taking the width its layout gives it, the
+	 * Swing counterpart of an SWT Label with SWT.WRAP. A plain wrapping JTextArea
+	 * would request the width of its unwrapped text and widen the whole panel.
+	 */
+	private static final class WrappingLabel extends JTextArea {
+		private static final long serialVersionUID = 5617640286134870133L;
+
+		private WrappingLabel() {
+			setLineWrap(true);
+			setWrapStyleWord(true);
+			setEditable(false);
+			setOpaque(false);
+			setBorder(null);
+			setFont(UIManager.getFont("Label.font"));
+			setForeground(UIManager.getColor("Label.foreground"));
+
+			// The wrapped height is only known once the width is, so lay out again after a width change
+			addComponentListener(new ComponentAdapter() {
+				private int lastWidth = -1;
+
+				@Override
+				public void componentResized(final ComponentEvent event) {
+					if (getWidth() != lastWidth) {
+						lastWidth = getWidth();
+						revalidate();
+					}
+				}
+			});
 		}
 
-		randomParamsLabel.setVisible(hasParams);
-		((GridData) randomParamsLabel.getLayoutData()).exclude = !hasParams;
-
-		randomParamsScrolled.setVisible(hasParams);
-		((GridData) randomParamsScrolled.getLayoutData()).exclude = !hasParams;
-
-		layout(true, true);
+		@Override
+		public Dimension getPreferredSize() {
+			return new Dimension(1, super.getPreferredSize().height);
+		}
 	}
 }

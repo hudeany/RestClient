@@ -1,31 +1,44 @@
 package de.soderer.restclient.dlg;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.StyledText;
-import org.eclipse.swt.events.KeyAdapter;
-import org.eclipse.swt.events.KeyEvent;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Text;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Window;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swt.ModalDialog;
-import de.soderer.utilities.swt.SwtUtilities;
+import de.soderer.utilities.swing.ModalDialog;
 
 public class IdpCredentialsDialog extends ModalDialog<Credentials> {
+	private static final long serialVersionUID = 1839920463575017126L;
+
+	private static final int FIELD_WIDTH = 200;
+
 	private final String text;
 
-	private Button okButton;
+	private JButton okButton;
+	private JTextField idpUrlTextField;
+	private JTextField idpRealmTextField;
+	private JTextField usernameTextField;
+	private JPasswordField passwordTextField;
 
 	private String idpUrl = null;
 	private String idpRealm = null;
@@ -34,8 +47,8 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 
 	private boolean rememberCredentials = false;
 
-	public IdpCredentialsDialog(final Shell shell, final String title, final String text, final String idpUrl, final String idpRealm, final String idpUsername, final char[] idpPassword) {
-		super(shell, title);
+	public IdpCredentialsDialog(final Window parent, final String title, final String text, final String idpUrl, final String idpRealm, final String idpUsername, final char[] idpPassword) {
+		super(parent, title);
 
 		this.text = text;
 		this.idpUrl = idpUrl;
@@ -44,178 +57,130 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		this.idpPassword = idpPassword;
 	}
 
+	/**
+	 * The components are created on open, so settings made after construction
+	 * (e.g. {@link #setRememberCredentials(boolean)}) are reflected.
+	 */
 	@Override
-	protected void createComponents(final Shell shell) throws Exception {
-		shell.setLayout(new GridLayout(1, false));
+	public Credentials open() {
+		createComponents();
+		pack();
+		setLocationRelativeTo(getOwner());
+		return super.open();
+	}
+
+	private void createComponents() {
+		final int margin = 5;
+
+		final JPanel panel = new JPanel(new BorderLayout(margin, margin));
+		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
 
 		if (Utilities.isNotBlank(text)) {
-			final StyledText styledText = new StyledText(shell, SWT.NONE);
-			styledText.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, true, 2, 1));
-			styledText.setLayout(SwtUtilities.createSmallMarginGridLayout(1, false));
-			styledText.setText(text);
-			styledText.setBackground(shell.getBackground());
-			styledText.setEditable(false);
+			final JTextArea textArea = new JTextArea(text);
+			textArea.setEditable(false);
+			textArea.setFocusable(false);
+			textArea.setOpaque(false);
+			textArea.setFont(UIManager.getFont("Label.font"));
+			panel.add(textArea, BorderLayout.NORTH);
 		}
 
-		final Composite credentialsComposite = new Composite(shell, SWT.NONE);
-		credentialsComposite.setLayout(new GridLayout(2, false));
+		final JPanel credentialsPanel = new JPanel(new GridBagLayout());
+		idpUrlTextField = addField(credentialsPanel, 0, LangResources.get("idpUrl"), new JTextField(Utilities.isNotBlank(idpUrl) ? idpUrl : ""));
+		idpRealmTextField = addField(credentialsPanel, 1, LangResources.get("idpRealm"), new JTextField(Utilities.isNotBlank(idpRealm) ? idpRealm : ""));
+		usernameTextField = addField(credentialsPanel, 2, LangResources.get("username"), new JTextField(Utilities.isNotBlank(idpUsername) ? idpUsername : ""));
+		passwordTextField = addField(credentialsPanel, 3, LangResources.get("password"), new JPasswordField(idpPassword != null ? new String(idpPassword) : ""));
 
-		final Label idpUrlLabel = new Label(credentialsComposite, SWT.NONE);
-		idpUrlLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		idpUrlLabel.setText(LangResources.get("idpUrl"));
+		final JCheckBox rememberCredentialsCheckBox = new JCheckBox(LangResources.get("rememberIdpCredentials"), rememberCredentials);
+		rememberCredentialsCheckBox.addActionListener(event -> rememberCredentials = rememberCredentialsCheckBox.isSelected());
+		final GridBagConstraints checkBoxConstraints = new GridBagConstraints();
+		checkBoxConstraints.gridx = 0;
+		checkBoxConstraints.gridy = 4;
+		checkBoxConstraints.gridwidth = 2;
+		checkBoxConstraints.anchor = GridBagConstraints.LINE_START;
+		checkBoxConstraints.insets = new Insets(margin, 0, 0, 0);
+		credentialsPanel.add(rememberCredentialsCheckBox, checkBoxConstraints);
 
-		final Text idpUrlTextField = new Text(credentialsComposite, SWT.BORDER);
+		panel.add(credentialsPanel, BorderLayout.CENTER);
 
-		final GridData gridDataIdpUrl = new GridData(SWT.LEFT, SWT.CENTER, true, true, 1, 1);
-		gridDataIdpUrl.widthHint = 200;
-		idpUrlTextField.setLayoutData(gridDataIdpUrl);
+		final JPanel buttonPanel = new JPanel(new GridLayout(1, 2, margin, 0));
+		okButton = new JButton(LangResources.get("ok"));
+		okButton.addActionListener(event -> {
+			returnValue = getCredentials();
+			dispose();
+		});
+		buttonPanel.add(okButton);
 
-		idpUrlTextField.setText(Utilities.isNotBlank(idpUrl) ? idpUrl : "");
-		idpUrlTextField.addModifyListener(new ModifyListener() {
+		final JButton cancelButton = new JButton(LangResources.get("cancel"));
+		cancelButton.addActionListener(event -> {
+			returnValue = null;
+			dispose();
+		});
+		buttonPanel.add(cancelButton);
+		panel.add(buttonPanel, BorderLayout.SOUTH);
+
+		setContentPane(panel);
+
+		// Enter in any field confirms, but only while OK is enabled (the SWT variant also confirmed incomplete credentials)
+		getRootPane().setDefaultButton(okButton);
+
+		final DocumentListener fieldListener = new DocumentListener() {
 			@Override
-			public void modifyText(final ModifyEvent event) {
-				idpUrl = ((Text) event.widget).getText();
-				checkButtonStatus();
+			public void insertUpdate(final DocumentEvent event) {
+				readFields();
+			}
+
+			@Override
+			public void removeUpdate(final DocumentEvent event) {
+				readFields();
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent event) {
+				// Attribute changes only
+			}
+		};
+		idpUrlTextField.getDocument().addDocumentListener(fieldListener);
+		idpRealmTextField.getDocument().addDocumentListener(fieldListener);
+		usernameTextField.getDocument().addDocumentListener(fieldListener);
+		passwordTextField.getDocument().addDocumentListener(fieldListener);
+
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowOpened(final WindowEvent event) {
+				idpUrlTextField.requestFocusInWindow();
 			}
 		});
-		idpUrlTextField.addKeyListener(new KeyAdapter() {
-			@Override
-			public void keyReleased(final KeyEvent event) {
-				if (event.keyCode == SWT.CR || event.keyCode == SwtUtilities.BOTTOM_RIGHT_ENTER_KEY) {
-					setReturnValue(getCredentials());
-					getParent().close();
-				}
-			}
-		});
-
-		final Label idpRealmLabel = new Label(credentialsComposite, SWT.NONE);
-		idpRealmLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		idpRealmLabel.setText(LangResources.get("idpRealm"));
-
-		final Text idpRealmTextField = new Text(credentialsComposite, SWT.BORDER);
-
-		final GridData gridDataIdpRealm = new GridData(SWT.LEFT, SWT.CENTER, true, true, 1, 1);
-		gridDataIdpRealm.widthHint = 200;
-		idpRealmTextField.setLayoutData(gridDataIdpRealm);
-
-		idpRealmTextField.setText(Utilities.isNotBlank(idpRealm) ? idpRealm : "");
-		idpRealmTextField.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(final ModifyEvent event) {
-				idpRealm = ((Text) event.widget).getText();
-				checkButtonStatus();
-			}
-		});
-		idpRealmTextField.addKeyListener(new KeyAdapter() {
-			@Override
-			public void keyReleased(final KeyEvent event) {
-				if (event.keyCode == SWT.CR || event.keyCode == SwtUtilities.BOTTOM_RIGHT_ENTER_KEY) {
-					setReturnValue(getCredentials());
-					getParent().close();
-				}
-			}
-		});
-
-		final Label usernameLabel = new Label(credentialsComposite, SWT.NONE);
-		usernameLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		usernameLabel.setText(LangResources.get("username"));
-
-		final Text usernameTextField = new Text(credentialsComposite, SWT.BORDER);
-
-		final GridData gridDataUsername = new GridData(SWT.LEFT, SWT.CENTER, true, true, 1, 1);
-		gridDataUsername.widthHint = 200;
-		usernameTextField.setLayoutData(gridDataUsername);
-
-		usernameTextField.setText(Utilities.isNotBlank(idpUsername) ? idpUsername : "");
-		usernameTextField.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(final ModifyEvent event) {
-				idpUsername = ((Text) event.widget).getText();
-				checkButtonStatus();
-			}
-		});
-		usernameTextField.addKeyListener(new KeyAdapter() {
-			@Override
-			public void keyReleased(final KeyEvent event) {
-				if (event.keyCode == SWT.CR || event.keyCode == SwtUtilities.BOTTOM_RIGHT_ENTER_KEY) {
-					setReturnValue(getCredentials());
-					getParent().close();
-				}
-			}
-		});
-
-		final Label passwordLabel = new Label(credentialsComposite, SWT.NONE);
-		passwordLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		passwordLabel.setText(LangResources.get("password"));
-
-		final Text passwordTextField = new Text(credentialsComposite, SWT.BORDER | SWT.PASSWORD);
-
-		final GridData gridDataPassword = new GridData(SWT.LEFT, SWT.CENTER, true, true, 1, 1);
-		gridDataPassword.widthHint = 200;
-		passwordTextField.setLayoutData(gridDataPassword);
-
-		passwordTextField.setText(idpPassword != null ? new String(idpPassword) : "");
-		passwordTextField.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(final ModifyEvent event) {
-				idpPassword = ((Text) event.widget).getTextChars();
-				checkButtonStatus();
-			}
-		});
-		passwordTextField.addKeyListener(new KeyAdapter() {
-			@Override
-			public void keyReleased(final KeyEvent event) {
-				if (event.keyCode == SWT.CR || event.keyCode == SwtUtilities.BOTTOM_RIGHT_ENTER_KEY) {
-					setReturnValue(getCredentials());
-					getParent().close();
-				}
-			}
-		});
-
-		final Button rememberCredentialsButton = new Button(shell, SWT.CHECK);
-		rememberCredentialsButton.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, true));
-		rememberCredentialsButton.setText(LangResources.get("rememberIdpCredentials"));
-		rememberCredentialsButton.setSelection(rememberCredentials);
-		rememberCredentialsButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent event) {
-				rememberCredentials = ((Button) event.widget).getSelection();
-			}
-		});
-
-		final Composite mainButtonComposite = new Composite(shell, SWT.NONE);
-		mainButtonComposite.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, false));
-		mainButtonComposite.setLayout(SwtUtilities.createNoMarginGridLayout(2, true));
-
-		okButton = new Button(mainButtonComposite, SWT.PUSH);
-		okButton.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, false));
-		okButton.setText(LangResources.get("ok"));
-		okButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent event) {
-				setReturnValue(getCredentials());
-				getParent().close();
-			}
-		});
-
-		final Button cancelButton = new Button(mainButtonComposite, SWT.PUSH);
-		cancelButton.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, false));
-		cancelButton.setText(LangResources.get("cancel"));
-		cancelButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent event) {
-				setReturnValue(null);
-				getParent().close();
-			}
-		});
-
-		shell.pack();
 
 		checkButtonStatus();
 	}
 
+	private static <T extends JTextField> T addField(final JPanel panel, final int row, final String labelText, final T field) {
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridy = row;
+		constraints.insets = new Insets(2, 0, 2, 5);
+		constraints.gridx = 0;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		panel.add(new JLabel(labelText), constraints);
+
+		field.setPreferredSize(new Dimension(FIELD_WIDTH, field.getPreferredSize().height));
+		constraints.gridx = 1;
+		constraints.weightx = 1;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.insets = new Insets(2, 0, 2, 0);
+		panel.add(field, constraints);
+		return field;
+	}
+
+	private void readFields() {
+		idpUrl = idpUrlTextField.getText();
+		idpRealm = idpRealmTextField.getText();
+		idpUsername = usernameTextField.getText();
+		idpPassword = passwordTextField.getPassword();
+		checkButtonStatus();
+	}
+
 	private void checkButtonStatus() {
-		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(idpUsername) && Utilities.isNotEmpty(idpPassword));
+		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(idpUsername) && idpPassword != null && idpPassword.length > 0);
 	}
 
 	public IdpCredentialsDialog setRememberCredentials(final boolean rememberCredentials) {

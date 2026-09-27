@@ -1,5 +1,12 @@
 package de.soderer.restclient.dlg;
 
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.Window;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -11,21 +18,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.ScrolledComposite;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Control;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Spinner;
-import org.eclipse.swt.widgets.Text;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextArea;
+import javax.swing.ScrollPaneConstants;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import de.soderer.json.JsonNode;
 import de.soderer.json.JsonObject;
@@ -49,38 +57,45 @@ import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swt.CredentialsDialog;
-import de.soderer.utilities.swt.DropDown;
-import de.soderer.utilities.swt.DropDown.MatchMode;
-import de.soderer.utilities.swt.ProgressDialog;
-import de.soderer.utilities.swt.QuestionDialog;
-import de.soderer.utilities.swt.SelectionDialog;
-import de.soderer.utilities.swt.SimpleInputDialog;
-import de.soderer.utilities.swt.SwtColor;
+import de.soderer.utilities.swing.ComboSelectionDialog;
+import de.soderer.utilities.swing.CredentialsDialog;
+import de.soderer.utilities.swing.DropDown;
+import de.soderer.utilities.swing.DropDown.MatchMode;
+import de.soderer.utilities.swing.ProgressDialog;
+import de.soderer.utilities.swing.QuestionDialog;
+import de.soderer.utilities.swing.SimpleInputDialog;
+import de.soderer.utilities.swing.SwingColor;
 import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
-public class RequestComponent extends Composite {
+public class RequestComponent extends JPanel {
+	private static final long serialVersionUID = -6541962730287135460L;
+
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
 
+	private static final int KEY_FIELD_WIDTH = 150;
+	private static final int LIST_HEIGHT = 75;
+	private static final int MIN_RIGHT_BUTTON_WIDTH = 100;
+
 	private DropDown presetCombo;
-	private Button saveButton;
-	private Button deleteButton;
+	private JButton saveButton;
+	private JButton deleteButton;
 
 	private final List<String> presetNames = new ArrayList<>();
 	private Runnable presetSelectionListener;
-	private java.util.function.Consumer<List<String>> presetsReorderedListener;
+	private Consumer<List<String>> presetsReorderedListener;
 
 	private DropDown httpMethodCombo;
-	private Text serviceUrlText;
-	private Button tlsCheckButton;
-	private Text serviceMethodText;
+	private HintTextField serviceUrlText;
+	private JButton tlsCheckButton;
+	private JButton openApiButton;
+	private HintTextField serviceMethodText;
 	private DropDown proxyUrlCombo;
 	private final List<String> proxyUrlPresets = new ArrayList<>();
-	private Button followRedirectsButton;
-	private Spinner maxRedirectHopsSpinner;
-	private Text requestBodyText;
+	private JCheckBox followRedirectsButton;
+	private JSpinner maxRedirectHopsSpinner;
+	private JTextArea requestBodyText;
 
 	private String idpUrl = null;
 	private String idpRealm = null;
@@ -88,28 +103,31 @@ public class RequestComponent extends Composite {
 	private char[] idpPassword = null;
 	private boolean storeIdpCredentials = false;
 
-	private Composite headerContainer;
-	private Composite urlParamContainer;
-	private Composite htmlFormParamContainer;
-	private Button htmlFormAddButton;
+	private KeyValueSection headerSection;
+	private KeyValueSection urlParamSection;
+	private KeyValueSection htmlFormParamSection;
+	private JButton htmlFormAddButton;
 
-	private ScrolledComposite headerScrolled;
-	private ScrolledComposite urlParamScrolled;
-	private ScrolledComposite htmlFormParamScrolled;
-
-	private Composite content;
-	private ScrolledComposite outerScrolled;
+	private ViewportWidthPanel content;
+	private int contentRow = 0;
 
 	private TlsCheckConfiguration tlsCheckConfiguration;
 
-	public RequestComponent(final Composite parent, final int style) throws Exception {
-		super(parent, style);
+	/** Suppresses recursive status checks while checkRequestContentStatus() itself changes the headers */
+	private boolean checkingRequestContentStatus = false;
+
+	public RequestComponent() {
+		super(new BorderLayout());
 
 		tlsCheckConfiguration = new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true);
 
 		createOuterScrollArea();
 
 		checkRequestContentStatus();
+	}
+
+	private Window getWindow() {
+		return SwingUtilities.getWindowAncestor(this);
 	}
 
 	public String getHttpMethod() {
@@ -132,36 +150,80 @@ public class RequestComponent extends Composite {
 
 	public void setTlsCheckConfiguration(final TlsCheckConfiguration tlsCheckConfiguration) {
 		this.tlsCheckConfiguration = tlsCheckConfiguration;
+		updateTlsCheckButtonText();
 	}
 
 	public TlsCheckConfiguration getTlsCheckConfiguration() {
 		return tlsCheckConfiguration;
 	}
 
-	public String getPresetName() { return presetCombo.getText(); }
-	public String getServiceUrl() { return serviceUrlText.getText(); }
+	public String getPresetName() {
+		return presetCombo.getText();
+	}
+
+	public String getServiceUrl() {
+		return serviceUrlText.getText();
+	}
+
 	public String getServiceMethod() {
 		while (serviceMethodText.getText().startsWith("/")) {
 			serviceMethodText.setText(serviceMethodText.getText().substring(1));
 		}
 		return serviceMethodText.getText();
 	}
-	public String getProxyUrl() { return proxyUrlCombo.getText(); }
-	public boolean isFollowRedirects() { return followRedirectsButton.getSelection(); }
-	public int getMaxRedirectHops() { return maxRedirectHopsSpinner.getSelection(); }
+
+	public String getProxyUrl() {
+		return proxyUrlCombo.getText();
+	}
+
+	public boolean isFollowRedirects() {
+		return followRedirectsButton.isSelected();
+	}
+
+	public int getMaxRedirectHops() {
+		return (Integer) maxRedirectHopsSpinner.getValue();
+	}
+
 	/** Combines {@link #isFollowRedirects()} and {@link #getMaxRedirectHops()} into the single int value expected by {@link HttpRequest#setMaxRedirects(int)} (0 = do not follow, positive = hop limit) */
-	public int getMaxRedirects() { return isFollowRedirects() ? getMaxRedirectHops() : 0; }
-	public String getRequestBody() { return requestBodyText.getText(); }
+	public int getMaxRedirects() {
+		return isFollowRedirects() ? getMaxRedirectHops() : 0;
+	}
 
-	public String getIdpUrl() { return idpUrl; }
-	public String getIdpRealm() { return idpRealm; }
-	public String getIdpUsername() { return idpUsername; }
-	public char[] getIdpPassword() { return idpPassword; }
-	public boolean isStoreIdpCredentials() { return storeIdpCredentials; }
+	public String getRequestBody() {
+		return requestBodyText.getText();
+	}
 
-	public Map<String, String> getHttpHeaders() { return extractKeyValuePairs(headerContainer); }
-	public Map<String, String> getUrlParameters() { return extractKeyValuePairs(urlParamContainer); }
-	public Map<String, String> getHtmlFormParameters() { return extractKeyValuePairs(htmlFormParamContainer); }
+	public String getIdpUrl() {
+		return idpUrl;
+	}
+
+	public String getIdpRealm() {
+		return idpRealm;
+	}
+
+	public String getIdpUsername() {
+		return idpUsername;
+	}
+
+	public char[] getIdpPassword() {
+		return idpPassword;
+	}
+
+	public boolean isStoreIdpCredentials() {
+		return storeIdpCredentials;
+	}
+
+	public Map<String, String> getHttpHeaders() {
+		return headerSection.getEntries();
+	}
+
+	public Map<String, String> getUrlParameters() {
+		return urlParamSection.getEntries();
+	}
+
+	public Map<String, String> getHtmlFormParameters() {
+		return htmlFormParamSection.getEntries();
+	}
 
 	public void setPresetNames(final List<String> presets) {
 		presetNames.clear();
@@ -208,515 +270,471 @@ public class RequestComponent extends Composite {
 	 * Notified with the new preset order whenever the user reorders the
 	 * entries via drag&amp;drop in the selection popup.
 	 */
-	public void addPresetsReorderedListener(final java.util.function.Consumer<List<String>> listener) {
+	public void addPresetsReorderedListener(final Consumer<List<String>> listener) {
 		presetsReorderedListener = listener;
 	}
 
 	public void addSaveButtonListener(final Runnable listener) {
-		if (listener == null) return;
-		saveButton.addListener(SWT.Selection, e -> {
-			listener.run();
-		});
+		if (listener != null) {
+			saveButton.addActionListener(event -> listener.run());
+		}
 	}
 
 	public void addDeleteButtonListener(final Runnable listener) {
-		if (listener == null) return;
-		deleteButton.addListener(SWT.Selection, e -> {
-			listener.run();
-		});
+		if (listener != null) {
+			deleteButton.addActionListener(event -> listener.run());
+		}
 	}
 
-	public void setPresetName(final String value) { if (value != null) presetCombo.setText(value); }
-	public void setServiceUrl(final String value) { serviceUrlText.setText(value != null ? value : ""); }
-	public void setServiceMethod(final String value) { serviceMethodText.setText(value != null ? value : ""); }
-	public void setProxyUrl(final String value) { proxyUrlCombo.setText(value != null ? value : ""); }
+	/**
+	 * @param value preset name to show, or null to clear the preset name field
+	 */
+	public void setPresetName(final String value) {
+		presetCombo.setText(value != null ? value : "");
+	}
+
+	public void setServiceUrl(final String value) {
+		serviceUrlText.setText(value != null ? value : "");
+	}
+
+	public void setServiceMethod(final String value) {
+		serviceMethodText.setText(value != null ? value : "");
+	}
+
+	public void setProxyUrl(final String value) {
+		proxyUrlCombo.setText(value != null ? value : "");
+	}
+
 	public void setFollowRedirects(final boolean followRedirects) {
-		followRedirectsButton.setSelection(followRedirects);
+		followRedirectsButton.setSelected(followRedirects);
 		maxRedirectHopsSpinner.setEnabled(followRedirects);
 	}
-	public void setMaxRedirectHops(final int maxRedirectHops) { maxRedirectHopsSpinner.setSelection(maxRedirectHops); }
+
+	public void setMaxRedirectHops(final int maxRedirectHops) {
+		maxRedirectHopsSpinner.setValue(Math.max(1, Math.min(999, maxRedirectHops)));
+	}
+
 	/** Counterpart to {@link #getMaxRedirects()}: 0 disables following, any other value enables it and sets that hop count (negative values are treated as {@link HttpRequest#DEFAULT_MAX_REDIRECTS} since this UI does not offer an "unlimited" option) */
 	public void setMaxRedirects(final int maxRedirects) {
 		setFollowRedirects(maxRedirects != 0);
 		setMaxRedirectHops(maxRedirects > 0 ? maxRedirects : HttpRequest.DEFAULT_MAX_REDIRECTS);
 	}
-	public void setRequestBody(final String value) { requestBodyText.setText(value != null ? value : ""); }
 
-	public void setIdpUrl(final String idpUrl) { this.idpUrl = idpUrl; }
-	public void setIdpRealm(final String idpRealm) { this.idpRealm = idpRealm; }
-	public void setIdpUsername(final String idpUsername) { this.idpUsername = idpUsername; }
-	public void setIdpPassword(final char[] idpPassword) { this.idpPassword = idpPassword; }
-	public void setStoreIdpCredentials(final boolean storeIdpCredentials) { this.storeIdpCredentials = storeIdpCredentials; }
+	public void setRequestBody(final String value) {
+		requestBodyText.setText(value != null ? value : "");
+		requestBodyText.setCaretPosition(0);
+	}
+
+	public void setIdpUrl(final String idpUrl) {
+		this.idpUrl = idpUrl;
+	}
+
+	public void setIdpRealm(final String idpRealm) {
+		this.idpRealm = idpRealm;
+	}
+
+	public void setIdpUsername(final String idpUsername) {
+		this.idpUsername = idpUsername;
+	}
+
+	public void setIdpPassword(final char[] idpPassword) {
+		this.idpPassword = idpPassword;
+	}
+
+	public void setStoreIdpCredentials(final boolean storeIdpCredentials) {
+		this.storeIdpCredentials = storeIdpCredentials;
+	}
 
 	public void setHttpHeaders(final Map<String, String> headers) {
-		for (final Control c : headerContainer.getChildren()) {
-			c.dispose();
-		}
-
-		if (headers != null) {
-			for (final Map.Entry<String, String> entry : headers.entrySet()) {
-				final Composite row = addKeyValueRow(headerContainer, headerScrolled);
-				final Control[] children = row.getChildren();
-				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
-					name.setText(entry.getKey());
-					value.setText(entry.getValue());
-				}
-			}
-		}
+		headerSection.setEntries(headers);
 		checkRequestContentStatus();
-		refreshScrolledArea(headerContainer, headerScrolled);
 	}
 
 	public void setUrlParameters(final Map<String, String> urlParams) {
-		for (final Control c : urlParamContainer.getChildren()) {
-			c.dispose();
-		}
-
-		if (urlParams != null) {
-			for (final Map.Entry<String, String> entry : urlParams.entrySet()) {
-				final Composite row = addKeyValueRow(urlParamContainer, urlParamScrolled);
-				final Control[] children = row.getChildren();
-				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
-					name.setText(entry.getKey());
-					value.setText(entry.getValue());
-				}
-			}
-		}
+		urlParamSection.setEntries(urlParams);
 		checkRequestContentStatus();
-		refreshScrolledArea(urlParamContainer, urlParamScrolled);
 	}
 
 	public void setHtmlFormParameters(final Map<String, String> htmlFormParams) {
-		for (final Control c : htmlFormParamContainer.getChildren()) {
-			c.dispose();
-		}
-
-		if (htmlFormParams != null) {
-			for (final Map.Entry<String, String> entry : htmlFormParams.entrySet()) {
-				final Composite row = addKeyValueRow(htmlFormParamContainer, htmlFormParamScrolled);
-				final Control[] children = row.getChildren();
-				if (children.length >= 2 && children[0] instanceof final Text name && children[1] instanceof final Text value) {
-					name.setText(entry.getKey());
-					value.setText(entry.getValue());
-				}
-			}
-		}
+		htmlFormParamSection.setEntries(htmlFormParams);
 		checkRequestContentStatus();
-		refreshScrolledArea(htmlFormParamContainer, htmlFormParamScrolled);
 	}
 
 	private void createOuterScrollArea() {
-		setLayout(new FillLayout());
-
-		outerScrolled = new ScrolledComposite(this, SWT.V_SCROLL | SWT.H_SCROLL);
-		outerScrolled.setExpandHorizontal(true);
-		outerScrolled.setExpandVertical(true);
-
-		content = new Composite(outerScrolled, SWT.NONE);
-		content.setLayout(new GridLayout(1, false));
-
-		outerScrolled.setContent(content);
+		content = new ViewportWidthPanel(new GridBagLayout());
+		content.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
 		createUI();
-		updateOuterMinSize();
+
+		final JScrollPane outerScrolled = new JScrollPane(content, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		outerScrolled.setBorder(BorderFactory.createEmptyBorder());
+		outerScrolled.getVerticalScrollBar().setUnitIncrement(16);
+		add(outerScrolled, BorderLayout.CENTER);
 	}
 
-	private void updateOuterMinSize() {
-		content.layout(true, true);
-		final Point pref = content.computeSize(SWT.DEFAULT, SWT.DEFAULT);
-		final int width = outerScrolled.getClientArea().width;
-		final int height = pref.y;
-		outerScrolled.setMinSize(width, height);
+	/**
+	 * Adds a component as the next full-width row of the content.
+	 */
+	private void addContentRow(final Component component, final double weighty) {
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridx = 0;
+		constraints.gridy = contentRow++;
+		constraints.weightx = 1;
+		constraints.weighty = weighty;
+		constraints.fill = weighty > 0 ? GridBagConstraints.BOTH : GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.FIRST_LINE_START;
+		constraints.insets = new Insets(2, 0, 2, 0);
+		content.add(component, constraints);
 	}
 
 	private void createUI() {
 		createPresetNameSection();
 
-		final Composite proxyRow = new Composite(content, SWT.NONE);
-		proxyRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		// Proxy and OpenAPI: label row above the field row, the right column shares its width with the TLS check column below
+		proxyUrlCombo = new DropDown()
+				.withCaseSensitive(false)
+				.withMatchMode(MatchMode.STARTS_WITH)
+				.withAllowCustomValues(true)
+				.withMessage(LangResources.get("proxyUrlHint"));
 
-		final GridLayout proxyRowLayout = new GridLayout(2, false);
-		proxyRowLayout.marginWidth = 0;
-		proxyRowLayout.marginHeight = 0;
-		proxyRowLayout.horizontalSpacing = 7;
-		proxyRow.setLayout(proxyRowLayout);
-
-		final Composite proxyUrlCol = new Composite(proxyRow, SWT.NONE);
-		proxyUrlCol.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-		final GridLayout proxyUrlLayout = new GridLayout(1, false);
-		proxyUrlLayout.marginWidth = 0;
-		proxyUrlLayout.marginHeight = 0;
-		proxyUrlCol.setLayout(proxyUrlLayout);
-
-		final Label proxyUrlLabel = new Label(proxyUrlCol, SWT.NONE);
-		proxyUrlLabel.setText(LangResources.get("proxyURL"));
-
-		// ArrangeableAutoCompleteCombo builds its own dropdown arrow button and
-		// popup internally (same pseudo-dropdown look as before) - no separate
-		// wrapper composite, arrow Button, or the old openProxyUrlSelectionPopup()
-		// needed anymore. STARTS_WITH (rather than the preset combo's CONTAINS)
-		// since proxy URLs/hostnames are naturally typed from the beginning.
-		// No reordering here - the preset list itself is only ever changed via
-		// the application configuration dialog, not by dragging entries around.
-		proxyUrlCombo = new DropDown(proxyUrlCol, SWT.NONE);
-
-		final GridData proxyUrlComboLayoutData = new GridData(SWT.FILL, SWT.FILL, true, false);
-
-		/*
-		 * "proxyUrlCombo" sits alone in "proxyUrlCol"'s own single-column
-		 * row, so SWT.FILL alone has nothing taller to stretch against
-		 * there - unlike "presetCombo", which shares its row with
-		 * "saveButton"/"deleteButton" and gets stretched to their
-		 * (theme-dependent) preferred height for free. Read that same
-		 * height from the already-created "saveButton" (createPresetNameSection()
-		 * runs before this) and apply it explicitly here, so both combos
-		 * end up the same height without hardcoding a second pixel value.
-		 */
-		proxyUrlComboLayoutData.heightHint = saveButton.computeSize(SWT.DEFAULT, SWT.DEFAULT).y;
-
-		proxyUrlCombo.setLayoutData(proxyUrlComboLayoutData);
-
-		proxyUrlCombo.setCaseSensitive(false);
-		proxyUrlCombo.setMatchMode(MatchMode.STARTS_WITH);
-		proxyUrlCombo.setAllowCustomValues(true);
-		proxyUrlCombo.setMessage(LangResources.get("proxyUrlHint"));
-
-		final Composite openApiCol = new Composite(proxyRow, SWT.NONE);
-		final GridData openApiColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
-		openApiColData.minimumWidth = 300;
-		openApiCol.setLayoutData(openApiColData);
-		openApiCol.setLayoutData(openApiColData);
-		final GridLayout openApiLayout = new GridLayout(1, false);
-		openApiLayout.marginWidth = 0;
-		openApiLayout.marginHeight = 0;
-		openApiCol.setLayout(openApiLayout);
-
-		final Label openApiLabel = new Label(openApiCol, SWT.NONE);
-		openApiLabel.setText("");
-
-		final Button openApiButton = new Button(openApiCol, SWT.NONE);
-		final GridData openApiGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		openApiGridData.widthHint = 100;
-		openApiButton.setLayoutData(openApiGridData);
-		openApiButton.setText("OpenAPI");
+		openApiButton = new JButton("OpenAPI");
 		openApiButton.setEnabled(false);
-		openApiButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				final SimpleInputDialog dialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, "OpenAPI URL " + LangResources.get("orLocalFilePath"));
-				if (getServiceUrl() != null) {
-					if (getServiceUrl().endsWith("/")) {
-						dialog.setDefaultText(getServiceUrl() + "openapi");
-					} else {
-						dialog.setDefaultText(getServiceUrl() + "/openapi");
-					}
-				}
-				final String result = dialog.open();
-				if (result != null) {
-					try {
-						final File localFile = new File(result);
-						final byte[] openApiContent;
-						if (localFile.isFile()) {
-							openApiContent = Files.readAllBytes(localFile.toPath());
-						} else {
-							openApiContent = fetchOpenApiContentFromUrl(result);
-						}
-						processOpenApiDocument(openApiContent);
-					} catch (final Exception e) {
-						new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
-					}
-				}
-			}
-		});
+		openApiButton.addActionListener(event -> openApi());
 
-		final Composite redirectsRow = new Composite(content, SWT.NONE);
-		redirectsRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout redirectsRowLayout = new GridLayout(3, false);
-		redirectsRowLayout.marginWidth = 0;
-		redirectsRowLayout.marginHeight = 0;
-		redirectsRowLayout.horizontalSpacing = 7;
-		redirectsRow.setLayout(redirectsRowLayout);
+		addContentRow(createLabeledFieldRow(new JLabel(LangResources.get("proxyURL")), proxyUrlCombo, new JLabel(" "), openApiButton), 0);
 
-		followRedirectsButton = new Button(redirectsRow, SWT.CHECK);
-		followRedirectsButton.setText(LangResources.get("followRedirects"));
-		followRedirectsButton.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		followRedirectsButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				maxRedirectHopsSpinner.setEnabled(followRedirectsButton.getSelection());
-			}
-		});
-
-		final Label maxRedirectHopsLabel = new Label(redirectsRow, SWT.NONE);
-		maxRedirectHopsLabel.setText(LangResources.get("maxRedirectHops"));
-		maxRedirectHopsLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-
-		maxRedirectHopsSpinner = new Spinner(redirectsRow, SWT.BORDER);
-		maxRedirectHopsSpinner.setMinimum(1);
-		maxRedirectHopsSpinner.setMaximum(999);
-		maxRedirectHopsSpinner.setSelection(HttpRequest.DEFAULT_MAX_REDIRECTS);
-		final GridData maxRedirectHopsGridData = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-		maxRedirectHopsGridData.widthHint = 50;
-		maxRedirectHopsSpinner.setLayoutData(maxRedirectHopsGridData);
+		final JPanel redirectsRow = new JPanel(new GridBagLayout());
+		final GridBagConstraints redirectsConstraints = new GridBagConstraints();
+		redirectsConstraints.insets = new Insets(0, 0, 0, 7);
+		followRedirectsButton = new JCheckBox(LangResources.get("followRedirects"));
+		followRedirectsButton.addActionListener(event -> maxRedirectHopsSpinner.setEnabled(followRedirectsButton.isSelected()));
+		redirectsRow.add(followRedirectsButton, redirectsConstraints);
+		redirectsRow.add(new JLabel(LangResources.get("maxRedirectHops")), redirectsConstraints);
+		maxRedirectHopsSpinner = new JSpinner(new SpinnerNumberModel(HttpRequest.DEFAULT_MAX_REDIRECTS, 1, 999, 1));
 		// Disabled until "Follow redirects" is checked, since the hop count is meaningless otherwise
 		maxRedirectHopsSpinner.setEnabled(false);
+		redirectsRow.add(maxRedirectHopsSpinner, redirectsConstraints);
+		redirectsConstraints.weightx = 1;
+		redirectsRow.add(Box.createGlue(), redirectsConstraints);
+		addContentRow(redirectsRow, 0);
 
-		final Composite methodUrlRow = new Composite(content, SWT.NONE);
-		methodUrlRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		final GridLayout rowLayout = new GridLayout(3, false);
-		rowLayout.marginWidth = 0;
-		rowLayout.marginHeight = 0;
-		rowLayout.horizontalSpacing = 7;
-		methodUrlRow.setLayout(rowLayout);
-
-		final Composite methodCol = new Composite(methodUrlRow, SWT.NONE);
-		methodCol.setLayoutData(new GridData(SWT.DEFAULT, SWT.FILL, false, false));
-		final GridLayout methodLayout = new GridLayout(1, false);
-		methodLayout.marginWidth = 0;
-		methodLayout.marginHeight = 0;
-		methodCol.setLayout(methodLayout);
-
-		final Label methodLabel = new Label(methodCol, SWT.NONE);
-		methodLabel.setText(LangResources.get("httpMethod"));
-
-		// Fixed list of HTTP methods: no custom values, no reordering (replaces the former read-only SWT Combo)
-		httpMethodCombo = new DropDown(methodCol, SWT.NONE);
-		final GridData httpMethodComboLayoutData = new GridData(SWT.FILL, SWT.FILL, true, false);
-		// Same height as the other DropDowns (see proxyUrlCombo), since it sits alone in its column
-		httpMethodComboLayoutData.heightHint = saveButton.computeSize(SWT.DEFAULT, SWT.DEFAULT).y;
-		httpMethodCombo.setLayoutData(httpMethodComboLayoutData);
-		httpMethodCombo.setCaseSensitive(false);
-		httpMethodCombo.setMatchMode(MatchMode.STARTS_WITH);
-		httpMethodCombo.setAllowCustomValues(false);
-		httpMethodCombo.setItems(HTTP_METHODS);
-		httpMethodCombo.setText(HTTP_METHODS.get(0));
-		httpMethodCombo.addListener(SWT.Selection, e -> checkRequestContentStatus());
+		// Fixed list of HTTP methods: no custom values, no reordering
+		httpMethodCombo = new DropDown()
+				.withCaseSensitive(false)
+				.withMatchMode(MatchMode.STARTS_WITH)
+				.withAllowCustomValues(false)
+				.withItems(HTTP_METHODS)
+				.withText(HTTP_METHODS.get(0));
+		httpMethodCombo.addActionListener(event -> checkRequestContentStatus());
 		// Invalid (red) text makes getHttpMethod() return null, so re-evaluate on validity changes too
 		httpMethodCombo.addValidationListener(valid -> checkRequestContentStatus());
 
-		final Composite urlCol = new Composite(methodUrlRow, SWT.NONE);
-		urlCol.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-		final GridLayout urlLayout = new GridLayout(1, false);
-		urlLayout.marginWidth = 0;
-		urlLayout.marginHeight = 0;
-		urlCol.setLayout(urlLayout);
+		serviceUrlText = new HintTextField(LangResources.get("serviceUrlHint"));
+		serviceUrlText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> openApiButton.setEnabled(Utilities.isNotBlank(serviceUrlText.getText()))));
 
-		final Label urlLabel = new Label(urlCol, SWT.NONE);
-		urlLabel.setText(LangResources.get("serviceURL"));
-
-		serviceUrlText = new Text(urlCol, SWT.BORDER);
-		serviceUrlText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		serviceUrlText.setMessage(LangResources.get("serviceUrlHint"));
-		serviceUrlText.addModifyListener(e -> openApiButton.setEnabled(Utilities.isNotBlank(serviceUrlText.getText())));
-
-		final Composite tlsCheckCol = new Composite(methodUrlRow, SWT.NONE);
-		final GridData tlsColData = new GridData(SWT.RIGHT, SWT.FILL, false, false);
-		tlsColData.minimumWidth = 300;
-		tlsCheckCol.setLayoutData(tlsColData);
-		tlsCheckCol.setLayoutData(tlsColData);
-		final GridLayout tlsCheckLayout = new GridLayout(1, false);
-		tlsCheckLayout.marginWidth = 0;
-		tlsCheckLayout.marginHeight = 0;
-		tlsCheckCol.setLayout(tlsCheckLayout);
-
-		final Label tlsCheckLabel = new Label(tlsCheckCol, SWT.NONE);
-		tlsCheckLabel.setText(LangResources.get("tlsCheck"));
-
-		tlsCheckButton = new Button(tlsCheckCol, SWT.NONE);
-		final GridData tlsCheckGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		tlsCheckGridData.widthHint = 100;
-		tlsCheckButton.setLayoutData(tlsCheckGridData);
-		tlsCheckButton.setText("JVM Truststore");
-		tlsCheckButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getShell(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword(), tlsCheckConfiguration.getCheckCn());
-				final TlsCheckConfiguration result = dialog.open();
-				if (result != null) {
-					tlsCheckConfiguration = result;
-					checkRequestContentStatus();
-				}
+		tlsCheckButton = new JButton();
+		tlsCheckButton.addActionListener(event -> {
+			final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getWindow(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword(), tlsCheckConfiguration.getCheckCn());
+			final TlsCheckConfiguration result = dialog.open();
+			if (result != null) {
+				setTlsCheckConfiguration(result);
+				checkRequestContentStatus();
 			}
 		});
 
-		serviceMethodText = createLabeledText(LangResources.get("serviceMethod"), LangResources.get("serviceMethodHint"));
+		final JPanel methodUrlRow = new JPanel(new GridBagLayout());
+		final GridBagConstraints methodUrlConstraints = new GridBagConstraints();
+		methodUrlConstraints.anchor = GridBagConstraints.LINE_START;
+		methodUrlConstraints.fill = GridBagConstraints.HORIZONTAL;
+		methodUrlConstraints.insets = new Insets(0, 0, 2, 7);
+		methodUrlConstraints.gridy = 0;
+		methodUrlConstraints.gridx = 0;
+		methodUrlRow.add(new JLabel(LangResources.get("httpMethod")), methodUrlConstraints);
+		methodUrlConstraints.gridx = 1;
+		methodUrlRow.add(new JLabel(LangResources.get("serviceURL")), methodUrlConstraints);
+		methodUrlConstraints.gridx = 2;
+		methodUrlConstraints.insets = new Insets(0, 0, 2, 0);
+		methodUrlRow.add(new JLabel(LangResources.get("tlsCheck")), methodUrlConstraints);
+		methodUrlConstraints.gridy = 1;
+		methodUrlConstraints.gridx = 0;
+		methodUrlConstraints.insets = new Insets(0, 0, 0, 7);
+		methodUrlRow.add(httpMethodCombo, methodUrlConstraints);
+		methodUrlConstraints.gridx = 1;
+		methodUrlConstraints.weightx = 1;
+		methodUrlRow.add(serviceUrlText, methodUrlConstraints);
+		methodUrlConstraints.gridx = 2;
+		methodUrlConstraints.weightx = 0;
+		methodUrlConstraints.insets = new Insets(0, 0, 0, 0);
+		methodUrlRow.add(tlsCheckButton, methodUrlConstraints);
+		addContentRow(methodUrlRow, 0);
 
-		createKeyValueSectionForHeader(LangResources.get("httpRequestHeader"));
+		alignRightColumnButtons();
 
-		final Composite headerButtonRegion = new Composite(content, SWT.NONE);
-		headerButtonRegion.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		headerButtonRegion.setLayout(new GridLayout(3, false));
+		addContentRow(new JLabel(LangResources.get("serviceMethod")), 0);
+		serviceMethodText = new HintTextField(LangResources.get("serviceMethodHint"));
+		addContentRow(serviceMethodText, 0);
 
-		final Button addBasicAuthButton = new Button(headerButtonRegion, SWT.PUSH);
-		addBasicAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		addBasicAuthButton.setText(LangResources.get("addBasicAuth"));
-		addBasicAuthButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				final CredentialsDialog credentialsDialog = new CredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterBasicAuthCredentials"), true, true);
-				final Credentials credentials = credentialsDialog.open();
-				if (credentials != null) {
-					final Map<String, String> httpHeadersMap = getHttpHeaders();
-					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpUtilities.createBasicAuthenticationHeaderValue(credentials.getUsername(), new String(credentials.getPassword())));
-					setHttpHeaders(httpHeadersMap);
-				}
+		final JButton headerAddButton = new JButton("+");
+		headerSection = new KeyValueSection();
+		addContentRow(createSectionHeader(LangResources.get("httpRequestHeader"), headerAddButton), 0);
+		addContentRow(headerSection.getScrollPane(), 0);
+		headerSection.addRow();
+		headerAddButton.addActionListener(event -> {
+			headerSection.addRow();
+			checkRequestContentStatus();
+		});
+
+		addContentRow(createHeaderButtonRegion(), 0);
+
+		final JButton urlParamAddButton = new JButton("+");
+		urlParamSection = new KeyValueSection();
+		addContentRow(createSectionHeader(LangResources.get("urlParameter"), urlParamAddButton), 0);
+		addContentRow(urlParamSection.getScrollPane(), 0);
+		urlParamSection.addRow();
+		urlParamAddButton.addActionListener(event -> {
+			urlParamSection.addRow();
+			checkRequestContentStatus();
+		});
+
+		htmlFormAddButton = new JButton("+");
+		htmlFormParamSection = new KeyValueSection();
+		addContentRow(createSectionHeader(LangResources.get("htmlFormParameter"), htmlFormAddButton), 0);
+		addContentRow(htmlFormParamSection.getScrollPane(), 0);
+		htmlFormAddButton.addActionListener(event -> {
+			htmlFormParamSection.addRow();
+			checkRequestContentStatus();
+		});
+
+		addContentRow(new JLabel(LangResources.get("requestBody")), 0);
+		requestBodyText = new JTextArea();
+		final JScrollPane requestBodyScrolled = new JScrollPane(requestBodyText);
+		requestBodyScrolled.setPreferredSize(new Dimension(100, LIST_HEIGHT));
+		requestBodyScrolled.setMinimumSize(new Dimension(100, LIST_HEIGHT));
+		addContentRow(requestBodyScrolled, 1);
+	}
+
+	/**
+	 * Gives the buttons of the right column (OpenAPI and TLS check) the same
+	 * fixed width, wide enough for every possible TLS check text, so both rows
+	 * line up and the width does not change when the TLS check type changes.
+	 */
+	private void alignRightColumnButtons() {
+		int width = Math.max(MIN_RIGHT_BUTTON_WIDTH, openApiButton.getPreferredSize().width);
+		for (final TlsCheckConfigurationType type : TlsCheckConfigurationType.values()) {
+			tlsCheckButton.setText(getTlsCheckButtonText(type));
+			width = Math.max(width, tlsCheckButton.getPreferredSize().width);
+		}
+		updateTlsCheckButtonText();
+
+		openApiButton.setPreferredSize(new Dimension(width, openApiButton.getPreferredSize().height));
+		tlsCheckButton.setPreferredSize(new Dimension(width, tlsCheckButton.getPreferredSize().height));
+	}
+
+	private static JPanel createLabeledFieldRow(final JLabel leftLabel, final Component leftField, final JLabel rightLabel, final Component rightField) {
+		final JPanel row = new JPanel(new GridBagLayout());
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.anchor = GridBagConstraints.LINE_START;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+
+		constraints.gridy = 0;
+		constraints.gridx = 0;
+		constraints.insets = new Insets(0, 0, 2, 7);
+		row.add(leftLabel, constraints);
+		constraints.gridx = 1;
+		constraints.insets = new Insets(0, 0, 2, 0);
+		row.add(rightLabel, constraints);
+
+		constraints.gridy = 1;
+		constraints.gridx = 0;
+		constraints.weightx = 1;
+		constraints.insets = new Insets(0, 0, 0, 7);
+		row.add(leftField, constraints);
+		constraints.gridx = 1;
+		constraints.weightx = 0;
+		constraints.insets = new Insets(0, 0, 0, 0);
+		row.add(rightField, constraints);
+		return row;
+	}
+
+	private static JPanel createSectionHeader(final String title, final JButton addButton) {
+		final JPanel sectionHeader = new JPanel(new BorderLayout());
+		sectionHeader.add(new JLabel(title), BorderLayout.CENTER);
+		sectionHeader.add(addButton, BorderLayout.EAST);
+		return sectionHeader;
+	}
+
+	private JPanel createHeaderButtonRegion() {
+		final JButton addBasicAuthButton = new JButton(LangResources.get("addBasicAuth"));
+		addBasicAuthButton.addActionListener(event -> {
+			final CredentialsDialog credentialsDialog = new CredentialsDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterBasicAuthCredentials"), true, true);
+			final Credentials credentials = credentialsDialog.open();
+			if (credentials != null) {
+				final Map<String, String> httpHeadersMap = getHttpHeaders();
+				httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpUtilities.createBasicAuthenticationHeaderValue(credentials.getUsername(), new String(credentials.getPassword())));
+				setHttpHeaders(httpHeadersMap);
 			}
 		});
 
-		final Button addTokenAuthButton = new Button(headerButtonRegion, SWT.PUSH);
-		addTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		addTokenAuthButton.setText(LangResources.get("addTokenAuth"));
-		addTokenAuthButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				final SimpleInputDialog inputDialog = new SimpleInputDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterAuthToken"));
-				final String token = inputDialog.open();
-				if (token != null) {
-					final Map<String, String> httpHeadersMap = getHttpHeaders();
-					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + token);
-					setHttpHeaders(httpHeadersMap);
-				}
+		final JButton addTokenAuthButton = new JButton(LangResources.get("addTokenAuth"));
+		addTokenAuthButton.addActionListener(event -> {
+			final String token = new SimpleInputDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterAuthToken")).open();
+			if (token != null) {
+				final Map<String, String> httpHeadersMap = getHttpHeaders();
+				httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + token);
+				setHttpHeaders(httpHeadersMap);
 			}
 		});
 
-		final Button createTokenAuthButton = new Button(headerButtonRegion, SWT.PUSH);
-		createTokenAuthButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		createTokenAuthButton.setText(LangResources.get("fetchIdpToken"));
-		createTokenAuthButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				try {
-					final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), idpUrl, idpRealm, idpUsername, idpPassword);
-					inputDialog.setRememberCredentials(storeIdpCredentials);
-					final Credentials credentials = inputDialog.open();
-					if (credentials != null) {
-						final String tempIdpUrl = inputDialog.getIdpUrl();
-						final String tempIdpRealm = inputDialog.getIdpRealm();
-						final String tempIdpUsername = credentials.getUsername();
-						final char[] tempIdpPasswordChars = credentials.getPassword();
-						final String tempIdpPassword = new String(tempIdpPasswordChars);
+		final JButton createTokenAuthButton = new JButton(LangResources.get("fetchIdpToken"));
+		createTokenAuthButton.addActionListener(event -> fetchIdpToken());
 
-						storeIdpCredentials = inputDialog.isRememberCredentials();
+		final JButton contentTypeButton = new JButton(LangResources.get("addContentType"));
+		contentTypeButton.addActionListener(event -> {
+			final List<String> contentTypes = new ArrayList<>();
+			for (final HttpContentType contentTypeItem : HttpContentType.values()) {
+				contentTypes.add(contentTypeItem.getStringRepresentation());
+			}
+			final String contentType = new ComboSelectionDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("addContentType"), contentTypes).open();
+			if (contentType != null) {
+				final Map<String, String> httpHeadersMap = getHttpHeaders();
+				httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, contentType);
+				setHttpHeaders(httpHeadersMap);
+			}
+		});
 
-						ProxyConfiguration idpProxyConfiguration = null;
-						if (Utilities.isNotBlank(getProxyUrl())) {
-							if ("DIRECT".equalsIgnoreCase(getProxyUrl()) || Utilities.isBlank(getProxyUrl())) {
-								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.None);
-							} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
-								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
-							} else {
-								idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.ProxyURL, getProxyUrl());
-							}
-						}
+		final JButton standardHeaderButton = new JButton(LangResources.get("addStandardHeader"));
+		standardHeaderButton.addActionListener(event -> {
+			final List<String> standardHeaders = List.of(
+					"Accept",
+					"Authorization",
+					"Cache-Control",
+					"Content-Encoding",
+					"Content-Length",
+					"Content-Type",
+					"Cookie",
+					"Date",
+					"Pragma",
+					"Proxy-Authorization",
+					"Referer",
+					"User-Agent",
+					"Proxy-Connection");
+			final String standardHeader = new ComboSelectionDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("addStandardHeader"), standardHeaders).open();
+			if (standardHeader != null) {
+				final Map<String, String> httpHeadersMap = getHttpHeaders();
+				httpHeadersMap.put(standardHeader, "");
+				setHttpHeaders(httpHeadersMap);
+			}
+		});
 
-						String idpToken = null;
-						if (tempIdpUrl.endsWith("/token")) {
-							idpToken = IdpHelper.aquireAccessToken(tempIdpUrl, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
-						} else {
-							final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(tempIdpUrl, tempIdpRealm, idpProxyConfiguration);
-							idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
-						}
+		// Three equally weighted columns: three buttons in the first row, two (the second spanning two columns) in the second
+		final JPanel headerButtonRegion = new JPanel(new GridBagLayout());
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.weightx = 1;
+		constraints.insets = new Insets(2, 2, 2, 2);
+		constraints.gridy = 0;
+		constraints.gridx = 0;
+		headerButtonRegion.add(addBasicAuthButton, constraints);
+		constraints.gridx = 1;
+		headerButtonRegion.add(addTokenAuthButton, constraints);
+		constraints.gridx = 2;
+		headerButtonRegion.add(createTokenAuthButton, constraints);
+		constraints.gridy = 1;
+		constraints.gridx = 0;
+		headerButtonRegion.add(contentTypeButton, constraints);
+		constraints.gridx = 1;
+		constraints.gridwidth = 2;
+		headerButtonRegion.add(standardHeaderButton, constraints);
+		return headerButtonRegion;
+	}
 
-						if (idpToken != null) {
-							final Map<String, String> httpHeadersMap = getHttpHeaders();
-							httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
-							setHttpHeaders(httpHeadersMap);
-						}
+	private void fetchIdpToken() {
+		try {
+			final IdpCredentialsDialog inputDialog = new IdpCredentialsDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterIdpCredentials"), idpUrl, idpRealm, idpUsername, idpPassword);
+			inputDialog.setRememberCredentials(storeIdpCredentials);
+			final Credentials credentials = inputDialog.open();
+			if (credentials != null) {
+				final String tempIdpUrl = inputDialog.getIdpUrl();
+				final String tempIdpRealm = inputDialog.getIdpRealm();
+				final String tempIdpUsername = credentials.getUsername();
+				final char[] tempIdpPasswordChars = credentials.getPassword();
+				final String tempIdpPassword = new String(tempIdpPasswordChars);
 
-						idpUrl = tempIdpUrl;
-						idpRealm = tempIdpRealm;
-						idpUsername = tempIdpUsername;
-						idpPassword = tempIdpPasswordChars;
+				storeIdpCredentials = inputDialog.isRememberCredentials();
+
+				ProxyConfiguration idpProxyConfiguration = null;
+				if (Utilities.isNotBlank(getProxyUrl())) {
+					if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
+						idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.None);
+					} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
+						idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+					} else {
+						idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.ProxyURL, getProxyUrl());
 					}
-				} catch (final Exception e) {
-					new QuestionDialog(getShell(), LangResources.get("fetchIdpToken"), e.getMessage(), LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
 				}
-			}
-		});
 
-		final Button contentTypeButton = new Button(headerButtonRegion, SWT.PUSH);
-		contentTypeButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		contentTypeButton.setText(LangResources.get("addContentType"));
-		contentTypeButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				final List<String> contentTypes = new ArrayList<>();
-				for (final HttpContentType contentTypeItem : HttpContentType.values()) {
-					contentTypes.add(contentTypeItem.getStringRepresentation());
+				final String idpToken;
+				if (tempIdpUrl.endsWith("/token")) {
+					idpToken = IdpHelper.aquireAccessToken(tempIdpUrl, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
+				} else {
+					final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(tempIdpUrl, tempIdpRealm, idpProxyConfiguration);
+					idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
 				}
-				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addContentType"), contentTypes);
-				final String contentType = selectionDialog.open();
-				if (contentType != null) {
+
+				if (idpToken != null) {
 					final Map<String, String> httpHeadersMap = getHttpHeaders();
-					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, contentType);
+					httpHeadersMap.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
 					setHttpHeaders(httpHeadersMap);
 				}
+
+				idpUrl = tempIdpUrl;
+				idpRealm = tempIdpRealm;
+				idpUsername = tempIdpUsername;
+				idpPassword = tempIdpPasswordChars;
 			}
-		});
+		} catch (final Exception e) {
+			showError(LangResources.get("fetchIdpToken"), e.getMessage());
+		}
+	}
 
-		final Button standardHeaderButton = new Button(headerButtonRegion, SWT.PUSH);
-		standardHeaderButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		standardHeaderButton.setText(LangResources.get("addStandardHeader"));
-		standardHeaderButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				final List<String> standardHeaders = new ArrayList<>();
-
-				standardHeaders.add("Accept");
-				standardHeaders.add("Authorization");
-				standardHeaders.add("Cache-Control");
-				standardHeaders.add("Content-Encoding");
-				standardHeaders.add("Content-Length");
-				standardHeaders.add("Content-Type");
-				standardHeaders.add("Cookie");
-				standardHeaders.add("Date");
-				standardHeaders.add("Pragma");
-				standardHeaders.add("Proxy-Authorization");
-				standardHeaders.add("Referer");
-				standardHeaders.add("User-Agent");
-				standardHeaders.add("Proxy-Connection");
-
-				final SelectionDialog selectionDialog = new SelectionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("addStandardHeader"), standardHeaders);
-				final String standardHeader = selectionDialog.open();
-				if (standardHeader != null) {
-					final Map<String, String> httpHeadersMap = getHttpHeaders();
-					httpHeadersMap.put(standardHeader, "");
-					setHttpHeaders(httpHeadersMap);
+	private void openApi() {
+		final SimpleInputDialog dialog = new SimpleInputDialog(getWindow(), RestClient.APPLICATION_NAME, "OpenAPI URL " + LangResources.get("orLocalFilePath"));
+		if (getServiceUrl() != null) {
+			if (getServiceUrl().endsWith("/")) {
+				dialog.setDefaultText(getServiceUrl() + "openapi");
+			} else {
+				dialog.setDefaultText(getServiceUrl() + "/openapi");
+			}
+		}
+		final String result = dialog.open();
+		if (result != null) {
+			try {
+				final File localFile = new File(result);
+				final byte[] openApiContent;
+				if (localFile.isFile()) {
+					openApiContent = Files.readAllBytes(localFile.toPath());
+				} else {
+					openApiContent = fetchOpenApiContentFromUrl(result);
 				}
+				processOpenApiDocument(openApiContent);
+			} catch (final Exception e) {
+				showError("OpenAPI", e.getMessage());
 			}
-		});
+		}
+	}
 
-		createKeyValueSectionForUrlParams(LangResources.get("urlParameter"));
-
-		createKeyValueSectionForHtmlFormParams(LangResources.get("htmlFormParameter"));
-
-		createRequestBodySection();
+	private void showError(final String title, final String message) {
+		new QuestionDialog(getWindow(), title, message, LangResources.get("ok")).setBackgroundColor(SwingColor.LightRed).open();
 	}
 
 	private void createPresetNameSection() {
-		final Label label = new Label(content, SWT.NONE);
-		label.setText(LangResources.get("preset"));
+		addContentRow(new JLabel(LangResources.get("preset")), 0);
 
-		final Composite comboButtonComposite = new Composite(content, SWT.NONE);
-		comboButtonComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout comboButtonLayout = new GridLayout(3, false);
-		// Zeroed to match proxyRow/proxyUrlCol below, whose explicit marginWidth=0 is what keeps
-		// their field's left edge flush with content's own margin. Without this, GridLayout's
-		// default marginWidth (5px) shifted presetCombo 5px further right than proxyUrlCombo.
-		comboButtonLayout.marginWidth = 0;
-		comboButtonLayout.marginHeight = 0;
-		comboButtonComposite.setLayout(comboButtonLayout);
-
-		// ArrangeableAutoCompleteCombo now builds its own dropdown arrow button
-		// internally (flush against its text field, same pseudo-dropdown look as
-		// before) - no separate wrapper composite or button needed here anymore.
-		presetCombo = new DropDown(comboButtonComposite, SWT.NONE);
-		presetCombo.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, false));
-		presetCombo.setCaseSensitive(false);
-		presetCombo.setMatchMode(MatchMode.CONTAINS);
-		presetCombo.setAllowCustomValues(true);
-		presetCombo.setReorderable(true);
+		presetCombo = new DropDown()
+				.withCaseSensitive(false)
+				.withMatchMode(MatchMode.CONTAINS)
+				.withAllowCustomValues(true)
+				.withReorderable(true);
 		presetCombo.addItemsReorderedListener(newOrder -> {
 			presetNames.clear();
 			presetNames.addAll(newOrder);
@@ -724,231 +742,26 @@ public class RequestComponent extends Composite {
 				presetsReorderedListener.accept(getPresetNames());
 			}
 		});
-		presetCombo.addListener(SWT.Selection, e -> {
+		presetCombo.addActionListener(event -> {
 			if (presetSelectionListener != null) {
 				presetSelectionListener.run();
 			}
 		});
 
-		saveButton = new Button(comboButtonComposite, SWT.PUSH);
-		saveButton.setText(LangResources.get("save"));
+		saveButton = new JButton(LangResources.get("save"));
+		deleteButton = new JButton(LangResources.get("delete"));
 
-		deleteButton = new Button(comboButtonComposite, SWT.PUSH);
-		deleteButton.setText(LangResources.get("delete"));
-	}
-
-	private Text createLabeledText(final String labelText, final String message) {
-		final Label label = new Label(content, SWT.NONE);
-		label.setText(labelText);
-
-		final Text text = new Text(content, SWT.BORDER);
-		text.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		text.setMessage(message);
-		return text;
-	}
-
-	private void createKeyValueSectionForHeader(final String title) {
-		final Composite sectionHeader = new Composite(content, SWT.NONE);
-		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		sectionHeader.setLayout(new GridLayout(2, false));
-
-		final Label label = new Label(sectionHeader, SWT.NONE);
-		label.setText(title);
-		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-		final Button addButton = new Button(sectionHeader, SWT.PUSH);
-		addButton.setText("+");
-
-		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
-		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
-		gd.heightHint = 75;
-		scrolled.setLayoutData(gd);
-		scrolled.setExpandHorizontal(true);
-		scrolled.setExpandVertical(true);
-
-		final Composite container = new Composite(scrolled, SWT.NONE);
-		container.setLayout(new GridLayout(1, false));
-		scrolled.setContent(container);
-
-		scrolled.setAlwaysShowScrollBars(true);
-
-		addKeyValueRow(container, scrolled);
-
-		addButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent arg0) {
-				addKeyValueRow(container, scrolled);
-				checkRequestContentStatus();
-			}
-		});
-
-		headerContainer = container;
-		headerScrolled = scrolled;
-	}
-
-	private void createKeyValueSectionForUrlParams(final String title) {
-		final Composite sectionHeader = new Composite(content, SWT.NONE);
-		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		sectionHeader.setLayout(new GridLayout(2, false));
-
-		final Label label = new Label(sectionHeader, SWT.NONE);
-		label.setText(title);
-		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-		final Button addButton = new Button(sectionHeader, SWT.PUSH);
-		addButton.setText("+");
-
-		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
-		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
-		gd.heightHint = 75;
-		scrolled.setLayoutData(gd);
-		scrolled.setExpandHorizontal(true);
-		scrolled.setExpandVertical(true);
-
-		final Composite container = new Composite(scrolled, SWT.NONE);
-		container.setLayout(new GridLayout(1, false));
-		scrolled.setContent(container);
-
-		scrolled.setAlwaysShowScrollBars(true);
-
-		addKeyValueRow(container, scrolled);
-
-		addButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent arg0) {
-				addKeyValueRow(container, scrolled);
-				checkRequestContentStatus();
-			}
-		});
-
-		urlParamContainer = container;
-		urlParamScrolled = scrolled;
-	}
-
-	private void createKeyValueSectionForHtmlFormParams(final String title) {
-		final Composite sectionHeader = new Composite(content, SWT.NONE);
-		sectionHeader.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		sectionHeader.setLayout(new GridLayout(2, false));
-
-		final Label label = new Label(sectionHeader, SWT.NONE);
-		label.setText(title);
-		label.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-
-		htmlFormAddButton = new Button(sectionHeader, SWT.PUSH);
-		htmlFormAddButton.setText("+");
-
-		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.V_SCROLL | SWT.BORDER);
-		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, false);
-		gd.heightHint = 75;
-		scrolled.setLayoutData(gd);
-		scrolled.setExpandHorizontal(true);
-		scrolled.setExpandVertical(true);
-
-		final Composite container = new Composite(scrolled, SWT.NONE);
-		container.setLayout(new GridLayout(1, false));
-		scrolled.setContent(container);
-
-		scrolled.setAlwaysShowScrollBars(true);
-
-		htmlFormAddButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent arg0) {
-				addKeyValueRow(container, scrolled);
-				checkRequestContentStatus();
-			}
-		});
-
-		htmlFormParamContainer = container;
-		htmlFormParamScrolled = scrolled;
-	}
-
-	private Composite addKeyValueRow(final Composite parent, final ScrolledComposite scrolled) {
-		final Composite row = new Composite(parent, SWT.NONE);
-
-		final GridLayout gl = new GridLayout(3, false);
-		gl.marginWidth = 0;
-		gl.marginHeight = 0;
-		gl.verticalSpacing = 2;
-		gl.horizontalSpacing = 5;
-		row.setLayout(gl);
-		row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		final Text nameText = new Text(row, SWT.BORDER);
-		final GridData gridDataName = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-		gridDataName.widthHint = 150;
-		nameText.setLayoutData(gridDataName);
-		nameText.setMessage(LangResources.get("nameHint"));
-
-		final Text valueText = new Text(row, SWT.BORDER);
-		final GridData gridDataValue = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		valueText.setLayoutData(gridDataValue);
-		valueText.setMessage(LangResources.get("valueHint"));
-
-		final Button removeButton = new Button(row, SWT.PUSH);
-		removeButton.setText("-");
-		removeButton.addListener(SWT.Selection, e -> {
-			row.dispose();
-			refreshScrolledArea(parent, scrolled);
-
-			checkRequestContentStatus();
-		});
-
-		refreshScrolledArea(parent, scrolled);
-
-		return row;
-	}
-
-	private void refreshScrolledArea(final Composite refreshScrolledAreaParent, final ScrolledComposite scrolled) {
-		refreshScrolledAreaParent.layout(true, true);
-
-		final int width = scrolled.getClientArea().width;
-		final int height = Math.max(refreshScrolledAreaParent.computeSize(SWT.DEFAULT, SWT.DEFAULT).y, 80);
-		scrolled.setMinSize(width, height);
-
-		scrolled.layout(true, true);
-
-		updateOuterMinSize();
-	}
-
-	private void createRequestBodySection() {
-		final Label label = new Label(content, SWT.NONE);
-		label.setText(LangResources.get("requestBody"));
-
-		final ScrolledComposite scrolled = new ScrolledComposite(content, SWT.H_SCROLL | SWT.V_SCROLL | SWT.BORDER);
-		final GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
-		gd.heightHint = 75;
-		scrolled.setLayoutData(gd);
-		scrolled.setExpandHorizontal(true);
-		scrolled.setExpandVertical(true);
-
-		requestBodyText = new Text(scrolled, SWT.MULTI | SWT.BORDER | SWT.H_SCROLL | SWT.V_SCROLL);
-		requestBodyText.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-
-		scrolled.setContent(requestBodyText);
-
-		scrolled.addListener(SWT.Resize, e -> {
-			final int width = scrolled.getClientArea().width;
-			final Point pref = requestBodyText.computeSize(SWT.DEFAULT, SWT.DEFAULT);
-			scrolled.setMinSize(width, Math.max(pref.y, 75));
-		});
-
-		scrolled.setMinSize(scrolled.getClientArea().width, 200);
-	}
-
-	private static Map<String, String> extractKeyValuePairs(final Composite container) {
-		final Map<String, String> map = new LinkedHashMap<>();
-		for (final Control c : container.getChildren()) {
-			if (c instanceof final Composite row) {
-				final Control[] children = row.getChildren();
-				if (children.length >= 2 &&
-						children[0] instanceof final Text name &&
-						children[1] instanceof final Text value &&
-						!name.getText().isBlank()) {
-					map.put(name.getText(), value.getText());
-				}
-			}
-		}
-		return map;
+		final JPanel comboButtonRow = new JPanel(new GridBagLayout());
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.insets = new Insets(0, 0, 0, 5);
+		constraints.weightx = 1;
+		comboButtonRow.add(presetCombo, constraints);
+		constraints.weightx = 0;
+		comboButtonRow.add(saveButton, constraints);
+		constraints.insets = new Insets(0, 0, 0, 0);
+		comboButtonRow.add(deleteButton, constraints);
+		addContentRow(comboButtonRow, 0);
 	}
 
 	private byte[] fetchOpenApiContentFromUrl(final String url) throws Exception {
@@ -967,14 +780,12 @@ public class RequestComponent extends Composite {
 		}
 
 		final WorkerSimple<HttpResponse> worker = new ExecuteHttpRequestWorker(null, openApiRequest, proxy, getTlsCheckConfiguration().getTrustManager(), !getTlsCheckConfiguration().getCheckCn());
-		HttpResponse httpResponse;
-		final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
+		final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 		final Result dialogResult = progressDialog.open();
 		if (dialogResult == Result.CANCELED) {
 			return null;
-		} else {
-			httpResponse = worker.get();
 		}
+		final HttpResponse httpResponse = worker.get();
 
 		if (httpResponse != null && httpResponse.getHttpCode() == 200) {
 			return httpResponse.getContent().trim().getBytes(StandardCharsets.UTF_8);
@@ -1006,7 +817,7 @@ public class RequestComponent extends Composite {
 			final List<String> paths = new ArrayList<>(pathsObject.keySet());
 
 			// Stage 1: select a path (no HTTP method involved yet)
-			final String selectedPathRaw = new SelectionDialog(getShell(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
+			final String selectedPathRaw = new ComboSelectionDialog(getWindow(), "OpenAPI paths", LangResources.get("selectServiceMethod"), paths).open();
 			if (selectedPathRaw != null) {
 				String selectedPath = selectedPathRaw;
 				while (selectedPath.startsWith("/")) {
@@ -1031,7 +842,7 @@ public class RequestComponent extends Composite {
 				if (availableMethods.size() == 1) {
 					applyOpenApiMethodSelection(availableMethods.get(0), operationsByMethod, rootJsonObject);
 				} else if (availableMethods.size() > 1) {
-					final String selectedHttpMethod = new SelectionDialog(getShell(), "OpenAPI methods", LangResources.get("selectHttpMethod"), availableMethods).open();
+					final String selectedHttpMethod = new ComboSelectionDialog(getWindow(), "OpenAPI methods", LangResources.get("selectHttpMethod"), availableMethods).open();
 					if (selectedHttpMethod != null) {
 						applyOpenApiMethodSelection(selectedHttpMethod, operationsByMethod, rootJsonObject);
 					}
@@ -1121,28 +932,23 @@ public class RequestComponent extends Composite {
 	}
 
 	private void checkRequestContentStatus() {
-		if (requestBodyText != null && htmlFormParamContainer != null) {
+		if (requestBodyText == null || htmlFormParamSection == null || checkingRequestContentStatus) {
+			return;
+		}
+
+		checkingRequestContentStatus = true;
+		try {
 			final boolean isGet = "GET".equalsIgnoreCase(getHttpMethod());
 
-			setCompositeEnabled(htmlFormParamContainer, !isGet);
-			if (htmlFormAddButton != null) {
-				htmlFormAddButton.setEnabled(!isGet);
-			}
-			if (isGet) {
-				htmlFormParamScrolled.setToolTipText(LangResources.get("deactivationHtmlFormParams"));
-				if (htmlFormAddButton != null) {
-					htmlFormAddButton.setToolTipText(LangResources.get("deactivationHtmlFormParams"));
-				}
-			} else {
-				htmlFormParamScrolled.setToolTipText(null);
-				if (htmlFormAddButton != null) {
-					htmlFormAddButton.setToolTipText(null);
-				}
-			}
+			htmlFormParamSection.setEnabled(!isGet);
+			htmlFormAddButton.setEnabled(!isGet);
+			final String htmlFormToolTip = isGet ? LangResources.get("deactivationHtmlFormParams") : null;
+			htmlFormParamSection.getScrollPane().setToolTipText(htmlFormToolTip);
+			htmlFormAddButton.setToolTipText(htmlFormToolTip);
 
 			if (isGet) {
 				requestBodyText.setEnabled(false);
-			} else if (htmlFormParamContainer.getChildren().length > 0) {
+			} else if (htmlFormParamSection.getRowCount() > 0) {
 				requestBodyText.setEnabled(false);
 
 				boolean contentTypeHeaderFound = false;
@@ -1156,46 +962,192 @@ public class RequestComponent extends Composite {
 
 				if (!contentTypeHeaderFound) {
 					httpHeaders.put(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, HttpContentType.HtmlForm.getStringRepresentation());
-					setHttpHeaders(httpHeaders);
+					headerSection.setEntries(httpHeaders);
 				}
 			} else {
 				requestBodyText.setEnabled(true);
 			}
 
-			switch (tlsCheckConfiguration.getType()) {
-				case AdditionalTrustStoreFile:
-					tlsCheckButton.setText(LangResources.get("AdditionalTrustStoreFile"));
-					break;
-				case NoCheck:
-					tlsCheckButton.setText(LangResources.get("NoCheck"));
-					break;
-				case RecordingSingleCertificate:
-					tlsCheckButton.setText(LangResources.get("RecordingSingleCertificate"));
-					break;
-				case RecordingToTrustStoreFile:
-					tlsCheckButton.setText(LangResources.get("RecordingToTrustStoreFile"));
-					break;
-				case SingleCertificate:
-					tlsCheckButton.setText(LangResources.get("SingleCertificate"));
-					break;
-				case TrustStoreFile:
-					tlsCheckButton.setText(LangResources.get("TrustStoreFile"));
-					break;
-				case SystemTrustStore:
-				default:
-					tlsCheckButton.setText(LangResources.get("SystemTrustStore"));
-					break;
+			updateTlsCheckButtonText();
+		} finally {
+			checkingRequestContentStatus = false;
+		}
+	}
+
+	private void updateTlsCheckButtonText() {
+		if (tlsCheckButton != null) {
+			tlsCheckButton.setText(getTlsCheckButtonText(tlsCheckConfiguration.getType()));
+		}
+	}
+
+	private static String getTlsCheckButtonText(final TlsCheckConfigurationType type) {
+		switch (type) {
+			case AdditionalTrustStoreFile:
+				return LangResources.get("AdditionalTrustStoreFile");
+			case NoCheck:
+				return LangResources.get("NoCheck");
+			case RecordingSingleCertificate:
+				return LangResources.get("RecordingSingleCertificate");
+			case RecordingToTrustStoreFile:
+				return LangResources.get("RecordingToTrustStoreFile");
+			case SingleCertificate:
+				return LangResources.get("SingleCertificate");
+			case TrustStoreFile:
+				return LangResources.get("TrustStoreFile");
+			case SystemTrustStore:
+			default:
+				return LangResources.get("SystemTrustStore");
+		}
+	}
+
+	/**
+	 * Editable list of "name | value | -" rows in a scroll pane of fixed height,
+	 * used for HTTP headers, URL parameters and HTML form parameters.
+	 */
+	private final class KeyValueSection {
+		private final ViewportWidthPanel container = new ViewportWidthPanel(new GridBagLayout());
+		private final JScrollPane scrollPane;
+		private final List<KeyValueRow> rows = new ArrayList<>();
+		private boolean enabled = true;
+
+		private KeyValueSection() {
+			scrollPane = new JScrollPane(container, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+			scrollPane.setPreferredSize(new Dimension(100, LIST_HEIGHT));
+			scrollPane.setMinimumSize(new Dimension(100, LIST_HEIGHT));
+			scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+			relayout();
+		}
+
+		private JScrollPane getScrollPane() {
+			return scrollPane;
+		}
+
+		private int getRowCount() {
+			return rows.size();
+		}
+
+		private KeyValueRow addRow() {
+			final KeyValueRow row = new KeyValueRow();
+			row.setEnabled(enabled);
+			rows.add(row);
+			relayout();
+			return row;
+		}
+
+		private void removeRow(final KeyValueRow row) {
+			rows.remove(row);
+			relayout();
+			checkRequestContentStatus();
+		}
+
+		private void setEntries(final Map<String, String> entries) {
+			rows.clear();
+			if (entries != null) {
+				for (final Map.Entry<String, String> entry : entries.entrySet()) {
+					final KeyValueRow row = new KeyValueRow();
+					row.nameText.setText(entry.getKey());
+					row.valueText.setText(entry.getValue());
+					row.setEnabled(enabled);
+					rows.add(row);
+				}
+			}
+			relayout();
+		}
+
+		/**
+		 * Rows with a non-blank name, in display order
+		 */
+		private Map<String, String> getEntries() {
+			final Map<String, String> map = new LinkedHashMap<>();
+			for (final KeyValueRow row : rows) {
+				if (!row.nameText.getText().isBlank()) {
+					map.put(row.nameText.getText(), row.valueText.getText());
+				}
+			}
+			return map;
+		}
+
+		private void setEnabled(final boolean enabled) {
+			this.enabled = enabled;
+			for (final KeyValueRow row : rows) {
+				row.setEnabled(enabled);
+			}
+		}
+
+		private void relayout() {
+			container.removeAll();
+
+			int rowIndex = 0;
+			for (final KeyValueRow row : rows) {
+				final GridBagConstraints constraints = new GridBagConstraints();
+				constraints.gridy = rowIndex++;
+				constraints.insets = new Insets(1, 2, 1, 2);
+
+				constraints.gridx = 0;
+				container.add(row.nameText, constraints);
+
+				constraints.gridx = 1;
+				constraints.weightx = 1;
+				constraints.fill = GridBagConstraints.HORIZONTAL;
+				container.add(row.valueText, constraints);
+
+				constraints.gridx = 2;
+				constraints.weightx = 0;
+				constraints.fill = GridBagConstraints.NONE;
+				container.add(row.removeButton, constraints);
+			}
+
+			// Keeps the rows at the top
+			final GridBagConstraints fillerConstraints = new GridBagConstraints();
+			fillerConstraints.gridy = rowIndex;
+			fillerConstraints.weighty = 1;
+			container.add(Box.createGlue(), fillerConstraints);
+
+			container.revalidate();
+			container.repaint();
+		}
+
+		private final class KeyValueRow {
+			private final HintTextField nameText = new HintTextField(LangResources.get("nameHint"));
+			private final HintTextField valueText = new HintTextField(LangResources.get("valueHint"));
+			private final JButton removeButton = new JButton("-");
+
+			private KeyValueRow() {
+				nameText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, nameText.getPreferredSize().height));
+				removeButton.addActionListener(event -> removeRow(this));
+			}
+
+			private void setEnabled(final boolean rowEnabled) {
+				nameText.setEnabled(rowEnabled);
+				valueText.setEnabled(rowEnabled);
+				removeButton.setEnabled(rowEnabled);
 			}
 		}
 	}
 
-	private void setCompositeEnabled(final Composite composite, final boolean enabled) {
-		composite.setEnabled(enabled);
-		for (final Control child : composite.getChildren()) {
-			child.setEnabled(enabled);
-			if (child instanceof Composite) {
-				setCompositeEnabled((Composite) child, enabled);
-			}
+	/**
+	 * DocumentListener that runs the same action for every text change.
+	 */
+	private static final class SimpleDocumentListener implements DocumentListener {
+		private final Runnable action;
+
+		private SimpleDocumentListener(final Runnable action) {
+			this.action = action;
+		}
+
+		@Override
+		public void insertUpdate(final DocumentEvent event) {
+			action.run();
+		}
+
+		@Override
+		public void removeUpdate(final DocumentEvent event) {
+			action.run();
+		}
+
+		@Override
+		public void changedUpdate(final DocumentEvent event) {
+			// Attribute changes only
 		}
 	}
 }

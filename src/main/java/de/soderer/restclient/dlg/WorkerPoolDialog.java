@@ -1,55 +1,99 @@
 package de.soderer.restclient.dlg;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Window;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.MessageBox;
-import org.eclipse.swt.widgets.ProgressBar;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Table;
-import org.eclipse.swt.widgets.TableColumn;
-import org.eclipse.swt.widgets.TableItem;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.UIManager;
+import javax.swing.WindowConstants;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableColumn;
 
 import de.soderer.restclient.worker.WorkerStats;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.swt.ModalDialog;
+import de.soderer.utilities.swing.ModalDialog;
 import de.soderer.utilities.worker.WorkerSimple;
 
+/**
+ * Runs a pool of parallel workers, each repeating its task a configured number
+ * of times (or until canceled), and shows live statistics per worker.
+ *
+ * <p>
+ * {@link #open()} returns true if all repetitions were done, false if the run
+ * was canceled.
+ * </p>
+ */
 public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
+	private static final long serialVersionUID = 1427303826312908133L;
+
+	private static final int COLUMN_STATUS = 4;
+	private static final int MAX_VISIBLE_ROWS = 15;
+	private static final Color SUCCESS_COLOR = new Color(0, 128, 0);
+	private static final Color ERROR_COLOR = Color.RED;
+	private static final String CSV_HEADER = "WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration";
+
 	private final String text;
 
-	private Table table;
-	private ProgressBar progressBar;
-	private Label descriptionLabel;
-	private Button actionButton;
-	private Button downloadButton;
+	private JTable table;
+	private WorkerStatsTableModel tableModel;
+	private JProgressBar progressBar;
+	private JTextArea descriptionLabel;
+	private JButton actionButton;
+	private JButton downloadButton;
+	private Timer rampUpTimer;
 
+	/** Only accessed on the Swing event dispatch thread (sorted in place for display) */
 	private final List<WorkerStats> workerStatsList = new ArrayList<>();
 	private final AtomicInteger progress = new AtomicInteger(0);
 	private volatile boolean cancelled = false;
 	private volatile boolean finished = false;
 
+	/** Coalesces the table refreshes requested by the workers into one pending event */
+	private final AtomicBoolean refreshScheduled = new AtomicBoolean(false);
+
 	private ExecutorService executor;
 
 	private int workerCount = 1;
 	private int tasksPerWorker = 1;
+	private int totalTasks;
 	private Duration sleepTime = null;
 	private LocalDateTime poolStart = null;
 	private Duration rampUpTime = null;
@@ -57,8 +101,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private int sortColumn = 0;
 	private boolean ascending = true;
 
-	public WorkerPoolDialog(final Shell applicationDialog, final String title, final String text) {
-		super(applicationDialog, title);
+	public WorkerPoolDialog(final Window parent, final String title, final String text) {
+		super(parent, title);
 
 		this.text = text;
 	}
@@ -67,6 +111,10 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		this.workerCount = workerCount;
 	}
 
+	/**
+	 * @param tasksPerWorker number of repetitions per worker, or -1 to repeat until
+	 *                       canceled
+	 */
 	public void setRepetitionsPerWorker(final int tasksPerWorker) {
 		this.tasksPerWorker = tasksPerWorker;
 	}
@@ -79,181 +127,214 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		this.rampUpTime = rampUpTime;
 	}
 
+	/**
+	 * Creates the components and starts the workers, since both depend on the
+	 * settings made after construction.
+	 */
 	@Override
-	protected void createComponents(final Shell parentShell) throws Exception {
-		parentShell.setLayout(new GridLayout(1, false));
+	public Boolean open() {
+		createComponents();
+		pack();
+		setLocationRelativeTo(getOwner());
+		initWorkers();
+		return super.open();
+	}
 
-		descriptionLabel = new Label(parentShell, SWT.WRAP);
-		descriptionLabel.setText(text);
-		descriptionLabel.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+	private void createComponents() {
+		final int margin = 5;
 
-		progressBar = new ProgressBar(parentShell, SWT.NONE);
-		progressBar.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
-		progressBar.setMinimum(0);
-		if (tasksPerWorker >= 0) {
-			progressBar.setMaximum(workerCount * tasksPerWorker);
-		} else {
-			progressBar.setMaximum(Integer.MAX_VALUE);
-		}
+		final JPanel panel = new JPanel(new BorderLayout(margin, margin));
+		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
 
-		table = new Table(parentShell, SWT.BORDER | SWT.FULL_SELECTION | SWT.VIRTUAL | SWT.V_SCROLL);
-		table.setHeaderVisible(true);
-		table.setLinesVisible(true);
+		final JPanel topPanel = new JPanel(new BorderLayout(margin, margin));
 
-		final GridData gdTable = new GridData(SWT.LEFT, SWT.TOP, false, false);
-		final int rowHeight = table.getItemHeight();
-		final int visibleRows = Math.min(workerCount, 15);
-		gdTable.heightHint = visibleRows * rowHeight + table.getHeaderHeight();
-		table.setLayoutData(gdTable);
+		descriptionLabel = new JTextArea(text);
+		descriptionLabel.setEditable(false);
+		descriptionLabel.setFocusable(false);
+		descriptionLabel.setOpaque(false);
+		descriptionLabel.setFont(UIManager.getFont("Label.font"));
+		topPanel.add(descriptionLabel, BorderLayout.NORTH);
 
-		final String[] columnTitles = { "WorkerID",
-				LangResources.get("successCount"),
-				LangResources.get("errorCount"),
-				LangResources.get("latestDuration"),
-				LangResources.get("latestStatus"),
-				LangResources.get("minDuration"),
-				"Ø " + LangResources.get("duration"),
-				LangResources.get("maxDuration") };
-		for (int i = 0; i < columnTitles.length; i++) {
-			final int colIndex = i;
-			final TableColumn col = new TableColumn(table, SWT.NONE);
-			col.setText(columnTitles[i]);
-			col.pack();
-			col.addListener(SWT.Selection, e -> {
-				if (sortColumn == colIndex) {
-					ascending = !ascending;
-				} else {
-					sortColumn = colIndex;
-					ascending = true;
+		totalTasks = tasksPerWorker >= 0 ? workerCount * tasksPerWorker : -1;
+		progressBar = new JProgressBar(0, Math.max(totalTasks, 1));
+		// Repeating until canceled has no end, so there is no meaningful percentage
+		progressBar.setIndeterminate(totalTasks < 0);
+		topPanel.add(progressBar, BorderLayout.SOUTH);
+
+		panel.add(topPanel, BorderLayout.NORTH);
+
+		tableModel = new WorkerStatsTableModel();
+		table = new JTable(tableModel);
+		table.setFillsViewportHeight(true);
+		table.getTableHeader().setReorderingAllowed(false);
+
+		final DefaultTableCellRenderer statusRenderer = new DefaultTableCellRenderer() {
+			private static final long serialVersionUID = -1826497624913770520L;
+
+			@Override
+			public Component getTableCellRendererComponent(final JTable renderTable, final Object value, final boolean isSelected, final boolean hasFocus, final int row, final int column) {
+				final Component component = super.getTableCellRendererComponent(renderTable, value, isSelected, hasFocus, row, column);
+				if (!isSelected) {
+					final Boolean latestStatusWasSuccess = row < workerStatsList.size() ? workerStatsList.get(row).getLatestStatusWasSuccess() : null;
+					if (latestStatusWasSuccess == null) {
+						component.setForeground(renderTable.getForeground());
+					} else {
+						component.setForeground(latestStatusWasSuccess ? SUCCESS_COLOR : ERROR_COLOR);
+					}
 				}
-				refreshTable();
-			});
-		}
+				return component;
+			}
+		};
+		table.getColumnModel().getColumn(COLUMN_STATUS).setCellRenderer(statusRenderer);
 
-		table.addListener(SWT.SetData, e -> {
-			final TableItem item = (TableItem) e.item;
-			final int index = table.indexOf(item);
-			if (index < workerStatsList.size()) {
-				fillItem(item, workerStatsList.get(index));
+		// Columns as wide as their header texts, like SWT's TableColumn.pack() on an empty table
+		final JTableHeader header = table.getTableHeader();
+		int tableWidth = 0;
+		for (int i = 0; i < table.getColumnCount(); i++) {
+			final TableColumn column = table.getColumnModel().getColumn(i);
+			final Component headerComponent = header.getDefaultRenderer().getTableCellRendererComponent(table, column.getHeaderValue(), false, false, -1, i);
+			final int width = headerComponent.getPreferredSize().width + 16;
+			column.setPreferredWidth(width);
+			tableWidth += width;
+		}
+		header.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent event) {
+				final int viewColumn = header.columnAtPoint(event.getPoint());
+				if (viewColumn >= 0) {
+					final int columnIndex = table.convertColumnIndexToModel(viewColumn);
+					if (sortColumn == columnIndex) {
+						ascending = !ascending;
+					} else {
+						sortColumn = columnIndex;
+						ascending = true;
+					}
+					refreshTable();
+				}
 			}
 		});
 
-		final Composite buttonBar = new Composite(parentShell, SWT.NONE);
-		buttonBar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		final GridLayout gl = new GridLayout(3, false);
-		gl.marginWidth = 0;
-		gl.marginHeight = 0;
-		gl.horizontalSpacing = 10;
-		buttonBar.setLayout(gl);
+		final int visibleRows = Math.min(workerCount, MAX_VISIBLE_ROWS);
+		table.setPreferredScrollableViewportSize(new Dimension(tableWidth, visibleRows * table.getRowHeight()));
+		panel.add(new JScrollPane(table), BorderLayout.CENTER);
 
-		final Label spacer = new Label(buttonBar, SWT.NONE);
-		spacer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
 
-		downloadButton = new Button(buttonBar, SWT.PUSH);
-		downloadButton.setText(LangResources.get("saveResults"));
+		downloadButton = new JButton(LangResources.get("saveResults"));
 		downloadButton.setEnabled(false);
-		final GridData gdDownload = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
-		gdDownload.widthHint = 160;
-		downloadButton.setLayoutData(gdDownload);
-		downloadButton.addListener(SWT.Selection, e -> exportResults());
+		downloadButton.setPreferredSize(new Dimension(Math.max(160, downloadButton.getPreferredSize().width), downloadButton.getPreferredSize().height));
+		downloadButton.addActionListener(event -> exportResults());
+		buttonPanel.add(downloadButton);
 
-		actionButton = new Button(buttonBar, SWT.PUSH);
-		actionButton.setText(LangResources.get("cancel"));
-		final GridData gdAction = new GridData(SWT.RIGHT, SWT.CENTER, false, false);
-		gdAction.widthHint = 120;
-		actionButton.setLayoutData(gdAction);
-		actionButton.addListener(SWT.Selection, e -> {
+		actionButton = new JButton(LangResources.get("cancel"));
+		actionButton.setPreferredSize(new Dimension(Math.max(120, actionButton.getPreferredSize().width), actionButton.getPreferredSize().height));
+		actionButton.addActionListener(event -> {
 			if (!finished) {
 				cancelExecution();
 			} else {
-				parentShell.dispose();
+				closeDialog();
 			}
 		});
+		buttonPanel.add(actionButton);
 
-		parentShell.pack();
+		panel.add(buttonPanel, BorderLayout.SOUTH);
 
-		initWorkers();
+		setContentPane(panel);
+
+		// Closing the window while workers are still running cancels them, instead of leaving them running unseen
+		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(final WindowEvent event) {
+				closeDialog();
+			}
+		});
 	}
 
-	private void fillItem(final TableItem item, final WorkerStats ws) {
-		item.setText(new String[] {
-				String.valueOf(ws.getWorkerId()),
-				String.valueOf(ws.getSuccessCount()),
-				String.valueOf(ws.getErrorCount()),
-				(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, false)),
-				(ws.getLatestStatusWasSuccess() == null ? "" : (ws.getLatestStatusWasSuccess() ? LangResources.get("success") : LangResources.get("error"))),
-				(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, false)),
-				(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, false)),
-				(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, false))
-		});
-
-		if (ws.getLatestStatusWasSuccess() == null) {
-			item.setForeground(4, null);
-		} else if (ws.getLatestStatusWasSuccess()) {
-			item.setForeground(4, getParent().getDisplay().getSystemColor(SWT.COLOR_DARK_GREEN));
-		} else {
-			item.setForeground(4, getParent().getDisplay().getSystemColor(SWT.COLOR_RED));
+	private void closeDialog() {
+		if (!finished) {
+			cancelExecution();
 		}
+		if (rampUpTimer != null) {
+			rampUpTimer.stop();
+		}
+		returnValue = !cancelled;
+		dispose();
 	}
 
 	private void initWorkers() {
 		executor = Executors.newFixedThreadPool(workerCount);
-		final Display display = getParent().getDisplay();
 
 		for (int i = 0; i < workerCount; i++) {
 			workerStatsList.add(new WorkerStats(i + 1));
 		}
-
-		table.setItemCount(workerStatsList.size());
+		tableModel.fireTableDataChanged();
 
 		poolStart = LocalDateTime.now();
 
-		startRampUpCountdown(display);
+		startRampUpCountdown();
 
-		for (int i = 0; i < workerStatsList.size(); i++) {
-			final int idx = i;
-			final WorkerStats ws = workerStatsList.get(i);
+		// Captured, so the workers never touch the (sortable) display list
+		for (final WorkerStats workerStats : new ArrayList<>(workerStatsList)) {
+			executor.submit(() -> runWorker(workerStats));
+		}
 
-			executor.submit(() -> {
-				for (int j = 0; (tasksPerWorker == -1  || j < tasksPerWorker) && !cancelled; j++) {
-					final WorkerSimple<?> worker = createWorker();
+		// No more tasks: the pool threads end once the submitted tasks are done, instead of idling forever
+		executor.shutdown();
+	}
 
-					final LocalDateTime start = LocalDateTime.now();
-					final boolean countInStatistics = rampUpTime == null || !poolStart.plus(rampUpTime).isAfter(start);
-					try {
-						final Object workerResult = worker.work();
-						if (checkForSuccess(workerResult)) {
-							ws.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
-						} else {
-							ws.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
-						}
-					} catch (@SuppressWarnings("unused") final Exception e) {
-						ws.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
-					}
+	private void runWorker(final WorkerStats workerStats) {
+		for (int j = 0; (tasksPerWorker == -1 || j < tasksPerWorker) && !cancelled; j++) {
+			final WorkerSimple<?> worker = createWorker();
 
-					final int current = progress.incrementAndGet();
-					display.asyncExec(() -> {
-						if (!table.isDisposed()) {
-							refreshTableItem(idx);
-							progressBar.setSelection(current);
-							checkFinished();
-						}
-					});
-
-					if ((tasksPerWorker == -1  || j < tasksPerWorker - 1) && !cancelled && sleepTime != null) {
-						try {
-							Thread.sleep(sleepTime.toMillis());
-						} catch (@SuppressWarnings("unused") final InterruptedException ex) {
-							return;
-						}
-					}
+			final LocalDateTime start = LocalDateTime.now();
+			final boolean countInStatistics = rampUpTime == null || !poolStart.plus(rampUpTime).isAfter(start);
+			try {
+				final Object workerResult = worker.work();
+				if (checkForSuccess(workerResult)) {
+					workerStats.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
+				} else {
+					workerStats.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
 				}
-				display.asyncExec(this::checkFinished);
+			} catch (@SuppressWarnings("unused") final Exception e) {
+				workerStats.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
+			}
+
+			progress.incrementAndGet();
+			scheduleRefresh();
+
+			if ((tasksPerWorker == -1 || j < tasksPerWorker - 1) && !cancelled && sleepTime != null) {
+				try {
+					Thread.sleep(sleepTime.toMillis());
+				} catch (@SuppressWarnings("unused") final InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
+		}
+		SwingUtilities.invokeLater(this::checkFinished);
+	}
+
+	/**
+	 * Requests a refresh of the table and progress bar. Many fast workers would
+	 * otherwise flood the event queue with one event per finished task.
+	 */
+	private void scheduleRefresh() {
+		if (refreshScheduled.compareAndSet(false, true)) {
+			SwingUtilities.invokeLater(() -> {
+				refreshScheduled.set(false);
+				if (isDisplayable()) {
+					tableModel.fireTableRowsUpdated(0, Math.max(0, workerStatsList.size() - 1));
+					if (totalTasks >= 0) {
+						progressBar.setValue(progress.get());
+					}
+					checkFinished();
+				}
 			});
 		}
 	}
 
-	private void startRampUpCountdown(final Display display) {
+	private void startRampUpCountdown() {
 		if (rampUpTime == null || rampUpTime.isZero() || rampUpTime.isNegative()) {
 			return;
 		}
@@ -261,81 +342,75 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		final long totalSeconds = rampUpTime.getSeconds();
 		final Pattern rampUpPattern = Pattern.compile("RampUp:\\s*\\S+");
 
-		final Runnable[] tick = new Runnable[1];
-		tick[0] = () -> {
-			if (descriptionLabel.isDisposed()) {
-				return;
-			}
-
+		rampUpTimer = new Timer(1000, null);
+		rampUpTimer.setInitialDelay(0);
+		rampUpTimer.addActionListener(event -> {
 			final Duration remaining = rampUpTime.minus(Duration.between(poolStart, LocalDateTime.now()));
 			if (remaining.isNegative() || remaining.isZero()) {
 				descriptionLabel.setText(text);
-				getParent().layout(true, true);
+				rampUpTimer.stop();
 			} else {
 				// Round up so the label still reads "1 sec" during the last partial second
 				final long remainingSeconds = remaining.toMillis() / 1000 + (remaining.toMillis() % 1000 > 0 ? 1 : 0);
 				final String replacement = LangResources.get("rampUp") + ": " + LangResources.get("remainingTime", remainingSeconds, totalSeconds);
 				descriptionLabel.setText(rampUpPattern.matcher(text).replaceFirst(Matcher.quoteReplacement(replacement)));
-				getParent().layout(true, true);
-				display.timerExec(1000, tick[0]);
 			}
-		};
-		display.timerExec(0, tick[0]);
-	}
-
-	private void refreshTableItem(final int idx) {
-		if (idx < table.getItemCount()) {
-			final TableItem item = table.getItem(idx);
-			fillItem(item, workerStatsList.get(idx));
-		}
-	}
-
-	private void refreshTable() {
-		workerStatsList.sort((w1, w2) -> {
-			int result = 0;
-			switch (sortColumn) {
-				case 0:
-					result = Integer.compare(w1.getWorkerId(), w2.getWorkerId());
-					break;
-				case 1:
-					result = Integer.compare(w1.getSuccessCount(), w2.getSuccessCount());
-					break;
-				case 2:
-					result = Integer.compare(w1.getErrorCount(), w2.getErrorCount());
-					break;
-				case 3:
-					result = compareNullable(w1.getLatestDuration(), w2.getLatestDuration());
-					break;
-				case 4:
-					result = compareNullable(w1.getLatestStatusWasSuccess(), w2.getLatestStatusWasSuccess());
-					break;
-				case 5:
-					result = compareNullable(w1.getMinimumDuration(), w2.getMinimumDuration());
-					break;
-				case 6:
-					result = compareNullable(w1.getAverageDuration(), w2.getAverageDuration());
-					break;
-				case 7:
-					result = compareNullable(w1.getMaximumDuration(), w2.getMaximumDuration());
-					break;
-				default:
-					break;
-			}
-			return ascending ? result : -result;
 		});
-		table.clearAll();
+		rampUpTimer.start();
 	}
 
 	/**
-	 * Null-safe comparison for columns backed by WorkerStats fields that stay null until a worker
-	 * completes its first task (latestDuration/minimumDuration/averageDuration/maximumDuration,
-	 * latestStatusWasSuccess) - sorting by one of those columns before every worker has finished at
-	 * least one repetition would otherwise throw a NullPointerException (directly on the null
-	 * Duration, or via auto-unboxing for Boolean.compare). Workers without a value yet are sorted
-	 * first, regardless of sort direction (the sign flip for descending order is applied by the
-	 * caller on the whole result, so a fixed order here is intentional).
+	 * Sorts the display list by the current sort column.
+	 *
+	 * <p>
+	 * The sort keys are read once before sorting, because the workers keep
+	 * changing the statistics concurrently. Comparing live values could change
+	 * the order between two comparisons, which makes List.sort() fail with
+	 * "Comparison method violates its general contract".
+	 * </p>
 	 */
-	private static <T extends Comparable<T>> int compareNullable(final T a, final T b) {
+	private void refreshTable() {
+		final Map<WorkerStats, Comparable<?>> sortKeys = new IdentityHashMap<>();
+		for (final WorkerStats workerStats : workerStatsList) {
+			sortKeys.put(workerStats, getSortKey(workerStats, sortColumn));
+		}
+
+		final Comparator<WorkerStats> comparator = (w1, w2) -> compareNullable(sortKeys.get(w1), sortKeys.get(w2));
+		workerStatsList.sort(ascending ? comparator : comparator.reversed());
+
+		tableModel.fireTableDataChanged();
+	}
+
+	private static Comparable<?> getSortKey(final WorkerStats workerStats, final int column) {
+		switch (column) {
+			case 0:
+				return workerStats.getWorkerId();
+			case 1:
+				return workerStats.getSuccessCount();
+			case 2:
+				return workerStats.getErrorCount();
+			case 3:
+				return workerStats.getLatestDuration();
+			case 4:
+				return workerStats.getLatestStatusWasSuccess();
+			case 5:
+				return workerStats.getMinimumDuration();
+			case 6:
+				return workerStats.getAverageDuration();
+			case 7:
+				return workerStats.getMaximumDuration();
+			default:
+				return null;
+		}
+	}
+
+	/**
+	 * Null-safe comparison for columns backed by WorkerStats fields that stay null
+	 * until a worker completes its first task. Workers without a value yet are
+	 * sorted first in ascending order.
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static int compareNullable(final Comparable a, final Comparable b) {
 		if (a == null && b == null) {
 			return 0;
 		} else if (a == null) {
@@ -349,64 +424,124 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 	private void cancelExecution() {
 		cancelled = true;
-		executor.shutdownNow();
+		if (executor != null) {
+			executor.shutdownNow();
+		}
 		checkFinished();
 	}
 
 	private void checkFinished() {
 		if (!finished) {
-			final boolean allDone = cancelled || (tasksPerWorker >= 0 && progress.get() >= progressBar.getMaximum());
+			final boolean allDone = cancelled || (totalTasks >= 0 && progress.get() >= totalTasks);
 			if (allDone) {
 				finished = true;
+				progressBar.setIndeterminate(false);
 				actionButton.setText(LangResources.get("close"));
 				downloadButton.setEnabled(true);
-				getParent().layout();
+				tableModel.fireTableRowsUpdated(0, Math.max(0, workerStatsList.size() - 1));
 			}
 		}
 	}
 
 	private void exportResults() {
-		final FileDialog dialog = new FileDialog(getParent(), SWT.SAVE);
-		dialog.setFilterExtensions(new String[] { "*.csv" });
-		dialog.setFileName("worker_ergebnisse.csv");
-		final String path = dialog.open();
-		if (path != null) {
-			try (PrintWriter writer = new PrintWriter(path, "UTF-8")) {
-				writer.println("WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration");
-				for (final WorkerStats ws : workerStatsList) {
-					writer.printf("%d;%d;%d;%s;%s;%s;%s;%s%n",
-							ws.getWorkerId(),
-							ws.getSuccessCount(),
-							ws.getErrorCount(),
-							(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, false)),
-							(ws.getLatestStatusWasSuccess() == null ? "" : (ws.getLatestStatusWasSuccess() ? "success" : "error")),
-							(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, false)),
-							(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, false)),
-							(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, false)));
-				}
-			} catch (final Exception ex) {
-				final MessageBox box = new MessageBox(getParent(), SWT.ICON_ERROR);
-				box.setMessage("Fehler beim Export: " + ex.getMessage());
-				box.open();
-			}
+		final JFileChooser fileChooser = new JFileChooser();
+		final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV (*.csv)", "csv");
+		fileChooser.addChoosableFileFilter(csvFilter);
+		fileChooser.setFileFilter(csvFilter);
+		fileChooser.setSelectedFile(new File("worker_ergebnisse.csv"));
+		if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+			return;
+		}
+
+		final File exportFile = fileChooser.getSelectedFile();
+		if (exportFile.exists() && JOptionPane.showConfirmDialog(this, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), getTitle(), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.YES_OPTION) {
+			return;
+		}
+
+		try (PrintWriter writer = new PrintWriter(exportFile, StandardCharsets.UTF_8)) {
+			writer.print(getResultsCSV());
+		} catch (final Exception e) {
+			JOptionPane.showMessageDialog(this, LangResources.get("errorMessage", e.getMessage()), LangResources.get("error"), JOptionPane.ERROR_MESSAGE);
 		}
 	}
 
 	public String getResultsCSV() {
 		final StringBuilder result = new StringBuilder();
-		result.append("WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration\n");
-		for (final WorkerStats ws : workerStatsList) {
+		result.append(CSV_HEADER).append("\n");
+		for (final WorkerStats workerStats : workerStatsList) {
 			result.append(String.format("%d;%d;%d;%s;%s;%s;%s;%s%n",
-					ws.getWorkerId(),
-					ws.getSuccessCount(),
-					ws.getErrorCount(),
-					(ws.getLatestDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getLatestDuration(), true, false)),
-					(ws.getLatestStatusWasSuccess() == null ? "" : (ws.getLatestStatusWasSuccess() ? "success" : "error")),
-					(ws.getMinimumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMinimumDuration(), true, false)),
-					(ws.getAverageDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getAverageDuration(), true, false)),
-					(ws.getMaximumDuration() == null ? "" : DateUtilities.getShortHumanReadableTimespan(ws.getMaximumDuration(), true, false))));
+					workerStats.getWorkerId(),
+					workerStats.getSuccessCount(),
+					workerStats.getErrorCount(),
+					formatDuration(workerStats.getLatestDuration()),
+					(workerStats.getLatestStatusWasSuccess() == null ? "" : (workerStats.getLatestStatusWasSuccess() ? "success" : "error")),
+					formatDuration(workerStats.getMinimumDuration()),
+					formatDuration(workerStats.getAverageDuration()),
+					formatDuration(workerStats.getMaximumDuration())));
 		}
 		return result.toString();
+	}
+
+	private static String formatDuration(final Duration duration) {
+		return duration == null ? "" : DateUtilities.getShortHumanReadableTimespan(duration, true, false);
+	}
+
+	private class WorkerStatsTableModel extends AbstractTableModel {
+		private static final long serialVersionUID = 4463226218460823706L;
+
+		private final String[] columnTitles = { "WorkerID",
+				LangResources.get("successCount"),
+				LangResources.get("errorCount"),
+				LangResources.get("latestDuration"),
+				LangResources.get("latestStatus"),
+				LangResources.get("minDuration"),
+				"Ø " + LangResources.get("duration"),
+				LangResources.get("maxDuration") };
+
+		@Override
+		public int getRowCount() {
+			return workerStatsList.size();
+		}
+
+		@Override
+		public int getColumnCount() {
+			return columnTitles.length;
+		}
+
+		@Override
+		public String getColumnName(final int column) {
+			return columnTitles[column];
+		}
+
+		@Override
+		public boolean isCellEditable(final int row, final int column) {
+			return false;
+		}
+
+		@Override
+		public Object getValueAt(final int row, final int column) {
+			final WorkerStats workerStats = workerStatsList.get(row);
+			switch (column) {
+				case 0:
+					return String.valueOf(workerStats.getWorkerId());
+				case 1:
+					return String.valueOf(workerStats.getSuccessCount());
+				case 2:
+					return String.valueOf(workerStats.getErrorCount());
+				case 3:
+					return formatDuration(workerStats.getLatestDuration());
+				case 4:
+					return workerStats.getLatestStatusWasSuccess() == null ? "" : (workerStats.getLatestStatusWasSuccess() ? LangResources.get("success") : LangResources.get("error"));
+				case 5:
+					return formatDuration(workerStats.getMinimumDuration());
+				case 6:
+					return formatDuration(workerStats.getAverageDuration());
+				case 7:
+					return formatDuration(workerStats.getMaximumDuration());
+				default:
+					return "";
+			}
+		}
 	}
 
 	protected abstract WorkerSimple<?> createWorker();

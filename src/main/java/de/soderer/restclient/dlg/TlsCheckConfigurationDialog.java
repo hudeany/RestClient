@@ -1,119 +1,123 @@
 package de.soderer.restclient.dlg;
 
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Window;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Text;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swt.DropDown;
-import de.soderer.utilities.swt.DropDown.MatchMode;
-import de.soderer.utilities.swt.ModalDialog;
-import de.soderer.utilities.swt.SwtUtilities;
+import de.soderer.utilities.swing.DropDown;
+import de.soderer.utilities.swing.DropDown.MatchMode;
+import de.soderer.utilities.swing.ModalDialog;
 
 public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfiguration> {
+	private static final long serialVersionUID = 8158372040158337392L;
+
 	private TlsCheckConfigurationType selectedType;
 	private File selectedFile;
 	private char[] password;
 	private boolean checkCn;
 
-	private Button okButton;
+	private DropDown typeDropDown;
+	private JLabel fileLabel;
+	private JTextField fileText;
+	private JButton fileBrowseButton;
+	private JLabel passwordLabel;
+	private JPasswordField passwordText;
+	private JCheckBox checkCnCheckbox;
+	private JButton okButton;
 
-	public TlsCheckConfigurationDialog(final Shell shell, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password, final boolean checkCn) {
-		super(shell, title);
+	public TlsCheckConfigurationDialog(final Window parent, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password, final boolean checkCn) {
+		super(parent, title);
 
-		if (selectedType == null) {
-			this.selectedType = TlsCheckConfigurationType.SystemTrustStore;
-		} else {
-			this.selectedType = selectedType;
-		}
+		this.selectedType = selectedType == null ? TlsCheckConfigurationType.SystemTrustStore : selectedType;
 		this.selectedFile = selectedFile;
 		this.password = password;
 		this.checkCn = checkCn;
+
+		createComponents();
 	}
 
-	@Override
-	protected void createComponents(final Shell shell) throws Exception {
-		shell.setLayout(new GridLayout(1, false));
+	private void createComponents() {
+		final int margin = 5;
 
-		final Label infoLabel = new Label(shell, SWT.WRAP);
-		infoLabel.setText(LangResources.get("selectTlsCheckType"));
-		infoLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		final JPanel panel = new JPanel(new GridBagLayout());
+		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
 
-		final Composite mainComposite = new Composite(shell, SWT.NONE);
-		mainComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, true));
-		mainComposite.setLayout(new GridLayout(2, false));
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.insets = new Insets(2, 0, 2, 5);
+		constraints.anchor = GridBagConstraints.LINE_START;
 
-		final Label typeLabel = new Label(mainComposite, SWT.NONE);
-		typeLabel.setText(LangResources.get("tlsCheckType") + ":");
-		// Fixed list of enum names: no custom values (replaces the former read-only SWT Combo)
+		constraints.gridx = 0;
+		constraints.gridy = 0;
+		constraints.gridwidth = 3;
+		constraints.insets = new Insets(0, 0, margin, 0);
+		panel.add(new JLabel(LangResources.get("selectTlsCheckType")), constraints);
+		constraints.gridwidth = 1;
+		constraints.insets = new Insets(2, 0, 2, 5);
+
+		// Fixed list of enum names: no custom values
 		final List<String> typeItems = new ArrayList<>();
 		for (final TlsCheckConfigurationType type : TlsCheckConfigurationType.values()) {
 			typeItems.add(type.name());
 		}
-		final DropDown typeCombo = new DropDown(mainComposite, SWT.NONE);
-		typeCombo.setCaseSensitive(false);
-		typeCombo.setMatchMode(MatchMode.CONTAINS);
-		typeCombo.setAllowCustomValues(false);
-		typeCombo.setItems(typeItems);
-		typeCombo.setText(selectedType.name());
-		typeCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		typeDropDown = new DropDown()
+				.withCaseSensitive(false)
+				.withMatchMode(MatchMode.CONTAINS)
+				.withAllowCustomValues(false)
+				.withItems(typeItems)
+				.withText(selectedType.name());
+		addRow(panel, 1, new JLabel(LangResources.get("tlsCheckType") + ":"), typeDropDown, null);
 
-		final Label fileLabel = new Label(mainComposite, SWT.NONE);
-		fileLabel.setText(LangResources.get("filePath") + ":");
-		final Text fileText = new Text(mainComposite, SWT.BORDER);
-		fileText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		fileLabel = new JLabel(LangResources.get("filePath") + ":");
+		fileText = new JTextField(30);
 		if (selectedFile != null) {
 			fileText.setText(selectedFile.getAbsolutePath());
 		}
+		fileBrowseButton = new JButton(LangResources.get("browse"));
+		addRow(panel, 2, fileLabel, fileText, fileBrowseButton);
 
-		final Button fileBrowseButton = new Button(mainComposite, SWT.PUSH);
-		fileBrowseButton.setText(LangResources.get("browse"));
-		fileBrowseButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 2, 1));
+		passwordLabel = new JLabel(LangResources.get("password") + ":");
+		passwordText = new JPasswordField(password != null ? new String(password) : "");
+		addRow(panel, 3, passwordLabel, passwordText, null);
 
-		final Label passwordLabel = new Label(mainComposite, SWT.NONE);
-		passwordLabel.setText(LangResources.get("password") + ":");
-		final Text passwordText = new Text(mainComposite, SWT.BORDER | SWT.PASSWORD);
-		passwordText.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		if (password != null) {
-			passwordText.setText(new String(password));
-		}
+		checkCnCheckbox = new JCheckBox(LangResources.get("checkCn"), checkCn);
+		constraints.gridx = 0;
+		constraints.gridy = 4;
+		constraints.gridwidth = 3;
+		panel.add(checkCnCheckbox, constraints);
 
-		final Button checkCnCheckbox = new Button(mainComposite, SWT.CHECK);
-		checkCnCheckbox.setText(LangResources.get("checkCn"));
-		checkCnCheckbox.setSelection(checkCn);
-		checkCnCheckbox.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		final JPanel buttonPanel = new JPanel(new GridLayout(1, 2, margin, 0));
+		okButton = new JButton(LangResources.get("ok"));
+		buttonPanel.add(okButton);
+		final JButton cancelButton = new JButton(LangResources.get("cancel"));
+		buttonPanel.add(cancelButton);
 
-		final Composite buttonComposite = new Composite(mainComposite, SWT.NONE);
-		buttonComposite.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		buttonComposite.setLayout(SwtUtilities.createNoMarginGridLayout(2, true));
+		constraints.gridy = 5;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.insets = new Insets(margin, 0, 0, 0);
+		panel.add(buttonPanel, constraints);
 
-		okButton = new Button(buttonComposite, SWT.PUSH);
-		okButton.setText(LangResources.get("ok"));
-		okButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		final Button cancelButton = new Button(buttonComposite, SWT.PUSH);
-		cancelButton.setText(LangResources.get("cancel"));
-		cancelButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
-
-		typeCombo.addListener(SWT.Selection, e -> {
-			final String typeText = typeCombo.getText();
+		typeDropDown.addActionListener(event -> {
+			final String typeText = typeDropDown.getText();
 			if (typeText == null) {
 				// Only valid entries are accepted, but stay defensive
 				return;
@@ -130,73 +134,122 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 				password = null;
 			}
 
-			updateUI(fileLabel, fileText, fileBrowseButton, passwordLabel, passwordText, checkCnCheckbox);
-			checkButtonStatus(fileText);
+			updateFieldStates();
+			checkButtonStatus();
 		});
 
 		// While the typed type text is invalid (red), "selectedType" still holds the last valid type,
 		// so block OK to avoid confirming a type the user no longer sees
-		typeCombo.addValidationListener(valid -> {
+		typeDropDown.addValidationListener(valid -> {
 			if (valid) {
-				checkButtonStatus(fileText);
+				checkButtonStatus();
 			} else {
 				okButton.setEnabled(false);
 			}
 		});
 
-		checkCnCheckbox.addSelectionListener(new SelectionAdapter() {
+		checkCnCheckbox.addActionListener(event -> checkCn = checkCnCheckbox.isSelected());
+
+		fileText.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				checkCn = checkCnCheckbox.getSelection();
+			public void insertUpdate(final DocumentEvent event) {
+				fileTextChanged();
 			}
-		});
 
-		fileText.addModifyListener(e -> {
-			if (Utilities.isBlank(fileText.getText())) {
-				selectedFile = null;
-			} else {
-				selectedFile = new File(fileText.getText());
-			}
-			checkButtonStatus(fileText);
-		});
-
-		passwordText.addModifyListener(e -> {
-			password = passwordText.getText().toCharArray();
-			checkButtonStatus(fileText);
-		});
-
-		fileBrowseButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				final FileDialog dialog = new FileDialog(shell,
-						(selectedType == TlsCheckConfigurationType.RecordingSingleCertificate) ? SWT.SAVE : SWT.OPEN);
-				final String selected = dialog.open();
-				if (selected != null) {
-					fileText.setText(selected);
-				}
+			public void removeUpdate(final DocumentEvent event) {
+				fileTextChanged();
 			}
-		});
 
-		okButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				setReturnValue(new TlsCheckConfiguration(selectedType, selectedFile, password, checkCn));
-				shell.close();
+			public void changedUpdate(final DocumentEvent event) {
+				// Attribute changes only
 			}
 		});
 
-		cancelButton.addSelectionListener(new SelectionAdapter() {
+		passwordText.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				setReturnValue(null);
-				shell.close();
+			public void insertUpdate(final DocumentEvent event) {
+				password = passwordText.getPassword();
+			}
+
+			@Override
+			public void removeUpdate(final DocumentEvent event) {
+				password = passwordText.getPassword();
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent event) {
+				// Attribute changes only
 			}
 		});
 
-		shell.pack();
+		fileBrowseButton.addActionListener(event -> {
+			final JFileChooser fileChooser = new JFileChooser();
+			if (Utilities.isNotBlank(fileText.getText())) {
+				fileChooser.setSelectedFile(new File(fileText.getText()));
+			}
+			final boolean saveMode = selectedType == TlsCheckConfigurationType.RecordingSingleCertificate;
+			final int result = saveMode ? fileChooser.showSaveDialog(this) : fileChooser.showOpenDialog(this);
+			if (result == JFileChooser.APPROVE_OPTION) {
+				fileText.setText(fileChooser.getSelectedFile().getAbsolutePath());
+			}
+		});
+
+		okButton.addActionListener(event -> {
+			returnValue = new TlsCheckConfiguration(selectedType, selectedFile, password, checkCn);
+			dispose();
+		});
+
+		cancelButton.addActionListener(event -> {
+			returnValue = null;
+			dispose();
+		});
+
+		setContentPane(panel);
+		getRootPane().setDefaultButton(okButton);
+
+		updateFieldStates();
+		checkButtonStatus();
+
+		pack();
+		setLocationRelativeTo(getOwner());
 	}
 
-	private void updateUI(final Label fileLabel, final Text fileText, final Button fileBrowseButton, final Label passwordLabel, final Text passwordText, final Button checkCnCheckbox) {
+	private static void addRow(final JPanel panel, final int row, final JLabel label, final java.awt.Component field, final JButton trailingButton) {
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridy = row;
+		constraints.insets = new Insets(2, 0, 2, 5);
+		constraints.gridx = 0;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		panel.add(label, constraints);
+
+		constraints.gridx = 1;
+		constraints.weightx = 1;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.gridwidth = trailingButton == null ? 2 : 1;
+		constraints.insets = new Insets(2, 0, 2, trailingButton == null ? 0 : 5);
+		panel.add(field, constraints);
+
+		if (trailingButton != null) {
+			constraints.gridx = 2;
+			constraints.weightx = 0;
+			constraints.gridwidth = 1;
+			constraints.insets = new Insets(2, 0, 2, 0);
+			panel.add(trailingButton, constraints);
+		}
+	}
+
+	private void fileTextChanged() {
+		if (Utilities.isBlank(fileText.getText())) {
+			selectedFile = null;
+		} else {
+			selectedFile = new File(fileText.getText());
+		}
+		checkButtonStatus();
+	}
+
+	private void updateFieldStates() {
 		final boolean enableFile = selectedType.isFilePathSupported();
 		final boolean fileMustExist = enableFile && selectedType != TlsCheckConfigurationType.RecordingSingleCertificate;
 		final boolean enablePassword = selectedType.isPasswordSupported();
@@ -209,13 +262,11 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		passwordLabel.setEnabled(enablePassword);
 		passwordText.setEnabled(enablePassword);
 
-		final boolean enableCheckCn = selectedType != TlsCheckConfigurationType.NoCheck;
-		checkCnCheckbox.setEnabled(enableCheckCn);
+		checkCnCheckbox.setEnabled(selectedType != TlsCheckConfigurationType.NoCheck);
 	}
 
-	private void checkButtonStatus(final Text fileText) {
-		boolean enabled;
-
+	private void checkButtonStatus() {
+		final boolean enabled;
 		if (!selectedType.isFilePathSupported()) {
 			enabled = true;
 		} else if (selectedType == TlsCheckConfigurationType.SingleCertificate) {

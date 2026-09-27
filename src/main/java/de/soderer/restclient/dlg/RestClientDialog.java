@@ -1,5 +1,14 @@
 package de.soderer.restclient.dlg;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -18,27 +27,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.SashForm;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.events.ShellAdapter;
-import org.eclipse.swt.events.ShellEvent;
-import org.eclipse.swt.graphics.Font;
-import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Event;
-import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Listener;
-import org.eclipse.swt.widgets.Menu;
-import org.eclipse.swt.widgets.MenuItem;
-import org.eclipse.swt.widgets.Monitor;
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JSplitPane;
+import javax.swing.SwingUtilities;
+import javax.swing.WindowConstants;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import de.soderer.json.JsonArray;
 import de.soderer.json.JsonNode;
@@ -65,14 +64,13 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
-import de.soderer.utilities.swt.ApplicationConfigurationDialog;
-import de.soderer.utilities.swt.ErrorDialog;
-import de.soderer.utilities.swt.ProgressDialog;
-import de.soderer.utilities.swt.QuestionDialog;
-import de.soderer.utilities.swt.ShowDataDialog;
-import de.soderer.utilities.swt.SwtColor;
-import de.soderer.utilities.swt.SwtUtilities;
-import de.soderer.utilities.swt.UpdateableGuiApplication;
+import de.soderer.utilities.swing.ApplicationConfigurationDialog;
+import de.soderer.utilities.swing.ErrorDialog;
+import de.soderer.utilities.swing.ProgressDialog;
+import de.soderer.utilities.swing.QuestionDialog;
+import de.soderer.utilities.swing.ShowDataDialog;
+import de.soderer.utilities.swing.SwingColor;
+import de.soderer.utilities.swing.UpdateableGuiApplication;
 import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlWriter;
@@ -85,371 +83,300 @@ import de.soderer.yaml.data.YamlScalarType;
 import de.soderer.yaml.data.YamlSequence;
 
 public class RestClientDialog extends UpdateableGuiApplication {
+	private static final long serialVersionUID = 6013829307145576321L;
+
+	private static final int ACTION_BUTTON_HEIGHT = 48;
+
 	private RequestComponent requestPart;
 	private ResponseComponent responsePart;
 
-	private Button clearRequestDataButton;
-	private Button sendRequestButton;
-	private Button exportRequestResponseButton;
-	private Button importRequestResponseButton;
-	private Button multipleRequestButton;
-	private Button closeButton;
+	private JButton exportRequestResponseButton;
 
 	private final ConfigurationProperties applicationConfiguration;
 
-	public RestClientDialog(final Display display, final ConfigurationProperties applicationConfiguration) throws Exception {
-		super(display, RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.KEYSTORE_FILE);
+	public RestClientDialog(final ConfigurationProperties applicationConfiguration) throws Exception {
+		super(RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.KEYSTORE_FILE);
 
 		this.applicationConfiguration = applicationConfiguration;
 
-		final Monitor[] monitorArray = display.getMonitors();
-		if (monitorArray != null) {
-			getShell().setLocation((monitorArray[0].getClientArea().width - getSize().x) / 2, (monitorArray[0].getClientArea().height - getSize().y) / 2);
-		}
+		setIconImage(ImageManager.getImage("RestClient.png").getImage());
+		setTitle(LangResources.get("window_title"));
 
-		// Mandatory initialization
-		@SuppressWarnings("unused")
-		final ImageManager imageManager = new ImageManager(getShell());
-
-		final SashForm sashForm = new SashForm(this, SWT.SMOOTH | SWT.HORIZONTAL);
-		setImage(ImageManager.getImage("RestClient.png"));
-		setText(LangResources.get("window_title"));
-		setLayout(new FillLayout());
-
-		createLeftPart(sashForm);
-
-		createRightPart(sashForm);
+		final JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, createLeftPart(), createRightPart());
+		splitPane.setResizeWeight(0.5);
+		splitPane.setContinuousLayout(true);
+		setContentPane(splitPane);
 
 		setSize(1200, 900);
-		setMinimumSize(500, 450);
+		setMinimumSize(new Dimension(500, 450));
+		// Centered with the final size (the SWT variant centered before setting the size)
+		setLocationRelativeTo(null);
 
-		addListener(SWT.Close, new Listener() {
+		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+		addWindowListener(new WindowAdapter() {
 			@Override
-			public void handleEvent(final Event event) {
-				close();
+			public void windowClosing(final WindowEvent event) {
+				closeApplication();
+			}
+
+			@Override
+			public void windowOpened(final WindowEvent event) {
+				// A proportional divider location only works once the split pane has its real size
+				splitPane.setDividerLocation(0.5);
+
+				// Deferred, so the main window is completely shown before a possible update dialog appears
+				SwingUtilities.invokeLater(() -> runDailyUpdateCheck());
 			}
 		});
 
 		checkButtonStatus();
-
-		final RestClientDialog mainDialog = this;
-		getShell().addShellListener(new ShellAdapter() {
-			@Override
-			public void shellActivated(final ShellEvent event) {
-				getShell().removeShellListener(this);
-
-				display.asyncExec(() -> {
-					if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
-						setDailyUpdateCheckStatus(true);
-						try {
-							if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
-								ApplicationUpdateUtilities.executeUpdate(mainDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);
-							}
-						} catch (final Exception e) {
-							showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
-						}
-					}
-				});
-			}
-		});
 	}
 
-	private void createLeftPart(final SashForm parent) throws Exception {
-		final Composite leftPart = new Composite(parent, SWT.BORDER);
-		leftPart.setLayout(SwtUtilities.createSmallMarginGridLayout(3, false));
-		leftPart.setLayoutData(new GridData(SWT.FILL, SWT.UP, true, true));
+	private void runDailyUpdateCheck() {
+		if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
+			setDailyUpdateCheckStatus(true);
+			try {
+				if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
+					ApplicationUpdateUtilities.executeUpdate(this, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);
+				}
+			} catch (final Exception e) {
+				showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
+			}
+		}
+	}
 
-		final Label applicationLabel = new Label(leftPart, SWT.NONE);
-		applicationLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-		applicationLabel.setText(LangResources.get("title"));
-		applicationLabel.setFont(new Font(getDisplay(), "Arial", 12, SWT.BOLD));
+	private JPanel createLeftPart() throws Exception {
+		final JPanel leftPart = new JPanel(new BorderLayout(0, 3));
+		leftPart.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
 
-		final Button configButton = new Button(leftPart, SWT.PUSH);
-		configButton.setImage(ImageManager.getImage("wrench.png"));
+		final JPanel titleRow = new JPanel(new GridBagLayout());
+		final GridBagConstraints titleConstraints = new GridBagConstraints();
+		titleConstraints.insets = new Insets(0, 0, 0, 3);
+
+		final JLabel applicationLabel = new JLabel(LangResources.get("title"));
+		applicationLabel.setFont(new Font("Arial", Font.BOLD, 16));
+		titleConstraints.weightx = 1;
+		titleConstraints.anchor = GridBagConstraints.LINE_START;
+		titleRow.add(applicationLabel, titleConstraints);
+
+		titleConstraints.weightx = 0;
+		final JButton configButton = new JButton(ImageManager.getImage("wrench.png"));
 		configButton.setToolTipText(LangResources.get("configuration"));
-		configButton.addSelectionListener(new ConfigButtonSelectionListener());
+		configButton.addActionListener(event -> openConfiguration());
+		titleRow.add(configButton, titleConstraints);
 
-		final Button helpButton = new Button(leftPart, SWT.PUSH);
-		helpButton.setImage(ImageManager.getImage("question.png"));
+		titleConstraints.insets = new Insets(0, 0, 0, 0);
+		final JButton helpButton = new JButton(ImageManager.getImage("question.png"));
 		helpButton.setToolTipText(LangResources.get("help"));
-		helpButton.addSelectionListener(new HelpButtonSelectionListener(this));
+		helpButton.addActionListener(event -> new HelpDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION.toString() + ") " + LangResources.get("help"), applicationConfiguration).open());
+		titleRow.add(helpButton, titleConstraints);
 
-		requestPart = new RequestComponent(leftPart, SWT.BORDER);
-		requestPart.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 3, 1));
+		leftPart.add(titleRow, BorderLayout.NORTH);
+
+		requestPart = new RequestComponent();
+		requestPart.setBorder(BorderFactory.createEtchedBorder());
 		requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
-		requestPart.addSaveButtonListener(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final JsonObject requestPresetsJsonObject;
-					if (RestClient.REQUEST_PRESETS_FILE.exists()) {
-						try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							requestPresetsJsonObject = (JsonObject) reader.read();
-						}
-					} else {
-						requestPresetsJsonObject = new JsonObject();
-					}
-
-					final String presetName = requestPart.getPresetName();
-					if (!requestPresetsJsonObject.containsKey(presetName)
-							|| new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("replaceExistingRequestPreset", presetName), LangResources.get("yes"), LangResources.get("cancel")).open() == 0) {
-						final JsonObject requestPresetJsonObject = createRequestPresetJsonObject();
-
-						if (requestPresetsJsonObject.containsKey(presetName)) {
-							requestPresetsJsonObject.replace(presetName, requestPresetJsonObject);
-						} else {
-							requestPresetsJsonObject.add(presetName, requestPresetJsonObject);
-						}
-
-						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							writer.add(requestPresetsJsonObject);
-						}
-						showMessage(RestClient.APPLICATION_NAME, LangResources.get("savedRequestPreset", presetName));
-						requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
-						requestPart.setPresetName(presetName);
-					}
-				} catch (final Exception e) {
-					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
-				}
-			}
-		});
-		requestPart.addDeleteButtonListener(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final String presetName = requestPart.getPresetName();
-					if (new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("reallyDeleteRequestPreset", presetName), LangResources.get("yes"), LangResources.get("cancel")).open() == 0) {
-						final JsonObject requestPresetsJsonObject;
-						if (RestClient.REQUEST_PRESETS_FILE.exists()) {
-							try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
-								requestPresetsJsonObject = (JsonObject) reader.read();
-							}
-						} else {
-							requestPresetsJsonObject = new JsonObject();
-						}
-
-						requestPresetsJsonObject.remove(presetName);
-
-						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							writer.add(requestPresetsJsonObject);
-						}
-						showMessage(RestClient.APPLICATION_NAME, LangResources.get("deletedRequestPreset", presetName));
-						requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
-
-						checkButtonStatus();
-					}
-				} catch (final Exception e) {
-					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
-				}
-			}
-		});
-		requestPart.addPresetSelectionListener(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					final JsonObject requestPresetsJsonObject;
-
-					if (RestClient.REQUEST_PRESETS_FILE.exists()) {
-						try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							requestPresetsJsonObject = (JsonObject) reader.read();
-							setRequestPreset((JsonObject) requestPresetsJsonObject.get(requestPart.getPresetName()));
-						}
-					}
-				} catch (final Exception e) {
-					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
-				}
-			}
-		});
-		requestPart.addPresetsReorderedListener(new java.util.function.Consumer<List<String>>() {
-			@Override
-			public void accept(final List<String> newPresetOrder) {
-				try {
-					if (RestClient.REQUEST_PRESETS_FILE.exists()) {
-						final JsonObject requestPresetsJsonObject;
-						try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							requestPresetsJsonObject = (JsonObject) reader.read();
-						}
-
-						final JsonObject reorderedRequestPresetsJsonObject = new JsonObject();
-						for (final String presetName : newPresetOrder) {
-							if (requestPresetsJsonObject.containsKey(presetName)) {
-								reorderedRequestPresetsJsonObject.add(presetName, requestPresetsJsonObject.get(presetName));
-							}
-						}
-
-						try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
-							writer.add(reorderedRequestPresetsJsonObject);
-						}
-					}
-				} catch (final Exception e) {
-					showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
-				}
-			}
-		});
+		requestPart.addSaveButtonListener(this::saveRequestPreset);
+		requestPart.addDeleteButtonListener(this::deleteRequestPreset);
+		requestPart.addPresetSelectionListener(this::loadSelectedRequestPreset);
+		requestPart.addPresetsReorderedListener(this::saveRequestPresetOrder);
+		leftPart.add(requestPart, BorderLayout.CENTER);
 
 		loadPresets();
 
-		checkButtonStatus();
+		return leftPart;
 	}
 
-	private void createRightPart(final SashForm parent) throws Exception {
-		final Composite rightPart = new Composite(parent, SWT.BORDER);
-		rightPart.setLayout(SwtUtilities.createSmallMarginGridLayout(1, false));
+	private JPanel createRightPart() {
+		final JPanel rightPart = new JPanel(new BorderLayout(0, 3));
+		rightPart.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
 
-		responsePart = new ResponseComponent(rightPart, SWT.BORDER);
-		responsePart.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-
+		responsePart = new ResponseComponent();
+		responsePart.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEtchedBorder(), BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 		responsePart.clearResponse();
+		rightPart.add(responsePart, BorderLayout.CENTER);
 
-		final Composite buttonRegion = new Composite(rightPart, SWT.NONE);
-		// One column of full-width rows; the send-request row and the clear/close row each get their
-		// own nested 2-column composite so their column-grow behavior doesn't bleed into each other
-		// (a shared GridLayout grows a column if ANY row in it has grabExcessHorizontalSpace=true).
-		buttonRegion.setLayout(SwtUtilities.createSmallMarginGridLayout(1, false));
-		buttonRegion.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
+		final JPanel buttonRegion = new JPanel(new GridBagLayout());
+		final GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridx = 0;
+		constraints.weightx = 1;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.insets = new Insets(3, 0, 0, 0);
 
-		final int actionButtonHeight = 48;
+		// First row: "Send request" takes the free width, export and import sit at the right edge
+		final JPanel sendRequestRow = new JPanel(new BorderLayout(5, 0));
+		final JButton sendRequestButton = new JButton(LangResources.get("sendRequest"));
+		sendRequestButton.setPreferredSize(new Dimension(sendRequestButton.getPreferredSize().width, ACTION_BUTTON_HEIGHT));
+		sendRequestButton.addActionListener(event -> executeRequest());
+		sendRequestRow.add(sendRequestButton, BorderLayout.CENTER);
 
-		final Composite sendRequestRow = new Composite(buttonRegion, SWT.NONE);
-		final GridLayout sendRequestRowLayout = SwtUtilities.createSmallMarginGridLayout(2, false);
-		// Margins already come from buttonRegion; a margin here would double-indent this row's
-		// buttons compared to multipleRequestButton, which sits directly in buttonRegion
-		sendRequestRowLayout.marginWidth = 0;
-		sendRequestRowLayout.marginHeight = 0;
-		sendRequestRow.setLayout(sendRequestRowLayout);
-		sendRequestRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		sendRequestButton = new Button(sendRequestRow, SWT.PUSH);
-		final GridData gdSendRequest = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		gdSendRequest.heightHint = actionButtonHeight;
-		sendRequestButton.setLayoutData(gdSendRequest);
-		sendRequestButton.setText(LangResources.get("sendRequest"));
-		sendRequestButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				executeRequest();
-			}
-		});
-
-		// Export and Import sit next to each other, anchored to the right edge of the button
-		// region; the gap between them matches the gap between sendRequestButton and this
-		// container, so it reuses sendRequestRowLayout's horizontalSpacing instead of a literal
-		final Composite exportImportContainer = new Composite(sendRequestRow, SWT.NONE);
-		final GridLayout exportImportLayout = new GridLayout(2, false);
-		exportImportLayout.marginWidth = 0;
-		exportImportLayout.marginHeight = 0;
-		exportImportLayout.horizontalSpacing = sendRequestRowLayout.horizontalSpacing;
-		exportImportLayout.verticalSpacing = 0;
-		exportImportContainer.setLayout(exportImportLayout);
-		exportImportContainer.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-
-		exportRequestResponseButton = new Button(exportImportContainer, SWT.PUSH);
-		final GridData gdExport = new GridData(SWT.CENTER, SWT.CENTER, false, false);
-		gdExport.widthHint = actionButtonHeight;
-		gdExport.heightHint = actionButtonHeight;
-		exportRequestResponseButton.setLayoutData(gdExport);
-		exportRequestResponseButton.setText(LangResources.get("export"));
+		final JPanel exportImportContainer = new JPanel(new GridLayout(1, 2, 5, 0));
+		exportRequestResponseButton = new JButton(LangResources.get("export"));
 		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseTooltip"));
-		exportRequestResponseButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				openExportFormatMenu();
-			}
-		});
+		exportRequestResponseButton.addActionListener(event -> openExportFormatMenu());
+		exportImportContainer.add(exportRequestResponseButton);
 
-		importRequestResponseButton = new Button(exportImportContainer, SWT.PUSH);
-		final GridData gdImport = new GridData(SWT.CENTER, SWT.CENTER, false, false);
-		gdImport.widthHint = actionButtonHeight;
-		gdImport.heightHint = actionButtonHeight;
-		importRequestResponseButton.setLayoutData(gdImport);
-		importRequestResponseButton.setText(LangResources.get("import"));
+		final JButton importRequestResponseButton = new JButton(LangResources.get("import"));
 		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseTooltip"));
-		importRequestResponseButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				importRequestResponse();
-			}
-		});
+		importRequestResponseButton.addActionListener(event -> importRequestResponse());
+		exportImportContainer.add(importRequestResponseButton);
 
-		multipleRequestButton = new Button(buttonRegion, SWT.PUSH);
-		multipleRequestButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		multipleRequestButton.setText(LangResources.get("multipleRequest"));
-		multipleRequestButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				executeMultipleRequest();
-			}
-		});
+		// Square-ish buttons of the same height as "Send request", but wide enough for their texts
+		final int exportImportWidth = Math.max(ACTION_BUTTON_HEIGHT, Math.max(exportRequestResponseButton.getPreferredSize().width, importRequestResponseButton.getPreferredSize().width));
+		exportRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
+		importRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
+		sendRequestRow.add(exportImportContainer, BorderLayout.EAST);
 
-		final Composite clearCloseRow = new Composite(buttonRegion, SWT.NONE);
-		final GridLayout clearCloseRowLayout = SwtUtilities.createSmallMarginGridLayout(2, true);
-		clearCloseRowLayout.marginWidth = 0;
-		clearCloseRowLayout.marginHeight = 0;
-		clearCloseRow.setLayout(clearCloseRowLayout);
-		clearCloseRow.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
+		constraints.gridy = 0;
+		buttonRegion.add(sendRequestRow, constraints);
 
-		clearRequestDataButton = new Button(clearCloseRow, SWT.PUSH);
-		clearRequestDataButton.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
-		clearRequestDataButton.setText(LangResources.get("clearRequestData"));
-		clearRequestDataButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent ev) {
-				setRequestPreset(null);
-			}
-		});
+		final JButton multipleRequestButton = new JButton(LangResources.get("multipleRequest"));
+		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
+		constraints.gridy = 1;
+		buttonRegion.add(multipleRequestButton, constraints);
 
-		closeButton = new Button(clearCloseRow, SWT.PUSH);
-		closeButton.setLayoutData(new GridData(SWT.FILL, SWT.BOTTOM, true, false));
-		closeButton.setText(LangResources.get("close"));
-		closeButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				close();
-			}
-		});
+		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 5, 0));
+		final JButton clearRequestDataButton = new JButton(LangResources.get("clearRequestData"));
+		clearRequestDataButton.addActionListener(event -> setRequestPreset(null));
+		clearCloseRow.add(clearRequestDataButton);
 
-		checkButtonStatus();
+		final JButton closeButton = new JButton(LangResources.get("close"));
+		closeButton.addActionListener(event -> closeApplication());
+		clearCloseRow.add(closeButton);
+
+		constraints.gridy = 2;
+		buttonRegion.add(clearCloseRow, constraints);
+
+		rightPart.add(buttonRegion, BorderLayout.SOUTH);
+
+		return rightPart;
 	}
 
-	private class ConfigButtonSelectionListener extends SelectionAdapter {
-		@Override
-		public void widgetSelected(final SelectionEvent e) {
-			try {
-				byte[] iconData;
-				try (InputStream inputStream = ImageManager.class.getResourceAsStream("/images/icons/RestClient.ico")) {
-					iconData = IoUtilities.toByteArray(inputStream);
-				}
-
-				final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(getShell(), applicationConfiguration, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, iconData, ImageManager.getImage("RestClient.png"));
-				if (dialog.open()) {
-					applicationConfiguration.save();
-					requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
-				}
-			} catch (final Exception ex) {
-				new ErrorDialog(getShell(), RestClient.APPLICATION_NAME, RestClient.VERSION.toString(), RestClient.APPLICATION_ERROR_EMAIL_ADRESS, ex).open();
+	private void openConfiguration() {
+		try {
+			byte[] iconData;
+			try (InputStream inputStream = ImageManager.class.getResourceAsStream("/images/icons/RestClient.ico")) {
+				iconData = IoUtilities.toByteArray(inputStream);
 			}
+
+			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, RestClient.VERSION, RestClient.VERSION_BUILDTIME, applicationConfiguration, iconData, ImageManager.getImage("RestClient.png").getImage(), RestClient.VERSIONINFO_DOWNLOAD_URL, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null);
+			if (dialog.open() == Result.OK) {
+				applicationConfiguration.save();
+				requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
+			}
+		} catch (final Exception ex) {
+			new ErrorDialog(this, RestClient.APPLICATION_NAME, RestClient.VERSION.toString(), RestClient.APPLICATION_ERROR_EMAIL_ADRESS, ex).open();
 		}
 	}
 
-	private class HelpButtonSelectionListener extends SelectionAdapter {
-		private final RestClientDialog applicationDialog;
-
-		public HelpButtonSelectionListener(final RestClientDialog applicationDialog) {
-			this.applicationDialog = applicationDialog;
+	private static JsonObject readRequestPresets() throws Exception {
+		if (RestClient.REQUEST_PRESETS_FILE.exists()) {
+			try (JsonReader reader = new JsonReader(new FileInputStream(RestClient.REQUEST_PRESETS_FILE))) {
+				return (JsonObject) reader.read();
+			}
+		} else {
+			return new JsonObject();
 		}
+	}
 
-		@Override
-		public void widgetSelected(final SelectionEvent e) {
-			new HelpDialog(applicationDialog, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION.toString() + ") " + LangResources.get("help"), applicationConfiguration).open();
+	private static void writeRequestPresets(final JsonObject requestPresetsJsonObject) throws Exception {
+		try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
+			writer.add(requestPresetsJsonObject);
 		}
+	}
+
+	private void saveRequestPreset() {
+		try {
+			final JsonObject requestPresetsJsonObject = readRequestPresets();
+
+			final String presetName = requestPart.getPresetName();
+
+			if (!requestPresetsJsonObject.containsKey(presetName)
+					|| askYesCancel(LangResources.get("replaceExistingRequestPreset", presetName))) {
+				final JsonObject requestPresetJsonObject = createRequestPresetJsonObject();
+
+				if (requestPresetsJsonObject.containsKey(presetName)) {
+					requestPresetsJsonObject.replace(presetName, requestPresetJsonObject);
+				} else {
+					requestPresetsJsonObject.add(presetName, requestPresetJsonObject);
+				}
+
+				writeRequestPresets(requestPresetsJsonObject);
+				showMessage(RestClient.APPLICATION_NAME, LangResources.get("savedRequestPreset", presetName));
+				requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
+				requestPart.setPresetName(presetName);
+			}
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	private void deleteRequestPreset() {
+		try {
+			final String presetName = requestPart.getPresetName();
+			if (askYesCancel(LangResources.get("reallyDeleteRequestPreset", presetName))) {
+				final JsonObject requestPresetsJsonObject = readRequestPresets();
+
+				requestPresetsJsonObject.remove(presetName);
+
+				writeRequestPresets(requestPresetsJsonObject);
+				showMessage(RestClient.APPLICATION_NAME, LangResources.get("deletedRequestPreset", presetName));
+				requestPart.setPresetNames(new ArrayList<>(requestPresetsJsonObject.keySet()));
+
+				checkButtonStatus();
+			}
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	private void loadSelectedRequestPreset() {
+		try {
+			if (RestClient.REQUEST_PRESETS_FILE.exists()) {
+				final JsonObject requestPresetsJsonObject = readRequestPresets();
+				final JsonNode requestPresetJsonNode = requestPresetsJsonObject.get(requestPart.getPresetName());
+				// A typed name that is no saved preset (custom values are allowed) must not clear the request data
+				if (requestPresetJsonNode instanceof JsonObject) {
+					setRequestPreset((JsonObject) requestPresetJsonNode);
+				}
+			}
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	private void saveRequestPresetOrder(final List<String> newPresetOrder) {
+		try {
+			if (RestClient.REQUEST_PRESETS_FILE.exists()) {
+				final JsonObject requestPresetsJsonObject = readRequestPresets();
+
+				final JsonObject reorderedRequestPresetsJsonObject = new JsonObject();
+				for (final String presetName : newPresetOrder) {
+					if (requestPresetsJsonObject.containsKey(presetName)) {
+						reorderedRequestPresetsJsonObject.add(presetName, requestPresetsJsonObject.get(presetName));
+					}
+				}
+
+				writeRequestPresets(reorderedRequestPresetsJsonObject);
+			}
+		} catch (final Exception e) {
+			showErrorMessage(RestClient.APPLICATION_NAME, e.getMessage());
+		}
+	}
+
+	private boolean askYesCancel(final String question) {
+		final Integer answer = new QuestionDialog(this, RestClient.APPLICATION_NAME, question, LangResources.get("yes"), LangResources.get("cancel")).open();
+		return answer != null && answer == 0;
 	}
 
 	public void checkButtonStatus() {
 		// do nothing
 	}
 
-	@Override
-	public void close() {
+	/**
+	 * Saves the configuration and closes the application window.
+	 */
+	public void closeApplication() {
 		applicationConfiguration.save();
 		dispose();
 	}
@@ -473,15 +400,15 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	public void showData(final String title, final String text) {
-		new ShowDataDialog(getShell(), title, text, true).open();
+		new ShowDataDialog(this, title, text).withResizable(true).open();
 	}
 
 	public void showMessage(final String title, final String text) {
-		new QuestionDialog(getShell(), title, text, LangResources.get("ok")).open();
+		new QuestionDialog(this, title, text, LangResources.get("ok")).open();
 	}
 
 	public void showErrorMessage(final String title, final String text) {
-		new QuestionDialog(getShell(), title, text, LangResources.get("ok")).setBackgroundColor(SwtColor.LightRed).open();
+		new QuestionDialog(this, title, text, LangResources.get("ok")).setBackgroundColor(SwingColor.LightRed).open();
 	}
 
 	private void loadPresets() throws Exception {
@@ -688,54 +615,72 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	/**
-	 * Writes the currently displayed request and response data (as shown in {@link #requestPart} and
-	 * {@link #responsePart}) into a single YAML file chosen by the user via a save file dialog.
-	 */
-	/**
-	 * Opens a small dropdown menu below {@link #exportRequestResponseButton} letting the user choose
+	 * Opens a small popup menu below {@link #exportRequestResponseButton} letting the user choose
 	 * the export format (YAML, containing request + response, or a cURL command, request only).
 	 */
 	private void openExportFormatMenu() {
-		final Menu exportFormatMenu = new Menu(exportRequestResponseButton);
+		final JPopupMenu exportFormatMenu = new JPopupMenu();
 
-		final MenuItem yamlMenuItem = new MenuItem(exportFormatMenu, SWT.PUSH);
-		yamlMenuItem.setText(LangResources.get("exportFormatYaml"));
-		yamlMenuItem.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				exportRequestResponseToYamlFile();
-			}
-		});
+		final JMenuItem yamlMenuItem = new JMenuItem(LangResources.get("exportFormatYaml"));
+		yamlMenuItem.addActionListener(event -> exportRequestResponseToYamlFile());
+		exportFormatMenu.add(yamlMenuItem);
 
-		final MenuItem curlMenuItem = new MenuItem(exportFormatMenu, SWT.PUSH);
-		curlMenuItem.setText(LangResources.get("exportFormatCurl"));
-		curlMenuItem.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(final SelectionEvent e) {
-				exportRequestToCurlFile();
-			}
-		});
+		final JMenuItem curlMenuItem = new JMenuItem(LangResources.get("exportFormatCurl"));
+		curlMenuItem.addActionListener(event -> exportRequestToCurlFile());
+		exportFormatMenu.add(curlMenuItem);
 
-		final Point menuLocation = exportRequestResponseButton.toDisplay(0, exportRequestResponseButton.getSize().y);
-		exportFormatMenu.setLocation(menuLocation);
-		exportFormatMenu.setVisible(true);
+		exportFormatMenu.show(exportRequestResponseButton, 0, exportRequestResponseButton.getHeight());
 	}
 
 	/**
-	 * Opens a file dialog for import, then auto-detects whether the chosen file is a YAML export
+	 * Shows a file chooser for saving an export file, proposing a file name
+	 * derived from the current preset name.
+	 *
+	 * @return the chosen file, with the default extension added if the user typed
+	 *         a name without any extension, or null if the user canceled or
+	 *         declined to overwrite an existing file
+	 */
+	private File chooseExportFile(final String defaultExtension, final FileNameExtensionFilter fileFilter) {
+		final JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setDialogTitle(LangResources.get("export"));
+		fileChooser.addChoosableFileFilter(fileFilter);
+		fileChooser.setFileFilter(fileFilter);
+		final String presetName = requestPart.getPresetName();
+		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + "." + defaultExtension;
+		fileChooser.setSelectedFile(new File(fileChooser.getCurrentDirectory(), defaultFileName));
+		if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+			return null;
+		}
+
+		File exportFile = fileChooser.getSelectedFile();
+		if (!exportFile.getName().contains(".")) {
+			exportFile = new File(exportFile.getParentFile(), exportFile.getName() + "." + defaultExtension);
+		}
+
+		// JFileChooser never asks before overwriting, so an existing file is checked here explicitly
+		if (exportFile.exists() && !askYesCancel(LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()))) {
+			return null;
+		}
+
+		return exportFile;
+	}
+
+	/**
+	 * Opens a file chooser for import, then auto-detects whether the chosen file is a YAML export
 	 * (request + optional response) or a cURL command line (request only) and parses it accordingly -
 	 * unlike export, import needs no format selection since the file content already reveals its format.
 	 */
 	private void importRequestResponse() {
-		final FileDialog fileDialog = new FileDialog(getShell(), SWT.OPEN);
-		fileDialog.setText(LangResources.get("import"));
-		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml;*.sh;*.txt", "*.*" });
-		final String selectedPath = fileDialog.open();
-		if (selectedPath == null) {
+		final JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setDialogTitle(LangResources.get("import"));
+		final FileNameExtensionFilter importFilter = new FileNameExtensionFilter("YAML / cURL (*.yaml, *.yml, *.sh, *.txt)", "yaml", "yml", "sh", "txt");
+		fileChooser.addChoosableFileFilter(importFilter);
+		fileChooser.setFileFilter(importFilter);
+		if (fileChooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
 			return;
 		}
 
-		final File importFile = new File(selectedPath);
+		final File importFile = fileChooser.getSelectedFile();
 		try {
 			final String fileContent = Files.readString(importFile.toPath(), StandardCharsets.UTF_8);
 			if (isCurlCommand(fileContent)) {
@@ -775,24 +720,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * informed of this after a successful export.
 	 */
 	private void exportRequestToCurlFile() {
-		final FileDialog fileDialog = new FileDialog(getShell(), SWT.SAVE);
-		fileDialog.setText(LangResources.get("export"));
-		fileDialog.setFilterExtensions(new String[] { "*.sh", "*.txt", "*.*" });
-		final String presetName = requestPart.getPresetName();
-		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + ".sh";
-		fileDialog.setFileName(defaultFileName);
-		final String selectedPath = fileDialog.open();
-		if (selectedPath == null) {
-			return;
-		}
-
-		File exportFile = new File(selectedPath);
-		if (!exportFile.getName().contains(".")) {
-			exportFile = new File(exportFile.getParentFile(), exportFile.getName() + ".sh");
-		}
-
-		if (exportFile.exists()
-				&& new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), LangResources.get("yes"), LangResources.get("cancel")).open() != 0) {
+		final File exportFile = chooseExportFile("sh", new FileNameExtensionFilter("Shell script (*.sh, *.txt)", "sh", "txt"));
+		if (exportFile == null) {
 			return;
 		}
 
@@ -1051,27 +980,13 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		return tokens;
 	}
 
+	/**
+	 * Writes the currently displayed request and response data (as shown in {@link #requestPart} and
+	 * {@link #responsePart}) into a single YAML file chosen by the user via a save file dialog.
+	 */
 	private void exportRequestResponseToYamlFile() {
-		final FileDialog fileDialog = new FileDialog(getShell(), SWT.SAVE);
-		fileDialog.setText(LangResources.get("export"));
-		fileDialog.setFilterExtensions(new String[] { "*.yaml;*.yml", "*.*" });
-		final String presetName = requestPart.getPresetName();
-		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + ".yaml";
-		fileDialog.setFileName(defaultFileName);
-		final String selectedPath = fileDialog.open();
-		if (selectedPath == null) {
-			return;
-		}
-
-		File exportFile = new File(selectedPath);
-		if (!exportFile.getName().contains(".")) {
-			exportFile = new File(exportFile.getParentFile(), exportFile.getName() + ".yaml");
-		}
-
-		// The native save dialog only checks the name the user typed, not the ".yaml" suffix
-		// added above when it was missing, so an overwrite of that resolved path is checked here explicitly.
-		if (exportFile.exists()
-				&& new QuestionDialog(getShell(), RestClient.APPLICATION_NAME, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), LangResources.get("yes"), LangResources.get("cancel")).open() != 0) {
+		final File exportFile = chooseExportFile("yaml", new FileNameExtensionFilter("YAML (*.yaml, *.yml)", "yaml", "yml"));
+		if (exportFile == null) {
 			return;
 		}
 
@@ -1479,7 +1394,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				worker = new ExecuteHttpRequestWorker(null, httpRequest, proxy, requestPart.getTlsCheckConfiguration().getTrustManager(), !requestPart.getTlsCheckConfiguration().getCheckCn());
 				HttpResponse httpResponse;
-				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(getShell(), RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
+				final ProgressDialog<WorkerSimple<HttpResponse>> progressDialog = new ProgressDialog<>(this, RestClient.APPLICATION_NAME, LangResources.get("sendRequest"), worker);
 				final Result dialogResult = progressDialog.open();
 				if (dialogResult == Result.CANCELED) {
 					showErrorMessage(LangResources.get("sendRequest"), LangResources.get("canceledByUser"));
@@ -1534,7 +1449,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			responsePart.clearResponse();
 
 			try {
-				final MultipleWorkerConfigurationDialog configurationDialog = new MultipleWorkerConfigurationDialog(getShell(), LangResources.get("multipleWorkerSettings"));
+				final MultipleWorkerConfigurationDialog configurationDialog = new MultipleWorkerConfigurationDialog(this, LangResources.get("multipleWorkerSettings"));
 				final Boolean result = configurationDialog.open();
 				if (result != null && result) {
 					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
@@ -1584,14 +1499,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					responsePart.setResponseHeaders(responseHeaders);
 					responsePart.setResponseBody("");
 
-					final int tasksPerWorker = "∞".equals(configurationDialog.getRepetitions()) ? -1 : Integer.parseInt(configurationDialog.getRepetitions());
+					final int tasksPerWorker = MultipleWorkerConfigurationDialog.UNLIMITED_REPETITIONS.equals(configurationDialog.getRepetitions()) ? -1 : Integer.parseInt(configurationDialog.getRepetitions());
 
 					final String dialogText = LangResources.get("multipleRequestText",
 						tasksPerWorker >= 0 ? tasksPerWorker : LangResources.get("unlimited"),
 						DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getPauseSeconds()), true, false),
 						DateUtilities.getShortHumanReadableTimespan(Duration.ofSeconds(configurationDialog.getRampUpSeconds()), true, false));
 
-					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(getShell(), LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheckConfiguration());
+					final HttpRequestWorkerPoolDialog dialog = new HttpRequestWorkerPoolDialog(this, LangResources.get("multipleRequest"), dialogText, httpRequest, proxy, requestPart.getTlsCheckConfiguration());
 					dialog.setParallelWorkerAmount(configurationDialog.getWorkerCount());
 					dialog.setRepetitionsPerWorker(tasksPerWorker);
 					dialog.setSleepTime(Duration.ofSeconds(configurationDialog.getPauseSeconds()));
