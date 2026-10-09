@@ -10,7 +10,7 @@ Global standalone parameters (only valid on their own, not combined with any req
 "update" may only be followed by its optional username and password)
 	help: Show this help manual
 	version: Show current local version of this tool
-	update: Check for online update and ask, whether an available update shell be installed. [username [password]]
+	update: Check for online update and ask, whether an available update should be installed. [username [password]]
 	gui: Open the graphical user interface (also opened when no parameters are given at all, unless the environment is headless)
 
 Request parameters
@@ -21,12 +21,14 @@ Request parameters
 	the same way loading a preset or importing a file in the GUI fills the form and individual
 	fields can still be changed afterwards.
 
-	--url <url>                      Full request URL (required unless --preset is used)
+	--url <url>                      Full request URL (required unless --preset or --request-file is used)
 	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, OPTIONS, TRACE (default: GET)
 	--header <name: value>           Adds an HTTP request header. Repeatable.
 	--url-param <name=value>         Adds a URL (query string) parameter. Repeatable.
 	--form-param <name=value>        Adds an HTML form (application/x-www-form-urlencoded) parameter. Repeatable.
-	                                  Only used as the request body for POST/PUT, and only if given (see --body).
+	                                  Form parameters are sent as the request body for every HTTP method and take
+	                                  precedence over --body. Note: with GET, Java's HttpURLConnection then sends
+	                                  the request as POST instead.
 	--body <text>                    Request body text. Only used for POST/PUT, and only if no --form-param was given.
 	--body-file <path>                Reads the request body from a local text file instead of --body.
 	--proxy <DIRECT|WPAD|host:port>  Proxy to use for this request. DIRECT disables any proxy, WPAD autodetects one.
