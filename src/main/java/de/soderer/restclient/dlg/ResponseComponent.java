@@ -42,6 +42,17 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.data.YamlDocument;
 import de.soderer.yaml.data.YamlNode;
 
+/**
+ * Response view of the main window: HTTP code, IP address, duration, redirect hint, response headers and
+ * response body, plus the response content data path, the download target and the resolved random parameters.
+ *
+ * <p>
+ * The response body is rendered depending on its Content-Type (pretty-printed JSON, optionally narrowed down
+ * by the data path, see {@link ResponseDataPathEvaluator}), and re-rendered whenever the data path is edited.
+ * </p>
+ *
+ * @serial exclude
+ */
 public class ResponseComponent extends JPanel {
 	private static final long serialVersionUID = -3418745931227019654L;
 
@@ -74,19 +85,37 @@ public class ResponseComponent extends JPanel {
 	 */
 	private String lastResponseBody;
 
+	/**
+	 * Creates the response view.
+	 */
 	public ResponseComponent() {
 		super(new GridBagLayout());
 		createUI();
 	}
 
+	/**
+	 * Sets the HTTP status code.
+	 *
+	 * @param code the status code, or null to clear the field
+	 */
 	public void setHttpCode(final Integer code) {
 		httpCodeText.setText(code != null ? code.toString() : "");
 	}
 
+	/**
+	 * Sets the IP address of the server.
+	 *
+	 * @param ipAddress the IP address, or null to clear the field
+	 */
 	public void setIpAddress(final String ipAddress) {
 		ipAddressText.setText(ipAddress != null ? ipAddress : "");
 	}
 
+	/**
+	 * Sets the request duration text.
+	 *
+	 * @param duration human readable duration, or null to clear the field
+	 */
 	public void setTime(final String duration) {
 		timeText.setText(duration != null ? duration : "");
 	}
@@ -96,6 +125,10 @@ public class ResponseComponent extends JPanel {
 	 * happens silently otherwise (the response shown may come from a completely different URL than requested).
 	 * If credentials (Authorization header and/or cookies) were withheld while following a cross-origin
 	 * redirect (see {@link de.soderer.network.HttpUtilities}), this is additionally called out in a warning color.
+	 *
+	 * @param redirectCount number of redirects followed, 0 hides the hint
+	 * @param finalUrl URL the response actually came from
+	 * @param credentialsDroppedOnRedirect true if credentials were withheld on a cross-origin redirect
 	 */
 	public void setRedirectInfo(final int redirectCount, final String finalUrl, final boolean credentialsDroppedOnRedirect) {
 		final boolean hasRedirectInfo = redirectCount > 0;
@@ -114,6 +147,12 @@ public class ResponseComponent extends JPanel {
 		repaint();
 	}
 
+	/**
+	 * Sets the response body and renders it depending on the Content-Type of the current response headers
+	 * and the current data path. So the headers should be set before the body.
+	 *
+	 * @param body the raw response body, may be null
+	 */
 	public void setResponseBody(final String body) {
 		lastResponseBody = body;
 		refreshResponseBodyDisplay();
@@ -172,6 +211,11 @@ public class ResponseComponent extends JPanel {
 		responseBodyText.setCaretPosition(0);
 	}
 
+	/**
+	 * Sets the response headers. Headers without a name are skipped.
+	 *
+	 * @param headers header name to value, or null for none
+	 */
 	public void setResponseHeaders(final Map<String, String> headers) {
 		responseHeaders = new LinkedHashMap<>();
 		if (headers != null) {
@@ -184,20 +228,42 @@ public class ResponseComponent extends JPanel {
 		fillKeyValueRows(headerContainer, responseHeaders.entrySet().stream().map(entry -> new String[] { entry.getKey(), entry.getValue() }).toList());
 	}
 
+	/**
+	 * Returns the HTTP status code.
+	 *
+	 * @return the status code, or null if none is shown
+	 */
 	public Integer getHttpCode() {
 		return Utilities.isNotBlank(httpCodeText.getText()) ? Integer.parseInt(httpCodeText.getText()) : null;
 	}
 
+	/**
+	 * Returns the IP address of the server.
+	 *
+	 * @return the IP address, empty if none is shown
+	 */
 	public String getIpAddress() {
 		return ipAddressText.getText();
 	}
 
+	/**
+	 * Returns the request duration text.
+	 *
+	 * @return the human readable duration, empty if none is shown
+	 */
 	public String getTime() {
 		return timeText.getText();
 	}
 
+	/**
+	 * Returns the raw response body as received, not the rendered text shown in the body area.
+	 *
+	 * @return the raw response body, empty if there is none
+	 */
 	public String getResponseBody() {
-		return responseBodyText.getText();
+		// The raw body, not the displayed text: the display may be pretty-printed or narrowed down by the
+		// response data path, and exporting that together with the path would apply the path twice on re-import
+		return lastResponseBody != null ? lastResponseBody : "";
 	}
 
 	/**
@@ -206,11 +272,18 @@ public class ResponseComponent extends JPanel {
 	 * for YAML, and XPath for XML. Only the part of the content matched by the path is then
 	 * shown in the response body area; if empty, the full (unmodified/pretty-printed) content is
 	 * shown.
+	 *
+	 * @return the data path, empty if none is set
 	 */
 	public String getResponseDataPath() {
 		return responseDataPathText.getText();
 	}
 
+	/**
+	 * Sets the response content data path and re-renders the response body accordingly.
+	 *
+	 * @param responseDataPath the data path, or null to clear the field
+	 */
 	public void setResponseDataPath(final String responseDataPath) {
 		responseDataPathText.setText(responseDataPath != null ? responseDataPath : "");
 	}
@@ -221,15 +294,27 @@ public class ResponseComponent extends JPanel {
 	 * response's own filename, e.g. from Content-Disposition, is then used
 	 * inside it) or to a specific target file. Empty if no target was set, in
 	 * which case no automatic download should be attempted.
+	 *
+	 * @return the download target path, empty if none is set
 	 */
 	public String getDownloadTarget() {
 		return downloadTargetText.getText();
 	}
 
+	/**
+	 * Sets the download target, see {@link #getDownloadTarget()}.
+	 *
+	 * @param downloadTarget directory or file path, or null to clear the field
+	 */
 	public void setDownloadTarget(final String downloadTarget) {
 		downloadTargetText.setText(downloadTarget != null ? downloadTarget : "");
 	}
 
+	/**
+	 * Returns the response headers as currently shown.
+	 *
+	 * @return new map of header name to value, in display order
+	 */
 	public Map<String, String> getResponseHeaders() {
 		return new LinkedHashMap<>(responseHeaders);
 	}
@@ -436,11 +521,19 @@ public class ResponseComponent extends JPanel {
 		container.repaint();
 	}
 
+	/**
+	 * Clears all response data (code, IP address, time, headers, body, redirect hint, random parameters)
+	 * and hides the response parts until {@link #showResponse()} is called. The data path and download target
+	 * are settings and stay unchanged.
+	 */
 	public void clearResponse() {
 		lastResponseBody = null;
 		httpCodeText.setText("");
 		ipAddressText.setText("");
 		timeText.setText("");
+		// Headers too: otherwise a canceled request still exports the previous response's headers,
+		// and their stale Content-Type would decide how the next body is rendered
+		setResponseHeaders(null);
 		responseBodyText.setText("");
 
 		for (final JComponent component : responseDisplayComponents) {
@@ -454,6 +547,9 @@ public class ResponseComponent extends JPanel {
 		repaint();
 	}
 
+	/**
+	 * Shows the response parts hidden by {@link #clearResponse()} again.
+	 */
 	public void showResponse() {
 		for (final JComponent component : responseDisplayComponents) {
 			component.setVisible(true);
@@ -463,10 +559,18 @@ public class ResponseComponent extends JPanel {
 		repaint();
 	}
 
+	/**
+	 * Shows the values the random parameter placeholders were replaced with, or hides that area.
+	 *
+	 * @param params placeholder text mapped to its replacement values, or null/empty to hide the area
+	 */
 	public void setRandomParameters(final Map<String, List<String>> params) {
 		final List<String[]> keyValuePairs = new ArrayList<>();
 		if (params != null && !params.isEmpty()) {
 			for (final Map.Entry<String, List<String>> entry : params.entrySet()) {
+				if (entry.getValue() == null) {
+					continue;
+				}
 				for (final String entryValue : entry.getValue()) {
 					keyValuePairs.add(new String[] { entry.getKey() != null ? entry.getKey() : "", entryValue != null ? entryValue : "" });
 				}

@@ -23,6 +23,13 @@ public class ImageManager {
 		// Static access only
 	}
 
+	/**
+	 * Returns an icon from "/images/icons/", loading and caching it on first use.
+	 *
+	 * @param name file name of the icon, e.g. "RestClient.png"
+	 * @return the icon
+	 * @throws VisibleException if the icon resource does not exist or cannot be loaded
+	 */
 	public static synchronized ImageIcon getImage(final String name) throws VisibleException {
 		ImageIcon image = STORE.get(name);
 		if (image == null) {

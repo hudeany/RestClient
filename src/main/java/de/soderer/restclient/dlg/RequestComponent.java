@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
@@ -69,9 +70,27 @@ import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
+/**
+ * Request editor of the main window: preset selection, proxy, redirects, HTTP method, service URL,
+ * TLS check, service method, HTTP headers, URL parameters, HTML form parameters and request body.
+ *
+ * <p>
+ * Also offers helpers to add authorization headers (basic auth, bearer token, IdP token), a Content-Type
+ * or other standard headers, and to fill the request from an OpenAPI document. Selecting HTML form
+ * parameters automatically adds a matching Content-Type header and disables the request body.
+ * </p>
+ *
+ * @serial exclude
+ */
 public class RequestComponent extends JPanel {
 	private static final long serialVersionUID = -6541962730287135460L;
 
+	/**
+	 * HTTP methods offered in the method dropdown and accepted by preset, YAML, cURL and OpenAPI imports.
+	 * PATCH and CONNECT are missing because HttpURLConnection (used by HttpUtilities) rejects them with a
+	 * ProtocolException; OPTIONS and TRACE are deliberately not offered in the GUI. Importing any other
+	 * method fails with an "unsupported HTTP method" error, see {@link #setHttpMethod(String)}.
+	 */
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
 
 	private static final int KEY_FIELD_WIDTH = 150;
@@ -116,6 +135,9 @@ public class RequestComponent extends JPanel {
 	/** Suppresses recursive status checks while checkRequestContentStatus() itself changes the headers */
 	private boolean checkingRequestContentStatus = false;
 
+	/**
+	 * Creates the request editor with an empty GET request and the system truststore as TLS check.
+	 */
 	public RequestComponent() {
 		super(new BorderLayout());
 
@@ -130,15 +152,30 @@ public class RequestComponent extends JPanel {
 		return SwingUtilities.getWindowAncestor(this);
 	}
 
+	/**
+	 * Returns the selected HTTP method.
+	 *
+	 * @return the HTTP method in upper case, or null while the typed text is no valid method
+	 */
 	public String getHttpMethod() {
 		// DropDown returns null while the typed text is no valid entry (allowCustomValues=false)
 		return httpMethodCombo.getText();
 	}
 
+	/**
+	 * Selects an HTTP method.
+	 *
+	 * @param method the HTTP method (case-insensitive), or null to keep the current one
+	 * @throws IllegalArgumentException if the method is not supported, see {@link #isSupportedHttpMethod(String)}
+	 */
 	public void setHttpMethod(final String method) {
 		if (method != null) {
+			if (!isSupportedHttpMethod(method)) {
+				// Silently keeping the previous method would send the request with a wrong method later on
+				throw new IllegalArgumentException(LangResources.get("unsupportedHttpMethod", method));
+			}
 			for (final String httpMethod : HTTP_METHODS) {
-				if (httpMethod.equalsIgnoreCase(method)) {
+				if (httpMethod.equalsIgnoreCase(method.trim())) {
 					httpMethodCombo.setText(httpMethod);
 					break;
 				}
@@ -148,23 +185,66 @@ public class RequestComponent extends JPanel {
 		checkRequestContentStatus();
 	}
 
+	/**
+	 * Checks whether an HTTP method is offered in the method dropdown.
+	 *
+	 * @param method the HTTP method (case-insensitive), may be null
+	 * @return true if the method is supported
+	 */
+	public static boolean isSupportedHttpMethod(final String method) {
+		if (method != null) {
+			for (final String httpMethod : HTTP_METHODS) {
+				if (httpMethod.equalsIgnoreCase(method.trim())) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Sets the TLS check configuration and updates the TLS check button text.
+	 *
+	 * @param tlsCheckConfiguration the TLS check configuration
+	 */
 	public void setTlsCheckConfiguration(final TlsCheckConfiguration tlsCheckConfiguration) {
 		this.tlsCheckConfiguration = tlsCheckConfiguration;
 		updateTlsCheckButtonText();
 	}
 
+	/**
+	 * Returns the TLS check configuration.
+	 *
+	 * @return the TLS check configuration
+	 */
 	public TlsCheckConfiguration getTlsCheckConfiguration() {
 		return tlsCheckConfiguration;
 	}
 
+	/**
+	 * Returns the preset name entered or selected in the preset dropdown.
+	 *
+	 * @return the preset name
+	 */
 	public String getPresetName() {
 		return presetCombo.getText();
 	}
 
+	/**
+	 * Returns the service URL (base URL of the request).
+	 *
+	 * @return the service URL
+	 */
 	public String getServiceUrl() {
 		return serviceUrlText.getText();
 	}
 
+	/**
+	 * Returns the service method, which is appended to the service URL separated by "/".
+	 * Leading slashes are removed from the field, since the separator is added anyway.
+	 *
+	 * @return the service method without leading slashes
+	 */
 	public String getServiceMethod() {
 		while (serviceMethodText.getText().startsWith("/")) {
 			serviceMethodText.setText(serviceMethodText.getText().substring(1));
@@ -172,59 +252,129 @@ public class RequestComponent extends JPanel {
 		return serviceMethodText.getText();
 	}
 
+	/**
+	 * Returns the proxy setting.
+	 *
+	 * @return "DIRECT", "WPAD", a proxy URL like "proxy.example.com:8080", or empty for the default
+	 */
 	public String getProxyUrl() {
 		return proxyUrlCombo.getText();
 	}
 
+	/**
+	 * Returns whether redirects should be followed.
+	 *
+	 * @return true if redirects should be followed
+	 */
 	public boolean isFollowRedirects() {
 		return followRedirectsButton.isSelected();
 	}
 
+	/**
+	 * Returns the maximum number of redirects to follow, regardless of the "follow redirects" checkbox.
+	 *
+	 * @return the hop limit
+	 */
 	public int getMaxRedirectHops() {
 		return (Integer) maxRedirectHopsSpinner.getValue();
 	}
 
-	/** Combines {@link #isFollowRedirects()} and {@link #getMaxRedirectHops()} into the single int value expected by {@link HttpRequest#setMaxRedirects(int)} (0 = do not follow, positive = hop limit) */
+	/**
+	 * Combines {@link #isFollowRedirects()} and {@link #getMaxRedirectHops()} into the single int value
+	 * expected by {@link HttpRequest#setMaxRedirects(int)}.
+	 *
+	 * @return 0 to not follow redirects, otherwise the hop limit
+	 */
 	public int getMaxRedirects() {
 		return isFollowRedirects() ? getMaxRedirectHops() : 0;
 	}
 
+	/**
+	 * Returns the request body text.
+	 *
+	 * @return the request body
+	 */
 	public String getRequestBody() {
 		return requestBodyText.getText();
 	}
 
+	/**
+	 * Returns the IdP URL used for fetching an access token.
+	 *
+	 * @return the IdP URL, or null if none is set
+	 */
 	public String getIdpUrl() {
 		return idpUrl;
 	}
 
+	/**
+	 * Returns the IdP realm used for fetching an access token.
+	 *
+	 * @return the realm, or null if none is set
+	 */
 	public String getIdpRealm() {
 		return idpRealm;
 	}
 
+	/**
+	 * Returns the IdP client ID used for fetching an access token.
+	 *
+	 * @return the client ID, or null if none is set
+	 */
 	public String getIdpUsername() {
 		return idpUsername;
 	}
 
+	/**
+	 * Returns the IdP client secret used for fetching an access token.
+	 *
+	 * @return the client secret (not a copy), or null if none is set
+	 */
 	public char[] getIdpPassword() {
 		return idpPassword;
 	}
 
+	/**
+	 * Returns whether the IdP client ID and secret should be stored in the request preset.
+	 *
+	 * @return true if the credentials should be stored
+	 */
 	public boolean isStoreIdpCredentials() {
 		return storeIdpCredentials;
 	}
 
+	/**
+	 * Returns the HTTP headers, skipping rows without a name.
+	 *
+	 * @return new map of header name to value, in display order
+	 */
 	public Map<String, String> getHttpHeaders() {
 		return headerSection.getEntries();
 	}
 
+	/**
+	 * Returns the URL parameters, skipping rows without a name.
+	 *
+	 * @return new map of parameter name to value, in display order
+	 */
 	public Map<String, String> getUrlParameters() {
 		return urlParamSection.getEntries();
 	}
 
+	/**
+	 * Returns the HTML form parameters, skipping rows without a name.
+	 *
+	 * @return new map of parameter name to value, in display order
+	 */
 	public Map<String, String> getHtmlFormParameters() {
 		return htmlFormParamSection.getEntries();
 	}
 
+	/**
+	 * Sets the preset names offered in the preset dropdown.
+	 *
+	 * @param presets the preset names in display order, or null for none
+	 */
 	public void setPresetNames(final List<String> presets) {
 		presetNames.clear();
 		if (presets != null) {
@@ -236,11 +386,19 @@ public class RequestComponent extends JPanel {
 	/**
 	 * Current preset order, e.g. to persist it after the user reordered
 	 * entries via drag&amp;drop in the selection popup.
+	 *
+	 * @return copy of the preset names in display order
 	 */
 	public List<String> getPresetNames() {
 		return new ArrayList<>(presetNames);
 	}
 
+	/**
+	 * Sets the listener notified when a preset is selected or entered in the preset dropdown.
+	 * Replaces any previously set listener.
+	 *
+	 * @param listener the listener, or null for none
+	 */
 	public void addPresetSelectionListener(final Runnable listener) {
 		presetSelectionListener = listener;
 	}
@@ -248,6 +406,8 @@ public class RequestComponent extends JPanel {
 	/**
 	 * Sets the list of preset proxy URLs offered in the proxy URL dropdown,
 	 * in addition to the built-in "DIRECT" and "WPAD" special values.
+	 *
+	 * @param presets the proxy URLs, or null for none
 	 */
 	public void setProxyUrlPresets(final List<String> presets) {
 		proxyUrlPresets.clear();
@@ -268,18 +428,30 @@ public class RequestComponent extends JPanel {
 
 	/**
 	 * Notified with the new preset order whenever the user reorders the
-	 * entries via drag&amp;drop in the selection popup.
+	 * entries via drag&amp;drop in the selection popup. Replaces any previously set listener.
+	 *
+	 * @param listener the listener, or null for none
 	 */
 	public void addPresetsReorderedListener(final Consumer<List<String>> listener) {
 		presetsReorderedListener = listener;
 	}
 
+	/**
+	 * Adds a listener to the preset "Save" button.
+	 *
+	 * @param listener the listener, null is ignored
+	 */
 	public void addSaveButtonListener(final Runnable listener) {
 		if (listener != null) {
 			saveButton.addActionListener(event -> listener.run());
 		}
 	}
 
+	/**
+	 * Adds a listener to the preset "Delete" button.
+	 *
+	 * @param listener the listener, null is ignored
+	 */
 	public void addDeleteButtonListener(final Runnable listener) {
 		if (listener != null) {
 			deleteButton.addActionListener(event -> listener.run());
@@ -287,74 +459,153 @@ public class RequestComponent extends JPanel {
 	}
 
 	/**
+	 * Sets the text of the preset dropdown.
+	 *
 	 * @param value preset name to show, or null to clear the preset name field
 	 */
 	public void setPresetName(final String value) {
 		presetCombo.setText(value != null ? value : "");
 	}
 
+	/**
+	 * Sets the service URL (base URL of the request).
+	 *
+	 * @param value the service URL, or null to clear the field
+	 */
 	public void setServiceUrl(final String value) {
 		serviceUrlText.setText(value != null ? value : "");
 	}
 
+	/**
+	 * Sets the service method, which is appended to the service URL separated by "/".
+	 *
+	 * @param value the service method, or null to clear the field
+	 */
 	public void setServiceMethod(final String value) {
 		serviceMethodText.setText(value != null ? value : "");
 	}
 
+	/**
+	 * Sets the proxy setting.
+	 *
+	 * @param value "DIRECT", "WPAD", a proxy URL, or null/empty for the default
+	 */
 	public void setProxyUrl(final String value) {
 		proxyUrlCombo.setText(value != null ? value : "");
 	}
 
+	/**
+	 * Sets whether redirects should be followed and enables the hop limit field accordingly.
+	 *
+	 * @param followRedirects true to follow redirects
+	 */
 	public void setFollowRedirects(final boolean followRedirects) {
 		followRedirectsButton.setSelected(followRedirects);
 		maxRedirectHopsSpinner.setEnabled(followRedirects);
 	}
 
+	/**
+	 * Sets the maximum number of redirects to follow, limited to the range 1 to 999.
+	 *
+	 * @param maxRedirectHops the hop limit
+	 */
 	public void setMaxRedirectHops(final int maxRedirectHops) {
 		maxRedirectHopsSpinner.setValue(Math.max(1, Math.min(999, maxRedirectHops)));
 	}
 
-	/** Counterpart to {@link #getMaxRedirects()}: 0 disables following, any other value enables it and sets that hop count (negative values are treated as {@link HttpRequest#DEFAULT_MAX_REDIRECTS} since this UI does not offer an "unlimited" option) */
+	/**
+	 * Counterpart to {@link #getMaxRedirects()}: 0 disables following, any other value enables it and
+	 * sets that hop count (negative values are treated as {@link HttpRequest#DEFAULT_MAX_REDIRECTS}, since this
+	 * UI does not offer an "unlimited" option).
+	 *
+	 * @param maxRedirects 0 to not follow redirects, otherwise the hop limit
+	 */
 	public void setMaxRedirects(final int maxRedirects) {
 		setFollowRedirects(maxRedirects != 0);
 		setMaxRedirectHops(maxRedirects > 0 ? maxRedirects : HttpRequest.DEFAULT_MAX_REDIRECTS);
 	}
 
+	/**
+	 * Sets the request body text.
+	 *
+	 * @param value the request body, or null to clear the field
+	 */
 	public void setRequestBody(final String value) {
 		requestBodyText.setText(value != null ? value : "");
 		requestBodyText.setCaretPosition(0);
 	}
 
+	/**
+	 * Sets the IdP URL used for fetching an access token.
+	 *
+	 * @param idpUrl the IdP URL, may be null
+	 */
 	public void setIdpUrl(final String idpUrl) {
 		this.idpUrl = idpUrl;
 	}
 
+	/**
+	 * Sets the IdP realm used for fetching an access token.
+	 *
+	 * @param idpRealm the realm, may be null
+	 */
 	public void setIdpRealm(final String idpRealm) {
 		this.idpRealm = idpRealm;
 	}
 
+	/**
+	 * Sets the IdP client ID used for fetching an access token.
+	 *
+	 * @param idpUsername the client ID, may be null
+	 */
 	public void setIdpUsername(final String idpUsername) {
 		this.idpUsername = idpUsername;
 	}
 
+	/**
+	 * Sets the IdP client secret used for fetching an access token.
+	 *
+	 * @param idpPassword the client secret (not copied), may be null
+	 */
 	public void setIdpPassword(final char[] idpPassword) {
 		this.idpPassword = idpPassword;
 	}
 
+	/**
+	 * Sets whether the IdP client ID and secret should be stored in the request preset.
+	 *
+	 * @param storeIdpCredentials true to store the credentials
+	 */
 	public void setStoreIdpCredentials(final boolean storeIdpCredentials) {
 		this.storeIdpCredentials = storeIdpCredentials;
 	}
 
+	/**
+	 * Replaces the HTTP header rows.
+	 *
+	 * @param headers header name to value, or null for none
+	 */
 	public void setHttpHeaders(final Map<String, String> headers) {
 		headerSection.setEntries(headers);
 		checkRequestContentStatus();
 	}
 
+	/**
+	 * Replaces the URL parameter rows.
+	 *
+	 * @param urlParams parameter name to value, or null for none
+	 */
 	public void setUrlParameters(final Map<String, String> urlParams) {
 		urlParamSection.setEntries(urlParams);
 		checkRequestContentStatus();
 	}
 
+	/**
+	 * Replaces the HTML form parameter rows. If there are any, a Content-Type header for HTML forms is
+	 * added (unless one exists already) and the request body is disabled.
+	 *
+	 * @param htmlFormParams parameter name to value, or null for none
+	 */
 	public void setHtmlFormParameters(final Map<String, String> htmlFormParams) {
 		htmlFormParamSection.setEntries(htmlFormParams);
 		checkRequestContentStatus();
@@ -830,9 +1081,9 @@ public class RequestComponent extends JPanel {
 				final Map<String, JsonObject> operationsByMethod = new LinkedHashMap<>();
 				if (pathsObject.get(selectedPathRaw) instanceof JsonObject) {
 					for (final Entry<String, JsonNode> methodEntry : ((JsonObject) pathsObject.get(selectedPathRaw)).entrySet()) {
-						final String methodName = methodEntry.getKey().toLowerCase();
+						final String methodName = methodEntry.getKey().toLowerCase(Locale.ROOT);
 						if (httpMethodNames.contains(methodName) && methodEntry.getValue() instanceof JsonObject) {
-							final String methodLabel = methodName.toUpperCase();
+							final String methodLabel = methodName.toUpperCase(Locale.ROOT);
 							availableMethods.add(methodLabel);
 							operationsByMethod.put(methodLabel, (JsonObject) methodEntry.getValue());
 						}

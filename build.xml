@@ -94,8 +94,6 @@
 		<getDependency name="network" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}.jar" />
 		
 		<getMavenDependency repositoryUrl="https://soderer.de/maven2" groupId="de.soderer" artifactId="soderer-utilities" version="${soderer-utilities.version}" />
-
-		<getDependency name="network-sources" version="${network.version}" url="https://github.com/hudeany/network/releases/download/{version}/network-{version}-sources.jar" />
 		<getMavenDependency repositoryUrl="https://soderer.de/maven2" groupId="de.soderer" artifactId="soderer-utilities" version="${soderer-utilities.version}" classifier="sources" />
 	</target>
 

@@ -28,6 +28,12 @@ import de.soderer.utilities.swing.DropDown;
 import de.soderer.utilities.swing.DropDown.MatchMode;
 import de.soderer.utilities.swing.ModalDialog;
 
+/**
+ * Dialog for the TLS server certificate check of a request: check type, truststore or certificate file,
+ * truststore password and the CN (hostname) check. {@link #open()} returns the new configuration, or null if canceled.
+ *
+ * @serial exclude
+ */
 public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfiguration> {
 	private static final long serialVersionUID = 8158372040158337392L;
 
@@ -45,13 +51,24 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	private JCheckBox checkCnCheckbox;
 	private JButton okButton;
 
+	/**
+	 * Creates the dialog with the given initial values.
+	 *
+	 * @param parent parent window
+	 * @param title window title
+	 * @param selectedType initial check type, or null for the system truststore
+	 * @param selectedFile initial truststore or certificate file, may be null
+	 * @param password initial truststore password, may be null
+	 * @param checkCn initial state of the CN check (always off for {@link TlsCheckConfigurationType#NoCheck})
+	 */
 	public TlsCheckConfigurationDialog(final Window parent, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password, final boolean checkCn) {
 		super(parent, title);
 
 		this.selectedType = selectedType == null ? TlsCheckConfigurationType.SystemTrustStore : selectedType;
 		this.selectedFile = selectedFile;
 		this.password = password;
-		this.checkCn = checkCn;
+		// NoCheck never checks the CN (the checkbox is disabled for it)
+		this.checkCn = checkCn && this.selectedType != TlsCheckConfigurationType.NoCheck;
 
 		createComponents();
 	}
@@ -122,7 +139,18 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 				// Only valid entries are accepted, but stay defensive
 				return;
 			}
+			final TlsCheckConfigurationType previousType = selectedType;
 			selectedType = TlsCheckConfigurationType.valueOf(typeText);
+
+			// The CN checkbox is disabled for NoCheck, so its value must not silently stay active there
+			// (same default as for loaded presets: CN check off for NoCheck, on for all other types)
+			if (selectedType == TlsCheckConfigurationType.NoCheck) {
+				checkCn = false;
+				checkCnCheckbox.setSelected(false);
+			} else if (previousType == TlsCheckConfigurationType.NoCheck) {
+				checkCn = true;
+				checkCnCheckbox.setSelected(true);
+			}
 
 			if (!selectedType.isFilePathSupported()) {
 				fileText.setText("");

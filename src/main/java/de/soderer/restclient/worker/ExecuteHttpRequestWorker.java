@@ -14,6 +14,16 @@ import de.soderer.restclient.helper.RandomParameterResolver;
 import de.soderer.utilities.worker.WorkerParentSimple;
 import de.soderer.utilities.worker.WorkerSimple;
 
+/**
+ * Worker executing one HTTP request, used for the single "Send request" execution, the OpenAPI download,
+ * the command line mode and each run of the worker pool load test.
+ *
+ * <p>
+ * The request is copied from a template on construction, resolving all random parameter placeholders
+ * ({@code ${rnd:...}}, see {@link RandomParameterResolver}) with fresh values, so every worker instance sends
+ * its own variant of the request.
+ * </p>
+ */
 public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final HttpRequest httpRequest;
 	private final Proxy proxy;
@@ -21,6 +31,17 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 	private final boolean deactivateHostnameVerification;
 	private final RandomParameterResolver randomParameterResolver = new RandomParameterResolver();
 
+	/**
+	 * Creates the worker with a copy of the request template.
+	 *
+	 * @param parent parent receiving progress signals, or null for none
+	 * @param httpRequestTemplate request to copy; random parameter placeholders are resolved in the copy
+	 * @param proxy proxy to use, {@link Proxy#NO_PROXY} for a direct connection, or null for the default
+	 * @param trustManager trust manager for TLS connections, or null for the default
+	 * @param deactivateHostnameVerification true to skip the TLS hostname (CN) verification
+	 * @throws Exception if a random parameter placeholder is invalid, or if the template uses a request body
+	 *         stream, a download stream or a download file, which cannot be shared by several runs
+	 */
 	public ExecuteHttpRequestWorker(final WorkerParentSimple parent, final HttpRequest httpRequestTemplate, final Proxy proxy, final TrustManager trustManager, final boolean deactivateHostnameVerification) throws Exception {
 		super(parent);
 
@@ -111,10 +132,21 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		}
 	}
 
+	/**
+	 * Returns the values the random parameter placeholders of this request were replaced with.
+	 *
+	 * @return placeholder text mapped to its replacement values, in order of appearance
+	 */
 	public Map<String, List<String>> getRandomParameterReplacements() {
 		return randomParameterResolver.getResolvedValues();
 	}
 
+	/**
+	 * Executes the HTTP request.
+	 *
+	 * @return the response, or null if the worker was canceled
+	 * @throws Exception if the request fails
+	 */
 	@Override
 	public HttpResponse work() throws Exception {
 		if (parent != null) {
@@ -148,6 +180,11 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		}
 	}
 
+	/**
+	 * Cancels the worker and the running HTTP request.
+	 *
+	 * @return result of the worker cancellation
+	 */
 	@Override
 	public boolean cancel() {
 		final boolean result = super.cancel();
@@ -155,6 +192,11 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		return result;
 	}
 
+	/**
+	 * No result text, the result is the returned response.
+	 *
+	 * @return always null
+	 */
 	@Override
 	public String getResultText() {
 		return null;

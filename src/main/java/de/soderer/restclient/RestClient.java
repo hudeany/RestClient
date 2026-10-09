@@ -58,14 +58,43 @@ import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;
 import de.soderer.yaml.data.YamlSequence;
 
+/**
+ * Main class of the RestClient application.
+ *
+ * <p>
+ * Without parameters (and in a non-headless environment) or with the parameter "gui" it opens the Swing GUI
+ * ({@link RestClientDialog}). Otherwise it executes a single HTTP request from the command line and prints the
+ * response body to stdout (see help.txt for all parameters). As {@link WorkerParentDual} it shows the progress
+ * of console tasks like the application update on the terminal.
+ * </p>
+ */
 public class RestClient extends UpdateableConsoleApplication implements WorkerParentDual {
 	/** The Constant APPLICATION_NAME. */
 	public static final String APPLICATION_NAME = "RestClient";
+	/**
+	 * Startup class name of the application, also used as AWT window manager class (e.g. for pinning the
+	 * application to the Linux Gnome dock).
+	 */
 	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-restclient";
+	/**
+	 * Email address offered in error dialogs for sending error reports.
+	 */
 	public static final String APPLICATION_ERROR_EMAIL_ADRESS = "RestClient.Error@soderer.de";
 
+	/**
+	 * HTTP methods supported by the command line parameter "--method". PATCH and CONNECT are missing on purpose:
+	 * HttpURLConnection (used by HttpUtilities) rejects them with a ProtocolException.
+	 */
+	public static final List<String> CLI_HTTP_METHODS = List.of("GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "TRACE");
+
+	/**
+	 * Configuration key of the proxy URLs offered in the proxy URL dropdown, in addition to "DIRECT" and "WPAD".
+	 */
 	public static final String CONFIG_KEY_PROXY_URL_PRESETS = "ProxyUrlPresets";
 
+	/**
+	 * Keystore file of the application, handed to the GUI application base class.
+	 */
 	public static final File KEYSTORE_FILE = new File(System.getProperty("user.home") + File.separator + "." + APPLICATION_NAME + File.separator + "." + APPLICATION_NAME + ".keystore");
 
 	/** The Constant VERSION_RESOURCE_FILE, which contains version number and versioninfo download url. */
@@ -83,14 +112,29 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	/** Trusted CA certificate for updates **/
 	public static String TRUSTED_UPDATE_CA_CERTIFICATES = null;
 
+	/**
+	 * Classpath resource containing the command line help text.
+	 */
 	public static final String HELP_RESOURCE_FILE_DEFAULT = "/help.txt";
+	/**
+	 * Classpath resource containing the German command line help text (currently the same file as the default).
+	 */
 	public static final String HELP_RESOURCE_FILE_DE = "/help.txt";
 
 	/** The Constant CONFIGURATION_FILE. */
 	public static final File CONFIGURATION_FILE = new File(System.getProperty("user.home") + File.separator + "." + APPLICATION_NAME + ".config");
 
+	/**
+	 * JSON file containing the request presets saved in the GUI, also used by the command line parameters
+	 * "--preset" and "--list-presets".
+	 */
 	public static final File REQUEST_PRESETS_FILE = new File(System.getProperty("user.home") + File.separator + "." + RestClient.APPLICATION_NAME + File.separator + "RequestPresets.json");
 
+	/**
+	 * Initializes the default values of the application configuration, including the RestClient specific ones.
+	 *
+	 * @param applicationConfiguration the configuration to initialize
+	 */
 	public static void setupDefaultConfig(final ConfigurationProperties applicationConfiguration) {
 		applicationConfiguration.setupDefaultConfig();
 
@@ -102,8 +146,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	/** The usage message. */
 	private static String getUsageMessage() {
 		try (InputStream helpInputStream = RestClient.class.getResourceAsStream(RestClient.HELP_RESOURCE_FILE_DEFAULT)) {
+			// The build time is optional in application_version.txt, so it must not break the help output
+			final String buildTimeText = VERSION_BUILDTIME == null ? "" : " (" + DateUtilities.formatDate(DateUtilities.YYYY_MM_DD_HHMMSS, VERSION_BUILDTIME) + ")";
 			return "RestClient (by Andreas Soderer, mail: RestClient@soderer.de)\n"
-					+ "VERSION: " + VERSION.toString() + " (" + DateUtilities.formatDate(DateUtilities.YYYY_MM_DD_HHMMSS, VERSION_BUILDTIME) + ")" + "\n\n"
+					+ "VERSION: " + VERSION.toString() + buildTimeText + "\n\n"
 					+ new String(IoUtilities.toByteArray(helpInputStream), StandardCharsets.UTF_8);
 		} catch (@SuppressWarnings("unused") final Exception e) {
 			return "Help info is missing";
@@ -123,10 +169,11 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	}
 
 	/**
-	 * Method used for main but with no System.exit call to make it junit testable
+	 * Implementation of {@link #main(String[])} without the System.exit() call, so it can be tested with JUnit.
 	 *
-	 * @param arguments
-	 * @return
+	 * @param args command line arguments
+	 * @return exit code: 0 for success, 1 for an error or after printing help or version information,
+	 *         -1 if the GUI was opened and keeps running (System.exit() must not be called then)
 	 */
 	protected static int _main(final String[] args) {
 		ApplicationUpdateUtilities.removeUpdateLeftovers();
@@ -176,33 +223,28 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				} else {
 					openGui = true;
 				}
-			} else {
-				for (int i = 0; i < arguments.length; i++) {
-					if ("help".equalsIgnoreCase(arguments[i]) || "-help".equalsIgnoreCase(arguments[i]) || "--help".equalsIgnoreCase(arguments[i]) || "-h".equalsIgnoreCase(arguments[i]) || "--h".equalsIgnoreCase(arguments[i])
-							|| "-?".equalsIgnoreCase(arguments[i]) || "--?".equalsIgnoreCase(arguments[i])) {
-						System.out.println(getUsageMessage());
-						return 1;
-					} else if ("version".equalsIgnoreCase(arguments[i]) && arguments.length == 1) {
-						System.out.println(VERSION.toString());
-						return 1;
-					} else if ("update".equalsIgnoreCase(arguments[i]) && arguments.length == 1) {
-						final RestClient restclient = new RestClient();
-						if (arguments.length > i + 2) {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], arguments[i + 2].toCharArray(), null, false, false);
-						} else if (arguments.length > i + 1) {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, arguments[i + 1], null, null, false, false);
-						} else {
-							ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, false, false);
-						}
-						return 1;
-					} else if ("gui".equalsIgnoreCase(arguments[i])) {
-						if (GraphicsEnvironment.isHeadless()) {
-							throw new Exception("GUI can only be shown on a non-headless environment");
-						}
-						openGui = true;
-						arguments = Utilities.removeItemAtIndex(arguments, i--);
-					}
+			} else if (arguments.length == 1 && isHelpKeyword(arguments[0])) {
+				// The standalone keywords are only recognized as the one and only argument (resp. as the first
+				// argument for "update"), so a parameter value like "--body gui" or "--header help" is never
+				// mistaken for a keyword. Combined with request parameters they are rejected as invalid parameters.
+				System.out.println(getUsageMessage());
+				return 1;
+			} else if (arguments.length == 1 && "version".equalsIgnoreCase(arguments[0])) {
+				System.out.println(VERSION.toString());
+				return 1;
+			} else if (arguments.length <= 3 && "update".equalsIgnoreCase(arguments[0])) {
+				// "update [username [password]]": the optional credentials follow directly after "update"
+				final RestClient restclient = new RestClient();
+				final String updateUsername = arguments.length >= 2 ? arguments[1] : null;
+				final char[] updatePassword = arguments.length >= 3 ? arguments[2].toCharArray() : null;
+				ApplicationUpdateUtilities.executeUpdate(restclient, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, updateUsername, updatePassword, null, false, false);
+				return 1;
+			} else if (arguments.length == 1 && "gui".equalsIgnoreCase(arguments[0])) {
+				if (GraphicsEnvironment.isHeadless()) {
+					throw new Exception("GUI can only be shown on a non-headless environment");
 				}
+				openGui = true;
+				arguments = new String[0];
 			}
 
 			// Read the parameters
@@ -551,6 +593,11 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				if (cliMethod != null) {
 					httpMethod = cliMethod;
 				}
+				// Checked up front (also for methods from a preset or request file), since HttpURLConnection
+				// would only reject an unsupported method like PATCH or CONNECT when sending the request
+				if (!CLI_HTTP_METHODS.contains(httpMethod.trim().toUpperCase(Locale.ROOT))) {
+					throw new ParameterException("method", "Unsupported HTTP method '" + httpMethod + "' (supported: " + String.join(", ", CLI_HTTP_METHODS) + ")");
+				}
 				httpHeaders.putAll(cliHeaders);
 				urlParameters.putAll(cliUrlParameters);
 				htmlFormParameters.putAll(cliFormParameters);
@@ -710,9 +757,20 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			System.err.println(getUsageMessage());
 			return 1;
 		} catch (final Exception e) {
-			System.err.println(e.getMessage());
+			// Some exceptions (e.g. NullPointerException) carry no message, which would print just "null"
+			System.err.println(e.getMessage() != null ? e.getMessage() : e.toString());
 			return 1;
 		}
+	}
+
+	/**
+	 * Checks whether an argument is one of the keywords requesting the help text
+	 * ("help", "-help", "--help", "-h", "--h", "-?", "--?", ignoring case).
+	 */
+	private static boolean isHelpKeyword(final String argument) {
+		return "help".equalsIgnoreCase(argument) || "-help".equalsIgnoreCase(argument) || "--help".equalsIgnoreCase(argument)
+				|| "-h".equalsIgnoreCase(argument) || "--h".equalsIgnoreCase(argument)
+				|| "-?".equalsIgnoreCase(argument) || "--?".equalsIgnoreCase(argument);
 	}
 
 	/**
@@ -815,28 +873,44 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		}
 	}
 
+	/**
+	 * Creates the console application instance, used as worker parent for console tasks like the update.
+	 *
+	 * @throws Exception if the application base class cannot be initialized
+	 */
 	public RestClient() throws Exception {
 		super(APPLICATION_NAME, VERSION);
 	}
 
-	/* (non-Javadoc)
-	 * @see de.soderer.utilities.WorkerParentSimple#showUnlimitedProgress()
+	/**
+	 * Ignored, there is no console output for a progress without a known end.
 	 */
 	@Override
 	public void receiveUnlimitedProgressSignal() {
 		// Do nothing
 	}
 
-	/* (non-Javadoc)
-	 * @see de.soderer.utilities.WorkerParentSimple#showProgress(java.util.Date, long, long)
+	/**
+	 * Prints the progress bar on the console.
+	 *
+	 * @param start start time of the task
+	 * @param itemsToDo total number of items to do
+	 * @param itemsDone number of items done so far
+	 * @param itemsUnitSign unit sign of the items (e.g. "B" for bytes), or null for plain item counts
 	 */
 	@Override
 	public void receiveProgressSignal(final LocalDateTime start, final long itemsToDo, final long itemsDone, final String itemsUnitSign) {
 		printProgressBar(start, itemsToDo, itemsDone, itemsUnitSign);
 	}
 
-	/* (non-Javadoc)
-	 * @see de.soderer.utilities.WorkerParentSimple#showDone(java.util.Date, java.util.Date, long)
+	/**
+	 * Prints the result text of the finished task on the console.
+	 *
+	 * @param start start time of the task
+	 * @param end end time of the task
+	 * @param itemsDone number of items done
+	 * @param itemsUnitSign unit sign of the items, or null for plain item counts
+	 * @param resultText result text of the task, may be null
 	 */
 	@Override
 	public void receiveDoneSignal(final LocalDateTime start, final LocalDateTime end, final long itemsDone, final String itemsUnitSign, final String resultText) {
@@ -856,8 +930,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		System.out.println();
 	}
 
-	/* (non-Javadoc)
-	 * @see de.soderer.utilities.WorkerParentSimple#cancel()
+	/**
+	 * Prints "Canceled" on the console.
+	 *
+	 * @return always true
 	 */
 	@Override
 	public boolean cancel() {
@@ -865,21 +941,43 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		return true;
 	}
 
+	/**
+	 * Prints the new title of the current task on the console.
+	 *
+	 * @param text the title text
+	 */
 	@Override
 	public void changeTitle(final String text) {
 		System.out.println(text);
 	}
 
+	/**
+	 * Ignored, there is no console output for a sub progress without a known end.
+	 */
 	@Override
 	public void receiveUnlimitedSubProgressSignal() {
 		// Do nothing
 	}
 
+	/**
+	 * Prints the description of the started item on the console.
+	 *
+	 * @param itemName name of the started item
+	 * @param description description of the started item
+	 */
 	@Override
 	public void receiveItemStartSignal(final String itemName, final String description) {
 		System.out.println(description);
 	}
 
+	/**
+	 * Prints the progress bar of the current item on the console.
+	 *
+	 * @param itemStart start time of the item
+	 * @param subItemToDo total number of sub items to do
+	 * @param subItemDone number of sub items done so far
+	 * @param itemsUnitSign unit sign of the sub items (e.g. "B" for bytes), or null for plain item counts
+	 */
 	@Override
 	public void receiveItemProgressSignal(final LocalDateTime itemStart, final long subItemToDo, final long subItemDone, final String itemsUnitSign) {
 		printProgressBar(itemStart, subItemToDo, subItemDone, itemsUnitSign);
@@ -913,6 +1011,15 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 		}
 	}
 
+	/**
+	 * Prints the final progress bar, the duration and the result text of the finished item on the console.
+	 *
+	 * @param itemStart start time of the item
+	 * @param itemEnd end time of the item
+	 * @param subItemsDone number of sub items done
+	 * @param itemsUnitSign unit sign of the sub items, or null for plain item counts
+	 * @param resultText result text of the item, may be null
+	 */
 	@Override
 	public void receiveItemDoneSignal(final LocalDateTime itemStart, final LocalDateTime itemEnd, final long subItemsDone, final String itemsUnitSign, final String resultText) {
 		if (subItemsDone > 0) {

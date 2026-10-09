@@ -27,6 +27,13 @@ import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.swing.ModalDialog;
 
+/**
+ * Dialog for the IdP (identity provider) settings and client credentials used to fetch an OAuth2
+ * access token: IdP URL, realm, client ID ("username"), client secret ("password") and whether these
+ * should be stored in the request preset. {@link #open()} returns the credentials, or null if canceled.
+ *
+ * @serial exclude
+ */
 public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 	private static final long serialVersionUID = 1839920463575017126L;
 
@@ -47,6 +54,17 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 
 	private boolean rememberCredentials = false;
 
+	/**
+	 * Creates the dialog with the given initial values.
+	 *
+	 * @param parent parent window
+	 * @param title window title
+	 * @param text description shown above the fields, or null for none
+	 * @param idpUrl initial IdP URL, may be null
+	 * @param idpRealm initial realm, may be null
+	 * @param idpUsername initial client ID, may be null
+	 * @param idpPassword initial client secret, may be null
+	 */
 	public IdpCredentialsDialog(final Window parent, final String title, final String text, final String idpUrl, final String idpRealm, final String idpUsername, final char[] idpPassword) {
 		super(parent, title);
 
@@ -60,6 +78,8 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 	/**
 	 * The components are created on open, so settings made after construction
 	 * (e.g. {@link #setRememberCredentials(boolean)}) are reflected.
+	 *
+	 * @return the entered credentials, or null if the dialog was canceled
 	 */
 	@Override
 	public Credentials open() {
@@ -183,15 +203,31 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(idpUsername) && idpPassword != null && idpPassword.length > 0);
 	}
 
+	/**
+	 * Sets the initial state of the "remember credentials" checkbox.
+	 *
+	 * @param rememberCredentials true to store the credentials in the request preset
+	 * @return this dialog
+	 */
 	public IdpCredentialsDialog setRememberCredentials(final boolean rememberCredentials) {
 		this.rememberCredentials = rememberCredentials;
 		return this;
 	}
 
+	/**
+	 * Returns the state of the "remember credentials" checkbox.
+	 *
+	 * @return true if the credentials should be stored in the request preset
+	 */
 	public boolean isRememberCredentials() {
 		return rememberCredentials;
 	}
 
+	/**
+	 * Returns the entered client ID and secret.
+	 *
+	 * @return the credentials, or null if no client ID is set
+	 */
 	public Credentials getCredentials() {
 		if (idpUsername != null) {
 			return new Credentials(idpUsername, idpPassword);
@@ -200,10 +236,20 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		}
 	}
 
+	/**
+	 * Returns the entered IdP URL.
+	 *
+	 * @return the IdP URL
+	 */
 	public String getIdpUrl() {
 		return idpUrl;
 	}
 
+	/**
+	 * Returns the entered realm.
+	 *
+	 * @return the realm
+	 */
 	public String getIdpRealm() {
 		return idpRealm;
 	}

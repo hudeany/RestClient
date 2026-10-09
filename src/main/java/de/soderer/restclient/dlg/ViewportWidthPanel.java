@@ -16,12 +16,19 @@ import javax.swing.SwingConstants;
  * full height while its content is smaller than the viewport. The Swing
  * counterpart of an SWT ScrolledComposite with expandHorizontal/expandVertical
  * and a minimum height.
+ *
+ * @serial exclude
  */
 public class ViewportWidthPanel extends JPanel implements Scrollable {
 	private static final long serialVersionUID = -2279164541062803147L;
 
 	private static final int UNIT_INCREMENT = 16;
 
+	/**
+	 * Creates the panel.
+	 *
+	 * @param layout layout manager of the panel
+	 */
 	public ViewportWidthPanel(final LayoutManager layout) {
 		super(layout);
 	}

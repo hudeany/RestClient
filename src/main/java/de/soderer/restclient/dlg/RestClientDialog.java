@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -82,6 +83,13 @@ import de.soderer.yaml.data.YamlScalar;
 import de.soderer.yaml.data.YamlScalarType;
 import de.soderer.yaml.data.YamlSequence;
 
+/**
+ * Main window of the RestClient GUI: the request editor ({@link RequestComponent}) on the left and the
+ * response view ({@link ResponseComponent}) on the right, plus request presets, export/import as YAML
+ * or cURL command and the worker pool load test.
+ *
+ * @serial exclude
+ */
 public class RestClientDialog extends UpdateableGuiApplication {
 	private static final long serialVersionUID = 6013829307145576321L;
 
@@ -94,6 +102,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 	private final ConfigurationProperties applicationConfiguration;
 
+	/**
+	 * Creates the main window and loads the request presets.
+	 *
+	 * @param applicationConfiguration application configuration, e.g. for the proxy URL presets and the daily update check
+	 * @throws Exception if the window cannot be created, e.g. because of missing image resources or unreadable request presets
+	 */
 	public RestClientDialog(final ConfigurationProperties applicationConfiguration) throws Exception {
 		super(RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.KEYSTORE_FILE);
 
@@ -280,6 +294,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	private static void writeRequestPresets(final JsonObject requestPresetsJsonObject) throws Exception {
+		// The presets file lives in "~/.RestClient/", which does not exist yet on a fresh installation
+		final File presetsDirectory = RestClient.REQUEST_PRESETS_FILE.getParentFile();
+		if (presetsDirectory != null && !presetsDirectory.isDirectory() && !presetsDirectory.mkdirs()) {
+			throw new Exception("Cannot create directory '" + presetsDirectory.getAbsolutePath() + "'");
+		}
+
 		try (JsonWriter writer = new JsonWriter(new FileOutputStream(RestClient.REQUEST_PRESETS_FILE))) {
 			writer.add(requestPresetsJsonObject);
 		}
@@ -369,6 +389,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		return answer != null && answer == 0;
 	}
 
+	/**
+	 * Updates the enabled state of the buttons depending on the current input. Currently there is nothing to update.
+	 */
 	public void checkButtonStatus() {
 		// do nothing
 	}
@@ -381,6 +404,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		dispose();
 	}
 
+	/**
+	 * Stores whether the daily update check is active and schedules the next check for tomorrow.
+	 *
+	 * @param checkboxStatus true to activate the daily update check
+	 */
 	@Override
 	protected void setDailyUpdateCheckStatus(final boolean checkboxStatus) {
 		applicationConfiguration.set(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK, checkboxStatus);
@@ -388,25 +416,53 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		applicationConfiguration.save();
 	}
 
+	/**
+	 * Returns whether the daily update check is active.
+	 *
+	 * @return true if the daily update check is active
+	 */
 	@Override
 	protected Boolean isDailyUpdateCheckActivated() {
 		return applicationConfiguration.getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK);
 	}
 
+	/**
+	 * Checks whether a daily update check should be done now.
+	 *
+	 * @return true if the daily update check is active, due and a network connection is available
+	 */
 	protected boolean dailyUpdateCheckIsPending() {
 		return applicationConfiguration.getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK)
 				&& (applicationConfiguration.getDate(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK) == null || applicationConfiguration.getDate(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK).isBefore(LocalDateTime.now()))
 				&& NetworkUtilities.checkForNetworkConnection();
 	}
 
+	/**
+	 * Shows a text in a resizable dialog.
+	 *
+	 * @param title window title
+	 * @param text text to show
+	 */
 	public void showData(final String title, final String text) {
 		new ShowDataDialog(this, title, text).withResizable(true).open();
 	}
 
+	/**
+	 * Shows a message dialog with an OK button.
+	 *
+	 * @param title window title
+	 * @param text message to show
+	 */
 	public void showMessage(final String title, final String text) {
 		new QuestionDialog(this, title, text, LangResources.get("ok")).open();
 	}
 
+	/**
+	 * Shows an error message dialog (red background) with an OK button.
+	 *
+	 * @param title window title
+	 * @param text error message to show
+	 */
 	public void showErrorMessage(final String title, final String text) {
 		new QuestionDialog(this, title, text, LangResources.get("ok")).setBackgroundColor(SwingColor.LightRed).open();
 	}
@@ -419,8 +475,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				if (requestPresetsJsonObject.size() == 1) {
 					final String presetName = requestPresetsJsonObject.keySet().iterator().next();
-					setRequestPreset((JsonObject) requestPresetsJsonObject.get(presetName));
-					requestPart.setPresetName(presetName);
+					try {
+						setRequestPreset((JsonObject) requestPresetsJsonObject.get(presetName));
+						requestPart.setPresetName(presetName);
+					} catch (@SuppressWarnings("unused") final Exception e) {
+						// A broken (e.g. manually edited) single preset must not prevent the application start,
+						// it is simply not preselected and shows its error once the user selects it explicitly
+						setRequestPreset(null);
+					}
 				}
 			}
 		}
@@ -445,6 +507,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setIdpRealm("");
 			requestPart.setIdpUsername("");
 			requestPart.setIdpPassword(new char[0]);
+			requestPart.setStoreIdpCredentials(false);
 
 			responsePart.setDownloadTarget("");
 			responsePart.setResponseDataPath("");
@@ -533,9 +596,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			final String loadedIdpPassword = (String) jsonObject.getSimpleValue("idpPassword");
 			requestPart.setIdpPassword(loadedIdpPassword == null ? null : loadedIdpPassword.toCharArray());
 
-			if (requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0) {
-				requestPart.setStoreIdpCredentials(true);
-			}
+			// Set in both directions: otherwise the "remember credentials" flag of a previously loaded
+			// preset would stick and its credentials would be written into this preset on the next save
+			requestPart.setStoreIdpCredentials(requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0);
 		}
 
 		checkButtonStatus();
@@ -781,7 +844,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				formBody.append(URLEncoder.encode(formParameterEntry.getValue() != null ? formParameterEntry.getValue() : "", StandardCharsets.UTF_8));
 			}
 			curlCommand.append(" \\\n  --data ").append(shellQuote(formBody.toString()));
-		} else if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+		} else if (Utilities.isNotBlank(requestPart.getRequestBody())
+				&& ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod()))) {
+			// Same rule as executeRequest(): the body text is only sent for POST/PUT. Exporting it for any
+			// other method would make cURL send it anyway and even turn a GET request into a POST (--data).
 			curlCommand.append(" \\\n  --data ").append(shellQuote(requestPart.getRequestBody()));
 		}
 
@@ -880,6 +946,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		if (url == null) {
 			throw new Exception(LangResources.get("curlImportNoUrlFound"));
+		}
+
+		// Checked before any field is changed, so an unsupported method leaves the current request untouched
+		// instead of half-applying the import and silently keeping the previously selected method
+		if (httpMethod != null && !RequestComponent.isSupportedHttpMethod(httpMethod)) {
+			throw new Exception(LangResources.get("unsupportedHttpMethod", httpMethod));
 		}
 
 		String serviceUrl = url;
@@ -1067,7 +1139,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestYamlMapping.add("presetName", requestPart.getPresetName());
 		}
 
-		if (Utilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
+		// "DIRECT" is exported too: an explicit "no proxy" must survive an export/import round trip
+		if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
 			requestYamlMapping.add("proxyUrl", requestPart.getProxyUrl());
 		}
 		if (requestPart.getMaxRedirects() > 0) {
@@ -1306,9 +1379,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPart.setIdpUsername((String) requestYamlMapping.getSimpleValue("idpUsername"));
 		final String loadedIdpPassword = (String) requestYamlMapping.getSimpleValue("idpPassword");
 		requestPart.setIdpPassword(loadedIdpPassword == null ? null : loadedIdpPassword.toCharArray());
-		if (requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0) {
-			requestPart.setStoreIdpCredentials(true);
-		}
+		// Set in both directions, same as in setRequestPreset()
+		requestPart.setStoreIdpCredentials(requestPart.getIdpPassword() != null && requestPart.getIdpPassword().length > 0);
 	}
 
 	/**
@@ -1319,7 +1391,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			return;
 		}
 
-		responsePart.setHttpCode((Integer) responseYamlMapping.getSimpleValue("httpCode"));
+		// Cast via Number, since the YAML reader is not guaranteed to return an Integer for every number value
+		final Object httpCodeObject = responseYamlMapping.getSimpleValue("httpCode");
+		responsePart.setHttpCode(httpCodeObject instanceof Number ? Integer.valueOf(((Number) httpCodeObject).intValue()) : null);
 		responsePart.setIpAddress((String) responseYamlMapping.getSimpleValue("ipAddress"));
 		responsePart.setTime((String) responseYamlMapping.getSimpleValue("time"));
 		responsePart.setDownloadTarget((String) responseYamlMapping.getSimpleValue("downloadTarget"));
@@ -1423,12 +1497,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					responsePart.setRandomParameters(null);
 				}
 			} catch (final Exception e) {
+				// worker.get() wraps the real error in an ExecutionException, which says nothing to the user
+				final Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
 				responsePart.setIpAddress("");
 				responsePart.setHttpCode(null);
 				responsePart.setTime("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
-				responsePart.setResponseBody(e.getClass().getSimpleName() + ":\n" + e.getMessage());
+				responsePart.setResponseBody(cause.getClass().getSimpleName() + ":\n" + cause.getMessage());
 				responsePart.setRedirectInfo(0, null, false);
 
 				if (worker != null && worker.getRandomParameterReplacements() != null && worker.getRandomParameterReplacements().size() > 0) {

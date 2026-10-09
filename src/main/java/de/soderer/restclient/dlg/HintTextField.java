@@ -15,25 +15,45 @@ import javax.swing.UIManager;
  * JTextField showing a gray hint text while it is empty, the Swing counterpart
  * of SWT's Text.setMessage(). The hint is only painted, it is never part of the
  * field's text.
+ *
+ * @serial exclude
  */
 public class HintTextField extends JTextField {
 	private static final long serialVersionUID = 6627102934785196432L;
 
 	private String hint;
 
+	/**
+	 * Creates a text field without hint text.
+	 */
 	public HintTextField() {
 		super();
 	}
 
+	/**
+	 * Creates a text field with a hint text.
+	 *
+	 * @param hint text shown while the field is empty, or null for none
+	 */
 	public HintTextField(final String hint) {
 		super();
 		this.hint = hint;
 	}
 
+	/**
+	 * Returns the hint text.
+	 *
+	 * @return the hint text, or null if none is set
+	 */
 	public String getHint() {
 		return hint;
 	}
 
+	/**
+	 * Sets the hint text shown while the field is empty.
+	 *
+	 * @param hint the hint text, or null for none
+	 */
 	public void setHint(final String hint) {
 		this.hint = hint;
 		repaint();

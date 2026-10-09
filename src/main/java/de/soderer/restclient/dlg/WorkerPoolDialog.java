@@ -20,6 +20,8 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,6 +62,8 @@ import de.soderer.utilities.worker.WorkerSimple;
  * {@link #open()} returns true if all repetitions were done, false if the run
  * was canceled.
  * </p>
+ *
+ * @serial exclude
  */
 public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 1427303826312908133L;
@@ -101,28 +105,55 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private int sortColumn = 0;
 	private boolean ascending = true;
 
+	/** Workers currently executing their task, so a cancellation can abort them (written by the pool threads) */
+	private final Set<WorkerSimple<?>> runningWorkers = ConcurrentHashMap.newKeySet();
+
+	/**
+	 * Creates the dialog. The settings are made via the setters, the workers are started by {@link #open()}.
+	 *
+	 * @param parent parent window
+	 * @param title window title
+	 * @param text description shown above the progress bar (may contain a "RampUp...:" line, which is replaced by a countdown)
+	 */
 	public WorkerPoolDialog(final Window parent, final String title, final String text) {
 		super(parent, title);
 
 		this.text = text;
 	}
 
+	/**
+	 * Sets the number of workers running in parallel.
+	 *
+	 * @param workerCount number of parallel workers
+	 */
 	public void setParallelWorkerAmount(final int workerCount) {
 		this.workerCount = workerCount;
 	}
 
 	/**
-	 * @param tasksPerWorker number of repetitions per worker, or -1 to repeat until
-	 *                       canceled
+	 * Sets the number of task runs per worker.
+	 *
+	 * @param tasksPerWorker number of repetitions per worker, or -1 to repeat until canceled
 	 */
 	public void setRepetitionsPerWorker(final int tasksPerWorker) {
 		this.tasksPerWorker = tasksPerWorker;
 	}
 
+	/**
+	 * Sets the pause between two task runs of a worker.
+	 *
+	 * @param sleepTime pause duration, or null for no pause
+	 */
 	public void setSleepTime(final Duration sleepTime) {
 		this.sleepTime = sleepTime;
 	}
 
+	/**
+	 * Sets the ramp-up time: task runs started within this time after the start of the pool are shown
+	 * as latest result, but not counted in the statistics.
+	 *
+	 * @param rampUpTime ramp-up duration, or null for none
+	 */
 	public void setRampUpTime(final Duration rampUpTime) {
 		this.rampUpTime = rampUpTime;
 	}
@@ -130,6 +161,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	/**
 	 * Creates the components and starts the workers, since both depend on the
 	 * settings made after construction.
+	 *
+	 * @return true if all repetitions were done, false if the run was canceled
 	 */
 	@Override
 	public Boolean open() {
@@ -263,7 +296,14 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	}
 
 	private void initWorkers() {
-		executor = Executors.newFixedThreadPool(workerCount);
+		// Daemon threads: a worker thread still hanging (e.g. in a connect without timeout) must never keep
+		// the JVM alive after the application window was closed
+		final AtomicInteger threadNumber = new AtomicInteger(0);
+		executor = Executors.newFixedThreadPool(workerCount, runnable -> {
+			final Thread thread = new Thread(runnable, "WorkerPool-" + threadNumber.incrementAndGet());
+			thread.setDaemon(true);
+			return thread;
+		});
 
 		for (int i = 0; i < workerCount; i++) {
 			workerStatsList.add(new WorkerStats(i + 1));
@@ -284,19 +324,50 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	}
 
 	private void runWorker(final WorkerStats workerStats) {
-		for (int j = 0; (tasksPerWorker == -1 || j < tasksPerWorker) && !cancelled; j++) {
-			final WorkerSimple<?> worker = createWorker();
+		try {
+			runWorkerLoop(workerStats);
+		} finally {
+			// Always signal the end, even if a worker run failed unexpectedly
+			SwingUtilities.invokeLater(this::checkFinished);
+		}
+	}
 
+	private void runWorkerLoop(final WorkerStats workerStats) {
+		for (int j = 0; (tasksPerWorker == -1 || j < tasksPerWorker) && !cancelled; j++) {
 			final LocalDateTime start = LocalDateTime.now();
 			final boolean countInStatistics = rampUpTime == null || !poolStart.plus(rampUpTime).isAfter(start);
+			WorkerSimple<?> worker = null;
+			boolean success;
 			try {
-				final Object workerResult = worker.work();
-				if (checkForSuccess(workerResult)) {
-					workerStats.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
-				} else {
-					workerStats.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
+				// Created inside the try block: a failing creation (e.g. an invalid random parameter placeholder)
+				// must count as an error run. Otherwise the exception ended this pool thread silently (swallowed
+				// by the executor's Future), the progress never reached the total and the dialog never finished.
+				worker = createWorker();
+
+				// Registered, so cancelExecution() can abort the running request (a thread interrupt does not
+				// reach a socket blocked in a read). Checked again afterwards, because cancelExecution() may have
+				// run between the loop condition and the registration and would then have missed this worker.
+				runningWorkers.add(worker);
+				if (cancelled) {
+					worker.cancel();
+					break;
 				}
+
+				success = checkForSuccess(worker.work());
 			} catch (@SuppressWarnings("unused") final Exception e) {
+				success = false;
+			} finally {
+				if (worker != null) {
+					runningWorkers.remove(worker);
+				}
+			}
+
+			if (cancelled) {
+				// A run aborted by the cancellation is neither a success nor a real error of the tested service
+				break;
+			} else if (success) {
+				workerStats.addSuccess(Duration.between(start, LocalDateTime.now()), countInStatistics);
+			} else {
 				workerStats.addError(Duration.between(start, LocalDateTime.now()), countInStatistics);
 			}
 
@@ -312,7 +383,6 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 				}
 			}
 		}
-		SwingUtilities.invokeLater(this::checkFinished);
 	}
 
 	/**
@@ -340,7 +410,9 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		}
 
 		final long totalSeconds = rampUpTime.getSeconds();
-		final Pattern rampUpPattern = Pattern.compile("RampUp:\\s*\\S+");
+		// Matches the whole ramp-up line of the localized text: "RampUp: 10s" (de) as well as "RampUp time: 10s" (en),
+		// and also durations containing blanks (e.g. "1m 30s"), which "\S+" would only have replaced partially
+		final Pattern rampUpPattern = Pattern.compile("RampUp[^:\\n]*:[^\\n]*");
 
 		rampUpTimer = new Timer(1000, null);
 		rampUpTimer.setInitialDelay(0);
@@ -424,6 +496,15 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 	private void cancelExecution() {
 		cancelled = true;
+		// Aborts the requests still running (for HTTP workers: HttpRequest.cancel() disconnects the connection).
+		// executor.shutdownNow() alone only interrupts the threads, which does not end a blocking socket read.
+		for (final WorkerSimple<?> worker : runningWorkers) {
+			try {
+				worker.cancel();
+			} catch (@SuppressWarnings("unused") final Exception e) {
+				// Cancel the remaining workers anyway
+			}
+		}
 		if (executor != null) {
 			executor.shutdownNow();
 		}
@@ -465,11 +546,17 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		}
 	}
 
+	/**
+	 * Returns the statistics of all workers as CSV text (semicolon separated, with header line).
+	 *
+	 * @return the CSV text
+	 */
 	public String getResultsCSV() {
 		final StringBuilder result = new StringBuilder();
 		result.append(CSV_HEADER).append("\n");
 		for (final WorkerStats workerStats : workerStatsList) {
-			result.append(String.format("%d;%d;%d;%s;%s;%s;%s;%s%n",
+			// "\n" like the header line ("%n" would mix in "\r\n" on Windows)
+			result.append(String.format("%d;%d;%d;%s;%s;%s;%s;%s\n",
 					workerStats.getWorkerId(),
 					workerStats.getSuccessCount(),
 					workerStats.getErrorCount(),
@@ -544,7 +631,18 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		}
 	}
 
+	/**
+	 * Creates the worker for one task run. Called once per run from the pool threads.
+	 *
+	 * @return a new worker
+	 */
 	protected abstract WorkerSimple<?> createWorker();
 
+	/**
+	 * Decides whether a task run was successful.
+	 *
+	 * @param workerResult result returned by the worker
+	 * @return true if the run counts as success
+	 */
 	protected abstract boolean checkForSuccess(Object workerResult);
 }

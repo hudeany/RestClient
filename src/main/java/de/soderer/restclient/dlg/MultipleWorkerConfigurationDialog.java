@@ -21,6 +21,12 @@ import de.soderer.utilities.swing.DropDown;
 import de.soderer.utilities.swing.DropDown.MatchMode;
 import de.soderer.utilities.swing.ModalDialog;
 
+/**
+ * Dialog for the settings of the worker pool load test: number of parallel workers, repetitions per
+ * worker, pause between runs and ramp-up time. {@link #open()} returns true if the user clicked "Start".
+ *
+ * @serial exclude
+ */
 public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = -4906380342127559617L;
 
@@ -32,6 +38,12 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 	private int pauseSeconds;
 	private int rampUpSeconds;
 
+	/**
+	 * Creates the dialog.
+	 *
+	 * @param parent parent window
+	 * @param title window title
+	 */
 	public MultipleWorkerConfigurationDialog(final Window parent, final String title) {
 		super(parent, title);
 
@@ -133,18 +145,38 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 		panel.add(field, constraints);
 	}
 
+	/**
+	 * Returns the chosen number of parallel workers.
+	 *
+	 * @return the number of workers
+	 */
 	public int getWorkerCount() {
 		return workerCount;
 	}
 
+	/**
+	 * Returns the chosen number of repetitions per worker.
+	 *
+	 * @return a positive number as text, or {@link #UNLIMITED_REPETITIONS} to repeat until canceled
+	 */
 	public String getRepetitions() {
 		return repetitions;
 	}
 
+	/**
+	 * Returns the chosen pause between two runs of a worker.
+	 *
+	 * @return the pause in seconds
+	 */
 	public int getPauseSeconds() {
 		return pauseSeconds;
 	}
 
+	/**
+	 * Returns the chosen ramp-up time.
+	 *
+	 * @return the ramp-up time in seconds
+	 */
 	public int getRampUpSeconds() {
 		return rampUpSeconds;
 	}

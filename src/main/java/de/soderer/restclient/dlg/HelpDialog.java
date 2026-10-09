@@ -20,6 +20,11 @@ import de.soderer.utilities.appupdate.ApplicationUpdateUtilities;
 import de.soderer.utilities.swing.ModalDialog;
 import de.soderer.utilities.swing.ShowDataDialog;
 
+/**
+ * Help dialog of the GUI with buttons for the version info, the manual and the update check.
+ *
+ * @serial exclude
+ */
 public class HelpDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 2894531603447213845L;
 
@@ -32,6 +37,13 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	private final RestClientDialog applicationDialog;
 	private final ConfigurationProperties applicationConfiguration;
 
+	/**
+	 * Creates the dialog.
+	 *
+	 * @param applicationDialog main window, parent of this dialog and of the update process
+	 * @param title window title
+	 * @param applicationConfiguration application configuration, used for the proxy settings of the update check
+	 */
 	public HelpDialog(final RestClientDialog applicationDialog, final String title, final ConfigurationProperties applicationConfiguration) {
 		super(applicationDialog, title);
 

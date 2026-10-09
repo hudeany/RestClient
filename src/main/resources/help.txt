@@ -6,7 +6,8 @@ Usage:
 	java -jar RestClient.jar --request-file <path> [options...]
 	java -jar RestClient.jar --list-presets
 
-Global standalone parameters
+Global standalone parameters (only valid on their own, not combined with any request parameters;
+"update" may only be followed by its optional username and password)
 	help: Show this help manual
 	version: Show current local version of this tool
 	update: Check for online update and ask, whether an available update shell be installed. [username [password]]
@@ -21,7 +22,7 @@ Request parameters
 	fields can still be changed afterwards.
 
 	--url <url>                      Full request URL (required unless --preset is used)
-	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS, TRACE, CONNECT (default: GET)
+	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, OPTIONS, TRACE (default: GET)
 	--header <name: value>           Adds an HTTP request header. Repeatable.
 	--url-param <name=value>         Adds a URL (query string) parameter. Repeatable.
 	--form-param <name=value>        Adds an HTML form (application/x-www-form-urlencoded) parameter. Repeatable.
