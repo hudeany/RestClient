@@ -49,9 +49,9 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 
 import de.soderer.restclient.worker.WorkerStats;
+import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.swing.ModalDialog;
 import de.soderer.utilities.worker.WorkerSimple;
 
 /**

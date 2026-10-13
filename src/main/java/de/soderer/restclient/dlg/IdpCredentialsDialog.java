@@ -22,10 +22,10 @@ import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swing.ModalDialog;
 
 /**
  * Dialog for the IdP (identity provider) settings and client credentials used to fetch an OAuth2

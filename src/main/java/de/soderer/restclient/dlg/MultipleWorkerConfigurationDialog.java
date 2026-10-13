@@ -16,10 +16,10 @@ import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
+import de.soderer.swing.DropDown;
+import de.soderer.swing.DropDown.MatchMode;
+import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.swing.DropDown;
-import de.soderer.utilities.swing.DropDown.MatchMode;
-import de.soderer.utilities.swing.ModalDialog;
 
 /**
  * Dialog for the settings of the worker pool load test: number of parallel workers, repetitions per

@@ -22,11 +22,11 @@ import javax.swing.event.DocumentListener;
 
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
+import de.soderer.swing.DropDown;
+import de.soderer.swing.DropDown.MatchMode;
+import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
-import de.soderer.utilities.swing.DropDown;
-import de.soderer.utilities.swing.DropDown.MatchMode;
-import de.soderer.utilities.swing.ModalDialog;
 
 /**
  * Dialog for the TLS server certificate check of a request: check type, truststore or certificate file,
