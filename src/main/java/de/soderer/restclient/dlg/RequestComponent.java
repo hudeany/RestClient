@@ -2,6 +2,7 @@ package de.soderer.restclient.dlg;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -10,6 +11,7 @@ import java.awt.Window;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -78,6 +80,7 @@ import de.soderer.yaml.YamlToJsonConverter;
  * Also offers helpers to add authorization headers (basic auth, bearer token, IdP token), a Content-Type
  * or other standard headers, and to fill the request from an OpenAPI document. Selecting HTML form
  * parameters automatically adds a matching Content-Type header and disables the request body.
+ * For WPAD and PAC file proxy settings the proxy determined for the current request URL can be shown.
  * </p>
  *
  * @serial exclude
@@ -114,6 +117,7 @@ public class RequestComponent extends JPanel {
 	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private JCheckBox followRedirectsButton;
 	private JSpinner maxRedirectHopsSpinner;
+	private JButton showProxyButton;
 	private JTextArea requestBodyText;
 
 	private String idpUrl = null;
@@ -146,6 +150,7 @@ public class RequestComponent extends JPanel {
 		createOuterScrollArea();
 
 		checkRequestContentStatus();
+		updateShowProxyButtonState();
 	}
 
 	private Window getWindow() {
@@ -255,7 +260,7 @@ public class RequestComponent extends JPanel {
 	/**
 	 * Returns the proxy setting.
 	 *
-	 * @return "DIRECT", "WPAD", a proxy URL like "proxy.example.com:8080", or empty for the default
+	 * @return "DIRECT", "WPAD", a PAC file, a proxy URL like "proxy.example.com:8080", or empty for the default
 	 */
 	public String getProxyUrl() {
 		return proxyUrlCombo.getText();
@@ -486,12 +491,13 @@ public class RequestComponent extends JPanel {
 	}
 
 	/**
-	 * Sets the proxy setting.
+	 * Sets the proxy setting and enables the "show proxy" button for WPAD and PAC file settings.
 	 *
-	 * @param value "DIRECT", "WPAD", a proxy URL, or null/empty for the default
+	 * @param value "DIRECT", "WPAD", a PAC file, a proxy URL, or null/empty for the default
 	 */
 	public void setProxyUrl(final String value) {
 		proxyUrlCombo.setText(value != null ? value : "");
+		updateShowProxyButtonState();
 	}
 
 	/**
@@ -647,6 +653,9 @@ public class RequestComponent extends JPanel {
 				.withMatchMode(MatchMode.STARTS_WITH)
 				.withAllowCustomValues(true)
 				.withMessage(LangResources.get("proxyUrlHint"));
+		// Enable the "show proxy" button only for WPAD / PAC file proxy settings
+		proxyUrlCombo.addActionListener(event -> updateShowProxyButtonState());
+		proxyUrlCombo.addValidationListener(valid -> updateShowProxyButtonState());
 
 		openApiButton = new JButton("OpenAPI");
 		openApiButton.setEnabled(false);
@@ -665,6 +674,14 @@ public class RequestComponent extends JPanel {
 		// Disabled until "Follow redirects" is checked, since the hop count is meaningless otherwise
 		maxRedirectHopsSpinner.setEnabled(false);
 		redirectsRow.add(maxRedirectHopsSpinner, redirectsConstraints);
+
+		// Shows the proxy determined via WPAD or PAC file for the current request URL
+		showProxyButton = new JButton(LangResources.get("showProxy"));
+		showProxyButton.setToolTipText(LangResources.get("showProxyTooltip"));
+		showProxyButton.setEnabled(false);
+		showProxyButton.addActionListener(event -> showDeterminedProxy());
+		redirectsRow.add(showProxyButton, redirectsConstraints);
+
 		redirectsConstraints.weightx = 1;
 		redirectsRow.add(Box.createGlue(), redirectsConstraints);
 		addContentRow(redirectsRow, 0);
@@ -945,6 +962,102 @@ public class RequestComponent extends JPanel {
 			}
 		} catch (final Exception e) {
 			showError(LangResources.get("fetchIdpToken"), e.getMessage());
+		}
+	}
+
+	/**
+	 * Checks whether a proxy setting refers to a PAC file (URL or local file path).
+	 *
+	 * @param proxySetting the proxy setting from the proxy dropdown, may be null
+	 * @return true if the setting is a PAC file
+	 */
+	private static boolean isPacFileProxySetting(final String proxySetting) {
+		if (!Utilities.isNotBlank(proxySetting)) {
+			return false;
+		}
+		final String trimmed = proxySetting.trim();
+		return trimmed.toLowerCase(Locale.ROOT).endsWith(".pac") || new File(trimmed).isFile();
+	}
+
+	/**
+	 * Checks whether a proxy setting is the "WPAD" special value.
+	 *
+	 * @param proxySetting the proxy setting from the proxy dropdown, may be null
+	 * @return true if the setting is "WPAD"
+	 */
+	private static boolean isWpadProxySetting(final String proxySetting) {
+		return proxySetting != null && "WPAD".equalsIgnoreCase(proxySetting.trim());
+	}
+
+	private void updateShowProxyButtonState() {
+		if (showProxyButton != null && proxyUrlCombo != null) {
+			final String proxySetting = getProxyUrl();
+			showProxyButton.setEnabled(isWpadProxySetting(proxySetting) || isPacFileProxySetting(proxySetting));
+		}
+	}
+
+	/**
+	 * Builds the full request URL from service URL and service method (without URL parameters).
+	 */
+	private String getRequestTargetUrl() {
+		final String serviceUrl = getServiceUrl() == null ? "" : getServiceUrl().trim();
+		final String serviceMethod = getServiceMethod();
+		if (serviceMethod.isEmpty()) {
+			return serviceUrl;
+		} else if (serviceUrl.endsWith("/")) {
+			return serviceUrl + serviceMethod;
+		} else {
+			return serviceUrl + "/" + serviceMethod;
+		}
+	}
+
+	/**
+	 * Determines the proxy used for the current request URL via WPAD or PAC file and shows it in a dialog.
+	 */
+	private void showDeterminedProxy() {
+		final String proxySetting = getProxyUrl() == null ? "" : getProxyUrl().trim();
+
+		final ProxyConfiguration proxyConfiguration;
+		if (isWpadProxySetting(proxySetting)) {
+			proxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.WPAD);
+		} else if (isPacFileProxySetting(proxySetting)) {
+			proxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.PACURL, proxySetting);
+		} else {
+			// Text may have been typed without confirming, so the button state can be outdated
+			showError(LangResources.get("showProxy"), LangResources.get("noPacOrWpadProxy"));
+			return;
+		}
+
+		final String targetUrl = getRequestTargetUrl();
+		if (!Utilities.isNotBlank(targetUrl)) {
+			showError(LangResources.get("showProxy"), LangResources.get("serviceUrlMissing"));
+			return;
+		}
+
+		final Window window = getWindow();
+		if (window != null) {
+			window.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		}
+		try {
+			// May block for a moment (WPAD discovery, PAC download/evaluation)
+			final Proxy proxy = proxyConfiguration.getProxy(targetUrl);
+			final String proxyText;
+			if (proxy == null || proxy.type() == Proxy.Type.DIRECT || proxy.address() == null) {
+				proxyText = "DIRECT";
+			} else if (proxy.address() instanceof InetSocketAddress) {
+				final InetSocketAddress address = (InetSocketAddress) proxy.address();
+				// getHostString() avoids a reverse DNS lookup and the "host/ip" format of toString()
+				proxyText = proxy.type() + " " + address.getHostString() + ":" + address.getPort();
+			} else {
+				proxyText = proxy.type() + " " + proxy.address();
+			}
+			new QuestionDialog(window, RestClient.APPLICATION_NAME, LangResources.get("determinedProxy", targetUrl, proxyText), LangResources.get("ok")).open();
+		} catch (final Exception e) {
+			showError(LangResources.get("showProxy"), e.getMessage());
+		} finally {
+			if (window != null) {
+				window.setCursor(Cursor.getDefaultCursor());
+			}
 		}
 	}
 
