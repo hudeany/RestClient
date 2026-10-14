@@ -1051,7 +1051,20 @@ public class RequestComponent extends JPanel {
 			} else {
 				proxyText = proxy.type() + " " + proxy.address();
 			}
-			new QuestionDialog(window, RestClient.APPLICATION_NAME, LangResources.get("determinedProxy", targetUrl, proxyText), LangResources.get("ok")).open();
+
+			// PAC file / URL the proxy was determined with
+			String pacSource;
+			if (isWpadProxySetting(proxySetting)) {
+				// Found by WPAD discovery, so only known after getProxy() has run
+				pacSource = proxyConfiguration.getProxyOrPacUrl();
+			} else {
+				pacSource = proxySetting;
+			}
+			if (!Utilities.isNotBlank(pacSource)) {
+				pacSource = LangResources.get("pacFileUnknown");
+			}
+
+			new QuestionDialog(window, RestClient.APPLICATION_NAME, LangResources.get("determinedProxyWithPacFile", targetUrl, proxyText, pacSource), LangResources.get("ok")).open();
 		} catch (final Exception e) {
 			showError(LangResources.get("showProxy"), e.getMessage());
 		} finally {
