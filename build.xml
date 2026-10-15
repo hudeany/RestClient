@@ -138,7 +138,7 @@
 	</target>
 
 	<target name="create_jar" depends="create_versionfile, compile">
-		<jar destfile="${buildPath}/RestClient.jar">
+		<jar destfile="${buildPath}/RestClient-${build.version}.jar">
 			<manifest>
 				<attribute name="Main-Class" value="de.soderer.RestClient" />
 				<attribute name="Rsrc-Main-Class" value="de.soderer.restclient.RestClient" />
@@ -156,11 +156,9 @@
 	<target name="sign_jar" depends="create_versionfile, compile, create_jar" if="codeSigningPropertiesAvailable">
 		<signjar destDir="${buildPath}" alias="${CodeSigningKeyAlias}" keystore="${CodeSigningKeyStore}" storepass="${CodeSigningKeyStorePassword}" keypass="${CodeSigningKeyPassword}" preservelastmodified="true" tsaurl="${TsaUrl}">
 			<path>
-				<fileset dir="${buildPath}" includes="RestClient.jar" />
+				<fileset dir="${buildPath}" includes="RestClient-${build.version}.jar" />
 			</path>
 		</signjar>
-
-		<copy file="${buildPath}/RestClient.jar" tofile="${buildPath}/RestClient-${build.version}.jar" />
 	</target>
 
 	<target name="cleanup_after">
