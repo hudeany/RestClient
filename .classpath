@@ -12,9 +12,9 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/soderer-utilities-26.2.105.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-console-26.0.2.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-console-26.0.4.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-swing-26.0.2.jar"/>
-	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.3.jar"/>
+	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.5.jar"/>
 	<classpathentry kind="lib" path="lib/network-26.0.37.jar" sourcepath="lib/network-26.0.37-sources.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
