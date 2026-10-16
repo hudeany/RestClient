@@ -1101,7 +1101,7 @@ public class RequestComponent extends JPanel {
 	}
 
 	private void showError(final String title, final String message) {
-		new QuestionDialog(getWindow(), title, message, LangResources.get("ok")).setBackgroundColor(SwingColor.LightRed).open();
+		new QuestionDialog(getWindow(), title, message, LangResources.get("ok")).withBackgroundColor(SwingColor.LightRed).open();
 	}
 
 	private void createPresetNameSection() {

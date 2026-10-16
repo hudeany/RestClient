@@ -464,7 +464,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * @param text error message to show
 	 */
 	public void showErrorMessage(final String title, final String text) {
-		new QuestionDialog(this, title, text, LangResources.get("ok")).setBackgroundColor(SwingColor.LightRed).open();
+		new QuestionDialog(this, title, text, LangResources.get("ok")).withBackgroundColor(SwingColor.LightRed).open();
 	}
 
 	private void loadPresets() throws Exception {
