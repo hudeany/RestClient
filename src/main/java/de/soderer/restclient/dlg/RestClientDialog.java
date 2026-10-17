@@ -41,6 +41,7 @@ import javax.swing.WindowConstants;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import de.soderer.applicationbase.ApplicationConfigurationDialog;
+import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.applicationbase.UpdateableGuiApplication;
 import de.soderer.json.JsonArray;
@@ -66,7 +67,6 @@ import de.soderer.swing.ProgressDialog;
 import de.soderer.swing.QuestionDialog;
 import de.soderer.swing.ShowDataDialog;
 import de.soderer.swing.SwingColor;
-import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
@@ -100,7 +100,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 	private JButton exportRequestResponseButton;
 
-	private final ConfigurationProperties applicationConfiguration;
+	private final ApplicationConfigurationProperties applicationConfiguration;
 
 	/**
 	 * Creates the main window and loads the request presets.
@@ -108,7 +108,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * @param applicationConfiguration application configuration, e.g. for the proxy URL presets and the daily update check
 	 * @throws Exception if the window cannot be created, e.g. because of missing image resources or unreadable request presets
 	 */
-	public RestClientDialog(final ConfigurationProperties applicationConfiguration) throws Exception {
+	public RestClientDialog(final ApplicationConfigurationProperties applicationConfiguration) throws Exception {
 		super(RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.KEYSTORE_FILE);
 
 		this.applicationConfiguration = applicationConfiguration;
@@ -411,8 +411,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 */
 	@Override
 	protected void setDailyUpdateCheckStatus(final boolean checkboxStatus) {
-		applicationConfiguration.set(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK, checkboxStatus);
-		applicationConfiguration.set(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK, LocalDateTime.now().plusDays(1));
+		applicationConfiguration.set(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK, checkboxStatus);
+		applicationConfiguration.set(ApplicationConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK, LocalDateTime.now().plusDays(1));
 		applicationConfiguration.save();
 	}
 
@@ -423,7 +423,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 */
 	@Override
 	protected Boolean isDailyUpdateCheckActivated() {
-		return applicationConfiguration.getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK);
+		return applicationConfiguration.getBoolean(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK);
 	}
 
 	/**
@@ -432,8 +432,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * @return true if the daily update check is active, due and a network connection is available
 	 */
 	protected boolean dailyUpdateCheckIsPending() {
-		return applicationConfiguration.getBoolean(ConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK)
-				&& (applicationConfiguration.getDate(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK) == null || applicationConfiguration.getDate(ConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK).isBefore(LocalDateTime.now()))
+		return applicationConfiguration.getBoolean(ApplicationConfigurationProperties.CONFIG_KEY_DAILY_UPDATE_CHECK)
+				&& (applicationConfiguration.getDate(ApplicationConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK) == null || applicationConfiguration.getDate(ApplicationConfigurationProperties.CONFIG_KEY_NEXT_DAILY_UPDATE_CHECK).isBefore(LocalDateTime.now()))
 				&& NetworkUtilities.checkForNetworkConnection();
 	}
 

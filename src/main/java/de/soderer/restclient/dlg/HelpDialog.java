@@ -10,11 +10,11 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 
+import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.restclient.RestClient;
 import de.soderer.swing.ModalDialog;
 import de.soderer.swing.ShowDataDialog;
-import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Utilities;
@@ -35,7 +35,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	private static final int TITLE_BAR_PADDING = 120;
 
 	private final RestClientDialog applicationDialog;
-	private final ConfigurationProperties applicationConfiguration;
+	private final ApplicationConfigurationProperties applicationConfiguration;
 
 	/**
 	 * Creates the dialog.
@@ -44,7 +44,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	 * @param title window title
 	 * @param applicationConfiguration application configuration, used for the proxy settings of the update check
 	 */
-	public HelpDialog(final RestClientDialog applicationDialog, final String title, final ConfigurationProperties applicationConfiguration) {
+	public HelpDialog(final RestClientDialog applicationDialog, final String title, final ApplicationConfigurationProperties applicationConfiguration) {
 		super(applicationDialog, title);
 
 		this.applicationDialog = applicationDialog;

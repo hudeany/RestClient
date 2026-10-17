@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.applicationbase.UpdateableConsoleApplication;
 import de.soderer.console.ConsoleType;
@@ -197,9 +198,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			return 1;
 		}
 
-		ConfigurationProperties applicationConfiguration;
+		ApplicationConfigurationProperties applicationConfiguration;
 		try {
-			applicationConfiguration = new ConfigurationProperties(RestClient.APPLICATION_NAME, true);
+			applicationConfiguration = new ApplicationConfigurationProperties(RestClient.APPLICATION_NAME, true);
 			RestClient.setupDefaultConfig(applicationConfiguration);
 			if ("de".equalsIgnoreCase(applicationConfiguration.get(ConfigurationProperties.CONFIG_KEY_LANGUAGE))) {
 				Locale.setDefault(Locale.GERMAN);
@@ -393,7 +394,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				de.soderer.swing.SwingUtilities.setAwtWmClass(APPLICATION_STARTUPCLASS_NAME);
 				de.soderer.swing.SwingUtilities.setSystemLookAndFeel();
 
-				final ConfigurationProperties guiApplicationConfiguration = applicationConfiguration;
+				final ApplicationConfigurationProperties guiApplicationConfiguration = applicationConfiguration;
 				final int[] guiReturnCode = new int[] { -1 };
 				javax.swing.SwingUtilities.invokeAndWait(() -> {
 					try {
