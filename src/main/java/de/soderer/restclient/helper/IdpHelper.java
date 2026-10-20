@@ -92,7 +92,7 @@ public class IdpHelper {
 	 * @throws Exception
 	 *             if the IdP host is unknown, the token request fails or its response is no valid JSON
 	 */
-	public static String aquireAccessToken(final String idpTokenEndpointUrl, final String clientID, final String clientSecret, final String scope, final ProxyConfiguration proxyConfiguration) throws Exception {
+	public static String acquireAccessToken(final String idpTokenEndpointUrl, final String clientID, final String clientSecret, final String scope, final ProxyConfiguration proxyConfiguration) throws Exception {
 		try {
 			final HttpRequest request = new HttpRequest(HttpMethod.POST, idpTokenEndpointUrl);
 			request.addHeader(HttpConstants.HTTPHEADERNAME_CONTENTTYPE, HttpContentType.HtmlForm.getStringRepresentation());
@@ -114,7 +114,7 @@ public class IdpHelper {
 				return (String) ((JsonObject) contentJson).getSimpleValue("access_token");
 			} else {
 				// No System.out output here: in CLI mode stdout carries the actual response output
-				throw new Exception("aquireAccessToken failed with HTTP code " + response.getHttpCode() + ": " + response.getContent());
+				throw new Exception("acquireAccessToken failed with HTTP code " + response.getHttpCode() + ": " + response.getContent());
 			}
 		} catch (final UnknownHostException e) {
 			throw new Exception("UnknownHost: '" + e.getMessage() + "'", e);

@@ -943,10 +943,10 @@ public class RequestComponent extends JPanel {
 
 				final String idpToken;
 				if (tempIdpUrl.endsWith("/token")) {
-					idpToken = IdpHelper.aquireAccessToken(tempIdpUrl, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
+					idpToken = IdpHelper.acquireAccessToken(tempIdpUrl, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
 				} else {
 					final String idpTokenEndpointURL = IdpHelper.getIdpTokenEdpointUrl(tempIdpUrl, tempIdpRealm, idpProxyConfiguration);
-					idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointURL, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
+					idpToken = IdpHelper.acquireAccessToken(idpTokenEndpointURL, tempIdpUsername, tempIdpPassword, null, idpProxyConfiguration);
 				}
 
 				if (idpToken != null) {

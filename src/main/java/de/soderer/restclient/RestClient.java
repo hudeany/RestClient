@@ -671,10 +671,10 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					final ProxyConfiguration idpProxyConfiguration = buildIdpProxyConfiguration(proxyUrl);
 					final String idpToken;
 					if (idpUrl != null && idpUrl.endsWith("/token")) {
-						idpToken = IdpHelper.aquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+						idpToken = IdpHelper.acquireAccessToken(idpUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
 					} else {
 						final String idpTokenEndpointUrl = IdpHelper.getIdpTokenEdpointUrl(idpUrl, idpRealm, idpProxyConfiguration);
-						idpToken = IdpHelper.aquireAccessToken(idpTokenEndpointUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
+						idpToken = IdpHelper.acquireAccessToken(idpTokenEndpointUrl, idpUsername, idpPassword, null, idpProxyConfiguration);
 					}
 					if (idpToken != null) {
 						httpHeaders.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + idpToken);
