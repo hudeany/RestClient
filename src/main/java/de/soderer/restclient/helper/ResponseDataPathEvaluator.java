@@ -31,7 +31,7 @@ import de.soderer.json.path.JsonPathElement;
 import de.soderer.json.path.JsonPathPropertyElement;
 import de.soderer.json.path.JsonPathRoot;
 import de.soderer.network.HttpContentType;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.yaml.YamlWriter;
 import de.soderer.yaml.data.YamlMapping;
 import de.soderer.yaml.data.YamlNode;
@@ -88,7 +88,7 @@ public class ResponseDataPathEvaluator {
 	 * @throws Exception if the path is invalid or does not exist in the content
 	 */
 	public static String evaluateJsonPath(final JsonNode jsonRootNode, final String dataPath) throws Exception {
-		if (Utilities.isBlank(dataPath)) {
+		if (StringUtilities.isBlank(dataPath)) {
 			return JsonWriter.getJsonItemString(jsonRootNode);
 		}
 

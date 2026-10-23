@@ -12,7 +12,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 
 /**
  * Resolves random parameter placeholders in REST client requests.
@@ -85,7 +85,7 @@ public class RandomParameterResolver {
 			final String param = matcher.group(3); // optional: may be null
 
 			final String cacheKey;
-			if (Utilities.isNotBlank(slot)) {
+			if (StringUtilities.isNotBlank(slot)) {
 				cacheKey = type + ":" + slot;
 			} else {
 				final int index = typeCounter.getOrDefault(type, 0);
@@ -104,7 +104,7 @@ public class RandomParameterResolver {
 
 			final String foundText = matcher.group();
 			final List<String> replacementsList = replacementsForDisplay.computeIfAbsent(foundText, k -> new ArrayList<>());
-			if (replacementsList.isEmpty() || Utilities.isBlank(slot)) {
+			if (replacementsList.isEmpty() || StringUtilities.isBlank(slot)) {
 				replacementsList.add(value);
 			}
 		}

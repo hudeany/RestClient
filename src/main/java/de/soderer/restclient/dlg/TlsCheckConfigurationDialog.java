@@ -26,7 +26,7 @@ import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
 import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 
 /**
  * Dialog for the TLS server certificate check of a request: check type, truststore or certificate file,
@@ -214,7 +214,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 
 		fileBrowseButton.addActionListener(event -> {
 			final JFileChooser fileChooser = new JFileChooser();
-			if (Utilities.isNotBlank(fileText.getText())) {
+			if (StringUtilities.isNotBlank(fileText.getText())) {
 				fileChooser.setSelectedFile(new File(fileText.getText()));
 			}
 			final boolean saveMode = selectedType == TlsCheckConfigurationType.RecordingSingleCertificate;
@@ -269,7 +269,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	}
 
 	private void fileTextChanged() {
-		if (Utilities.isBlank(fileText.getText())) {
+		if (StringUtilities.isBlank(fileText.getText())) {
 			selectedFile = null;
 		} else {
 			selectedFile = new File(fileText.getText());
@@ -298,9 +298,9 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		if (!selectedType.isFilePathSupported()) {
 			enabled = true;
 		} else if (selectedType == TlsCheckConfigurationType.SingleCertificate) {
-			enabled = Utilities.isNotEmpty(fileText.getText()) && new File(fileText.getText()).exists();
+			enabled = StringUtilities.isNotEmpty(fileText.getText()) && new File(fileText.getText()).exists();
 		} else {
-			enabled = Utilities.isNotEmpty(fileText.getText());
+			enabled = StringUtilities.isNotEmpty(fileText.getText());
 		}
 
 		okButton.setEnabled(enabled);

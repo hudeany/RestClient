@@ -36,6 +36,7 @@ import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
 import de.soderer.restclient.helper.ResponseDataPathEvaluator;
 import de.soderer.utilities.LangResources;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
 import de.soderer.yaml.YamlReader;
@@ -189,7 +190,7 @@ public class ResponseComponent extends JPanel {
 			} catch (final Exception e) {
 				displayText = "RestClient JsonParserError: \n" + e.getMessage() + "\n\n" + body;
 			}
-		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
+		} else if (body != null && StringUtilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
 			try {
 				final YamlDocument yamlDocument = YamlReader.readDocument(body);
 				final YamlNode yamlDataNode = ResponseDataPathEvaluator.getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(dataPath));
@@ -197,7 +198,7 @@ public class ResponseComponent extends JPanel {
 			} catch (final Exception e) {
 				displayText = "RestClient YamlParserError: \n" + e.getMessage() + "\n\n" + body;
 			}
-		} else if (body != null && Utilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
+		} else if (body != null && StringUtilities.isNotBlank(dataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
 			try {
 				displayText = ResponseDataPathEvaluator.evaluateXPath(body, dataPath);
 			} catch (final Exception e) {
@@ -234,7 +235,7 @@ public class ResponseComponent extends JPanel {
 	 * @return the status code, or null if none is shown
 	 */
 	public Integer getHttpCode() {
-		return Utilities.isNotBlank(httpCodeText.getText()) ? Integer.parseInt(httpCodeText.getText()) : null;
+		return StringUtilities.isNotBlank(httpCodeText.getText()) ? Integer.parseInt(httpCodeText.getText()) : null;
 	}
 
 	/**
@@ -436,7 +437,7 @@ public class ResponseComponent extends JPanel {
 		final JFileChooser fileChooser = new JFileChooser();
 		fileChooser.setFileSelectionMode(directory ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
 		final String current = downloadTargetText.getText();
-		if (Utilities.isNotBlank(current)) {
+		if (StringUtilities.isNotBlank(current)) {
 			final File currentFile = new File(current);
 			final File currentDir = currentFile.isDirectory() ? currentFile : currentFile.getParentFile();
 			if (currentDir != null) {

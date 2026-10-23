@@ -17,7 +17,7 @@ import de.soderer.swing.ModalDialog;
 import de.soderer.swing.ShowDataDialog;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.VersionInfo;
 
 /**
@@ -76,7 +76,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 				applicationDialog.showErrorMessage(LangResources.get("updateCheck"), LangResources.get("error.cannotCheckForUpdate", e.getMessage()));
 			}
 		});
-		checkUpdateButton.setEnabled(!Utilities.isBlank(RestClient.VERSIONINFO_DOWNLOAD_URL));
+		checkUpdateButton.setEnabled(!StringUtilities.isBlank(RestClient.VERSIONINFO_DOWNLOAD_URL));
 		buttonSection.add(checkUpdateButton);
 
 		final JButton closeButton = new JButton(LangResources.get("close"));
@@ -108,7 +108,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	 */
 	private void widenToFitTitle() {
 		final String title = getTitle();
-		if (Utilities.isBlank(title)) {
+		if (StringUtilities.isBlank(title)) {
 			return;
 		}
 

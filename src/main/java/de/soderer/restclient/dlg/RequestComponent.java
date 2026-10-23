@@ -67,7 +67,7 @@ import de.soderer.swing.SwingColor;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
@@ -424,7 +424,7 @@ public class RequestComponent extends JPanel {
 		comboItems.add("DIRECT");
 		comboItems.add("WPAD");
 		for (final String presetProxyUrl : proxyUrlPresets) {
-			if (Utilities.isNotBlank(presetProxyUrl) && !comboItems.contains(presetProxyUrl)) {
+			if (StringUtilities.isNotBlank(presetProxyUrl) && !comboItems.contains(presetProxyUrl)) {
 				comboItems.add(presetProxyUrl);
 			}
 		}
@@ -698,7 +698,7 @@ public class RequestComponent extends JPanel {
 		httpMethodCombo.addValidationListener(valid -> checkRequestContentStatus());
 
 		serviceUrlText = new HintTextField(LangResources.get("serviceUrlHint"));
-		serviceUrlText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> openApiButton.setEnabled(Utilities.isNotBlank(serviceUrlText.getText()))));
+		serviceUrlText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> openApiButton.setEnabled(StringUtilities.isNotBlank(serviceUrlText.getText()))));
 
 		tlsCheckButton = new JButton();
 		tlsCheckButton.addActionListener(event -> {
@@ -931,7 +931,7 @@ public class RequestComponent extends JPanel {
 				storeIdpCredentials = inputDialog.isRememberCredentials();
 
 				ProxyConfiguration idpProxyConfiguration = null;
-				if (Utilities.isNotBlank(getProxyUrl())) {
+				if (StringUtilities.isNotBlank(getProxyUrl())) {
 					if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
 						idpProxyConfiguration = new ProxyConfiguration(ProxyConfigurationType.None);
 					} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {
@@ -972,7 +972,7 @@ public class RequestComponent extends JPanel {
 	 * @return true if the setting is a PAC file
 	 */
 	private static boolean isPacFileProxySetting(final String proxySetting) {
-		if (!Utilities.isNotBlank(proxySetting)) {
+		if (!StringUtilities.isNotBlank(proxySetting)) {
 			return false;
 		}
 		final String trimmed = proxySetting.trim();
@@ -1029,7 +1029,7 @@ public class RequestComponent extends JPanel {
 		}
 
 		final String targetUrl = getRequestTargetUrl();
-		if (!Utilities.isNotBlank(targetUrl)) {
+		if (!StringUtilities.isNotBlank(targetUrl)) {
 			showError(LangResources.get("showProxy"), LangResources.get("serviceUrlMissing"));
 			return;
 		}
@@ -1060,7 +1060,7 @@ public class RequestComponent extends JPanel {
 			} else {
 				pacSource = proxySetting;
 			}
-			if (!Utilities.isNotBlank(pacSource)) {
+			if (!StringUtilities.isNotBlank(pacSource)) {
 				pacSource = LangResources.get("pacFileUnknown");
 			}
 
@@ -1145,7 +1145,7 @@ public class RequestComponent extends JPanel {
 		final HttpRequest openApiRequest = new HttpRequest(HttpMethod.GET, url);
 
 		Proxy proxy = null;
-		if (Utilities.isNotBlank(getProxyUrl())) {
+		if (StringUtilities.isNotBlank(getProxyUrl())) {
 			if ("DIRECT".equalsIgnoreCase(getProxyUrl())) {
 				proxy = Proxy.NO_PROXY;
 			} else if ("WPAD".equalsIgnoreCase(getProxyUrl())) {

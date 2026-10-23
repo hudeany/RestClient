@@ -25,7 +25,7 @@ import javax.swing.event.DocumentListener;
 import de.soderer.swing.ModalDialog;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 
 /**
  * Dialog for the IdP (identity provider) settings and client credentials used to fetch an OAuth2
@@ -95,7 +95,7 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		final JPanel panel = new JPanel(new BorderLayout(margin, margin));
 		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
 
-		if (Utilities.isNotBlank(text)) {
+		if (StringUtilities.isNotBlank(text)) {
 			final JTextArea textArea = new JTextArea(text);
 			textArea.setEditable(false);
 			textArea.setFocusable(false);
@@ -105,9 +105,9 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		}
 
 		final JPanel credentialsPanel = new JPanel(new GridBagLayout());
-		idpUrlTextField = addField(credentialsPanel, 0, LangResources.get("idpUrl"), new JTextField(Utilities.isNotBlank(idpUrl) ? idpUrl : ""));
-		idpRealmTextField = addField(credentialsPanel, 1, LangResources.get("idpRealm"), new JTextField(Utilities.isNotBlank(idpRealm) ? idpRealm : ""));
-		usernameTextField = addField(credentialsPanel, 2, LangResources.get("username"), new JTextField(Utilities.isNotBlank(idpUsername) ? idpUsername : ""));
+		idpUrlTextField = addField(credentialsPanel, 0, LangResources.get("idpUrl"), new JTextField(StringUtilities.isNotBlank(idpUrl) ? idpUrl : ""));
+		idpRealmTextField = addField(credentialsPanel, 1, LangResources.get("idpRealm"), new JTextField(StringUtilities.isNotBlank(idpRealm) ? idpRealm : ""));
+		usernameTextField = addField(credentialsPanel, 2, LangResources.get("username"), new JTextField(StringUtilities.isNotBlank(idpUsername) ? idpUsername : ""));
 		passwordTextField = addField(credentialsPanel, 3, LangResources.get("password"), new JPasswordField(idpPassword != null ? new String(idpPassword) : ""));
 
 		final JCheckBox rememberCredentialsCheckBox = new JCheckBox(LangResources.get("rememberIdpCredentials"), rememberCredentials);
@@ -200,7 +200,7 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 	}
 
 	private void checkButtonStatus() {
-		okButton.setEnabled(Utilities.isNotEmpty(idpUrl) && Utilities.isNotEmpty(idpUsername) && idpPassword != null && idpPassword.length > 0);
+		okButton.setEnabled(StringUtilities.isNotEmpty(idpUrl) && StringUtilities.isNotEmpty(idpUsername) && idpPassword != null && idpPassword.length > 0);
 	}
 
 	/**

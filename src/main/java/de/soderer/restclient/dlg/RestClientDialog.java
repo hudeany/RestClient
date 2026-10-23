@@ -71,6 +71,7 @@ import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.Result;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.worker.WorkerSimple;
 import de.soderer.yaml.YamlReader;
@@ -147,7 +148,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	}
 
 	private void runDailyUpdateCheck() {
-		if (Utilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
+		if (StringUtilities.isNotBlank(RestClient.VERSIONINFO_DOWNLOAD_URL) && dailyUpdateCheckIsPending()) {
 			setDailyUpdateCheckStatus(true);
 			try {
 				if (ApplicationUpdateUtilities.checkForNewVersionAvailable(RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION) != null) {
@@ -664,7 +665,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPresetJsonObject.add("downloadTarget", responsePart.getDownloadTarget());
 		requestPresetJsonObject.add("responseDataPath", responsePart.getResponseDataPath());
 
-		if (Utilities.isNotBlank(requestPart.getIdpUrl())) {
+		if (StringUtilities.isNotBlank(requestPart.getIdpUrl())) {
 			requestPresetJsonObject.add("idpUrl", requestPart.getIdpUrl());
 			requestPresetJsonObject.add("idpRealm", requestPart.getIdpRealm());
 			if (requestPart.isStoreIdpCredentials()) {
@@ -709,7 +710,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		fileChooser.addChoosableFileFilter(fileFilter);
 		fileChooser.setFileFilter(fileFilter);
 		final String presetName = requestPart.getPresetName();
-		final String defaultFileName = "RestClient_export" + (Utilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + "." + defaultExtension;
+		final String defaultFileName = "RestClient_export" + (StringUtilities.isNotBlank(presetName) ? "_" + presetName.replaceAll("[\\\\/:*?\"<>|]", "_") : "") + "." + defaultExtension;
 		fileChooser.setSelectedFile(new File(fileChooser.getCurrentDirectory(), defaultFileName));
 		if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
 			return null;
@@ -803,8 +804,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * request settings have no cURL equivalent and are silently left out (see inline comments below).
 	 */
 	private String buildCurlCommand() throws Exception {
-		final StringBuilder fullUrl = new StringBuilder(Utilities.isNotBlank(requestPart.getServiceUrl()) ? requestPart.getServiceUrl() : "");
-		if (Utilities.isNotBlank(requestPart.getServiceMethod())) {
+		final StringBuilder fullUrl = new StringBuilder(StringUtilities.isNotBlank(requestPart.getServiceUrl()) ? requestPart.getServiceUrl() : "");
+		if (StringUtilities.isNotBlank(requestPart.getServiceMethod())) {
 			fullUrl.append("/").append(requestPart.getServiceMethod());
 		}
 		if (!requestPart.getUrlParameters().isEmpty()) {
@@ -823,7 +824,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		final StringBuilder curlCommand = new StringBuilder("curl");
 
-		if (Utilities.isNotBlank(requestPart.getHttpMethod()) && !"GET".equalsIgnoreCase(requestPart.getHttpMethod())) {
+		if (StringUtilities.isNotBlank(requestPart.getHttpMethod()) && !"GET".equalsIgnoreCase(requestPart.getHttpMethod())) {
 			curlCommand.append(" -X ").append(shellQuote(requestPart.getHttpMethod()));
 		}
 
@@ -844,7 +845,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				formBody.append(URLEncoder.encode(formParameterEntry.getValue() != null ? formParameterEntry.getValue() : "", StandardCharsets.UTF_8));
 			}
 			curlCommand.append(" \\\n  --data ").append(shellQuote(formBody.toString()));
-		} else if (Utilities.isNotBlank(requestPart.getRequestBody())
+		} else if (StringUtilities.isNotBlank(requestPart.getRequestBody())
 				&& ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod()))) {
 			// Same rule as executeRequest(): the body text is only sent for POST/PUT. Exporting it for any
 			// other method would make cURL send it anyway and even turn a GET request into a POST (--data).
@@ -855,7 +856,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			curlCommand.append(" \\\n  -L --max-redirs ").append(requestPart.getMaxRedirects());
 		}
 
-		if (Utilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl()) && !"WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
+		if (StringUtilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl()) && !"WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
 			// WPAD proxy autodetection has no cURL equivalent and is left out here
 			curlCommand.append(" \\\n  -x ").append(shellQuote(requestPart.getProxyUrl()));
 		}
@@ -960,7 +961,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (queryStringPosition >= 0) {
 			serviceUrl = url.substring(0, queryStringPosition);
 			for (final String parameterPart : url.substring(queryStringPosition + 1).split("&")) {
-				if (Utilities.isNotBlank(parameterPart)) {
+				if (StringUtilities.isNotBlank(parameterPart)) {
 					final int equalsPosition = parameterPart.indexOf('=');
 					if (equalsPosition >= 0) {
 						urlParameters.put(
@@ -1110,7 +1111,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 */
 	private boolean hasResponseData() {
 		return responsePart.getHttpCode() != null
-				|| Utilities.isNotBlank(responsePart.getResponseBody())
+				|| StringUtilities.isNotBlank(responsePart.getResponseBody())
 				|| !responsePart.getResponseHeaders().isEmpty();
 	}
 
@@ -1135,12 +1136,12 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	private YamlMapping createRequestYamlMapping() throws Exception {
 		final YamlMapping requestYamlMapping = new YamlMapping();
 
-		if (Utilities.isNotBlank(requestPart.getPresetName())) {
+		if (StringUtilities.isNotBlank(requestPart.getPresetName())) {
 			requestYamlMapping.add("presetName", requestPart.getPresetName());
 		}
 
 		// "DIRECT" is exported too: an explicit "no proxy" must survive an export/import round trip
-		if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
+		if (StringUtilities.isNotBlank(requestPart.getProxyUrl())) {
 			requestYamlMapping.add("proxyUrl", requestPart.getProxyUrl());
 		}
 		if (requestPart.getMaxRedirects() > 0) {
@@ -1150,9 +1151,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		final YamlScalar serviceUrlKeyYamlScalar = new YamlScalar("serviceUrl");
 		final YamlScalar serviceUrlYamlScalar = new YamlScalar(requestPart.getServiceUrl());
-		if (Utilities.isNotBlank(requestPart.getServiceUrl())) {
+		if (StringUtilities.isNotBlank(requestPart.getServiceUrl())) {
 			final StringBuilder fullUrl = new StringBuilder(requestPart.getServiceUrl());
-			if (Utilities.isNotBlank(requestPart.getServiceMethod())) {
+			if (StringUtilities.isNotBlank(requestPart.getServiceMethod())) {
 				fullUrl.append("/").append(requestPart.getServiceMethod());
 			}
 			if (!requestPart.getUrlParameters().isEmpty()) {
@@ -1223,11 +1224,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestYamlMapping.add("htmlFormParameters", htmlFormParametersYamlSequence);
 		}
 
-		if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+		if (StringUtilities.isNotBlank(requestPart.getRequestBody())) {
 			requestYamlMapping.add("requestBody", requestPart.getRequestBody());
 		}
 
-		if (Utilities.isNotBlank(requestPart.getIdpUrl())) {
+		if (StringUtilities.isNotBlank(requestPart.getIdpUrl())) {
 			requestYamlMapping.add("idpUrl", requestPart.getIdpUrl());
 			requestYamlMapping.add("idpRealm", requestPart.getIdpRealm());
 			if (requestPart.isStoreIdpCredentials()) {
@@ -1250,16 +1251,16 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (responsePart.getHttpCode() != null) {
 			responseYamlMapping.add("httpCode", responsePart.getHttpCode());
 		}
-		if (Utilities.isNotBlank(responsePart.getIpAddress())) {
+		if (StringUtilities.isNotBlank(responsePart.getIpAddress())) {
 			responseYamlMapping.add("ipAddress", responsePart.getIpAddress());
 		}
-		if (Utilities.isNotBlank(responsePart.getTime())) {
+		if (StringUtilities.isNotBlank(responsePart.getTime())) {
 			responseYamlMapping.add("time", responsePart.getTime());
 		}
-		if (Utilities.isNotBlank(responsePart.getDownloadTarget())) {
+		if (StringUtilities.isNotBlank(responsePart.getDownloadTarget())) {
 			responseYamlMapping.add("downloadTarget", responsePart.getDownloadTarget());
 		}
-		if (Utilities.isNotBlank(responsePart.getResponseDataPath())) {
+		if (StringUtilities.isNotBlank(responsePart.getResponseDataPath())) {
 			responseYamlMapping.add("responseDataPath", responsePart.getResponseDataPath());
 		}
 
@@ -1274,7 +1275,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			responseYamlMapping.add("responseHeaders", responseHeadersYamlSequence);
 		}
 
-		if (Utilities.isNotBlank(responsePart.getResponseBody())) {
+		if (StringUtilities.isNotBlank(responsePart.getResponseBody())) {
 			// The 1-arg YamlScalar(Object) constructor always produces YamlScalarType.STRING, and
 			// getType() (not the multiline settings below) is what YamlWriter uses to decide between
 			// a quoted single-line string and a "|"/">" block scalar - so MULTILINE must be requested
@@ -1421,10 +1422,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			ExecuteHttpRequestWorker worker = null;
 			try {
-				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
+				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 				httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 
-				if (Utilities.isNotBlank(responsePart.getDownloadTarget())) {
+				if (StringUtilities.isNotBlank(responsePart.getDownloadTarget())) {
 					// Only actually used as a download destination if the response signals a
 					// real file download via "Content-Disposition: attachment" - see
 					// HttpUtilities.executeHttpRequest(). A normal (e.g. JSON) response is
@@ -1446,14 +1447,14 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
 					if (requestPart.getHtmlFormParameters().size() == 0) {
-						if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+						if (StringUtilities.isNotBlank(requestPart.getRequestBody())) {
 							httpRequest.setRequestBody(requestPart.getRequestBody());
 						}
 					}
 				}
 
 				Proxy proxy = null;
-				if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
+				if (StringUtilities.isNotBlank(requestPart.getProxyUrl())) {
 					if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
 						proxy = Proxy.NO_PROXY;
 					} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
@@ -1528,7 +1529,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final MultipleWorkerConfigurationDialog configurationDialog = new MultipleWorkerConfigurationDialog(this, LangResources.get("multipleWorkerSettings"));
 				final Boolean result = configurationDialog.open();
 				if (result != null && result) {
-					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (Utilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
+					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 					httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 
 					for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
@@ -1545,7 +1546,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 					if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
 						if (requestPart.getHtmlFormParameters().size() == 0) {
-							if (Utilities.isNotBlank(requestPart.getRequestBody())) {
+							if (StringUtilities.isNotBlank(requestPart.getRequestBody())) {
 								httpRequest.setRequestBody(requestPart.getRequestBody());
 							}
 						}
@@ -1557,7 +1558,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					}
 
 					Proxy proxy = null;
-					if (Utilities.isNotBlank(requestPart.getProxyUrl())) {
+					if (StringUtilities.isNotBlank(requestPart.getProxyUrl())) {
 						if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
 							proxy = Proxy.NO_PROXY;
 						} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {

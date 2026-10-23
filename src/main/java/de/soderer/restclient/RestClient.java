@@ -49,6 +49,7 @@ import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.ParameterException;
+import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.Utilities;
 import de.soderer.utilities.Version;
 import de.soderer.utilities.collection.CaseInsensitiveMap;
@@ -461,7 +462,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					httpMethod = (String) presetJsonObject.getSimpleValue("httpMethod");
 					serviceUrl = (String) presetJsonObject.getSimpleValue("serviceUrl");
 					final String serviceMethod = (String) presetJsonObject.getSimpleValue("serviceMethod");
-					if (Utilities.isNotBlank(serviceMethod)) {
+					if (StringUtilities.isNotBlank(serviceMethod)) {
 						serviceUrl = (serviceUrl == null ? "" : serviceUrl) + "/" + serviceMethod;
 					}
 
@@ -506,7 +507,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					idpUsername = (String) presetJsonObject.getSimpleValue("idpUsername");
 					idpPassword = (String) presetJsonObject.getSimpleValue("idpPassword");
 
-					if (Utilities.isBlank(httpMethod)) {
+					if (StringUtilities.isBlank(httpMethod)) {
 						httpMethod = "GET";
 					}
 				}
@@ -528,7 +529,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 						httpMethod = (String) requestYamlMapping.getSimpleValue("httpMethod");
 						serviceUrl = (String) requestYamlMapping.getSimpleValue("serviceUrl");
 						final String serviceMethod = (String) requestYamlMapping.getSimpleValue("serviceMethod");
-						if (Utilities.isNotBlank(serviceMethod)) {
+						if (StringUtilities.isNotBlank(serviceMethod)) {
 							serviceUrl = (serviceUrl == null ? "" : serviceUrl) + "/" + serviceMethod;
 						}
 
@@ -571,7 +572,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 						idpUsername = (String) requestYamlMapping.getSimpleValue("idpUsername");
 						idpPassword = (String) requestYamlMapping.getSimpleValue("idpPassword");
 
-						if (Utilities.isBlank(httpMethod)) {
+						if (StringUtilities.isBlank(httpMethod)) {
 							httpMethod = "GET";
 						}
 					}
@@ -655,7 +656,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					httpHeaders.put(HttpConstants.HTTPHEADERNAME_AUTHORIZATION, HttpConstants.AUTHORIZATIONHEADER_START_BEARER + " " + cliBearerToken);
 				}
 
-				if (Utilities.isBlank(serviceUrl)) {
+				if (StringUtilities.isBlank(serviceUrl)) {
 					if (arguments.length == 0) {
 						// Nothing was requested at all - usage was already printed above (headless, no arguments)
 						return 1;
@@ -667,7 +668,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				// IdP/OAuth login: acquires a bearer token and adds it as an Authorization header, same
 				// as the "Fetch IdP token" button in the GUI (see RequestComponent) - but done automatically
 				// here, since there is no interactive step in CLI mode.
-				if (Utilities.isNotBlank(idpUrl)) {
+				if (StringUtilities.isNotBlank(idpUrl)) {
 					final ProxyConfiguration idpProxyConfiguration = buildIdpProxyConfiguration(proxyUrl);
 					final String idpToken;
 					if (idpUrl != null && idpUrl.endsWith("/token")) {
@@ -684,7 +685,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(httpMethod), serviceUrl);
 				httpRequest.setMaxRedirects(maxRedirects);
 
-				if (Utilities.isNotBlank(downloadTarget)) {
+				if (StringUtilities.isNotBlank(downloadTarget)) {
 					httpRequest.setDownloadTarget(new File(downloadTarget));
 				}
 
@@ -702,7 +703,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				// only used for POST/PUT, and only if there are no form parameters (which would become the
 				// body instead)
 				if (("POST".equalsIgnoreCase(httpMethod) || "PUT".equalsIgnoreCase(httpMethod))
-						&& htmlFormParameters.isEmpty() && Utilities.isNotBlank(requestBody)) {
+						&& htmlFormParameters.isEmpty() && StringUtilities.isNotBlank(requestBody)) {
 					httpRequest.setRequestBody(requestBody);
 				}
 
@@ -732,7 +733,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 
 				final String displayBody = renderResponseBody(httpResponse, responseDataPath);
 
-				if (Utilities.isNotBlank(cliOutputFile)) {
+				if (StringUtilities.isNotBlank(cliOutputFile)) {
 					Files.writeString(Path.of(cliOutputFile), displayBody != null ? displayBody : "", StandardCharsets.UTF_8);
 				} else {
 					System.out.println(displayBody != null ? displayBody : "");
@@ -806,7 +807,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	 * proxy URL (or left as no proxy if blank).
 	 */
 	private static Proxy resolveProxy(final String proxyUrl, final String url) throws Exception {
-		if (Utilities.isBlank(proxyUrl)) {
+		if (StringUtilities.isBlank(proxyUrl)) {
 			return null;
 		} else if ("DIRECT".equalsIgnoreCase(proxyUrl)) {
 			return Proxy.NO_PROXY;
@@ -823,7 +824,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	 * {@link de.soderer.restclient.dlg.RequestComponent}'s "Fetch IdP token" button does.
 	 */
 	private static ProxyConfiguration buildIdpProxyConfiguration(final String proxyUrl) {
-		if (Utilities.isBlank(proxyUrl) || "DIRECT".equalsIgnoreCase(proxyUrl)) {
+		if (StringUtilities.isBlank(proxyUrl) || "DIRECT".equalsIgnoreCase(proxyUrl)) {
 			return new ProxyConfiguration(ProxyConfigurationType.None);
 		} else if ("WPAD".equalsIgnoreCase(proxyUrl)) {
 			return new ProxyConfiguration(ProxyConfigurationType.WPAD);
@@ -853,7 +854,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				System.err.println("JsonParserError: " + e.getMessage());
 				return body;
 			}
-		} else if (body != null && Utilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
+		} else if (body != null && StringUtilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Yaml, HttpContentType.TextYaml)) {
 			try {
 				final YamlDocument yamlDocument = YamlReader.readDocument(body);
 				final YamlNode yamlDataNode = ResponseDataPathEvaluator.getYamlNodeByPath(yamlDocument.getRoot(), new JsonPath(responseDataPath));
@@ -862,7 +863,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				System.err.println("YamlParserError: " + e.getMessage());
 				return body;
 			}
-		} else if (body != null && Utilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
+		} else if (body != null && StringUtilities.isNotBlank(responseDataPath) && contentType != null && ResponseDataPathEvaluator.isContentType(contentType, HttpContentType.Xml, HttpContentType.TextXml)) {
 			try {
 				return ResponseDataPathEvaluator.evaluateXPath(body, responseDataPath);
 			} catch (final Exception e) {
@@ -923,7 +924,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			currentTerminalWidth = 80;
 		}
 
-		if (Utilities.isNotBlank(resultText)) {
+		if (StringUtilities.isNotBlank(resultText)) {
 			System.out.println("Result: \n" + resultText);
 		}
 
@@ -1033,7 +1034,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			System.out.println("End (" + NumberFormat.getNumberInstance(Locale.ENGLISH).format(subItemsDone) + " data items done in " + DateUtilities.getHumanReadableTimespanEnglish(Duration.between(itemStart, itemEnd), true) + ")");
 		}
 
-		if (Utilities.isNotBlank(resultText)) {
+		if (StringUtilities.isNotBlank(resultText)) {
 			System.out.println("Result: \n" + resultText);
 		}
 

@@ -12,7 +12,7 @@ import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
 import de.soderer.pac.utilities.ProxyConfiguration;
-import de.soderer.utilities.Utilities;
+import de.soderer.utilities.StringUtilities;
 
 /**
  * Helper for acquiring OAuth2 access tokens from an identity provider (IdP), e.g. Keycloak,
@@ -39,9 +39,9 @@ public class IdpHelper {
 	 *             if the IdP host is unknown, the discovery request fails or its response contains no token endpoint
 	 */
 	public static String getIdpTokenEdpointUrl(final String idpUrlConfigurationUrl, final String realmID, final ProxyConfiguration proxyConfiguration) throws Exception {
-		if (Utilities.isBlank(idpUrlConfigurationUrl)) {
+		if (StringUtilities.isBlank(idpUrlConfigurationUrl)) {
 			throw new Exception("Missing IdP URL");
-		} else if (Utilities.isBlank(realmID)) {
+		} else if (StringUtilities.isBlank(realmID)) {
 			throw new Exception("Missing IdP realm (needed unless the IdP URL is the token endpoint itself, ending with \"/token\")");
 		}
 
@@ -62,7 +62,7 @@ public class IdpHelper {
 				} catch (final Exception e) {
 					throw new Exception("Invalid OpenID configuration JSON data", e);
 				}
-				if (!(contentJson instanceof JsonObject) || Utilities.isBlank((String) ((JsonObject) contentJson).getSimpleValue("token_endpoint"))) {
+				if (!(contentJson instanceof JsonObject) || StringUtilities.isBlank((String) ((JsonObject) contentJson).getSimpleValue("token_endpoint"))) {
 					throw new Exception("OpenID configuration contains no \"token_endpoint\"");
 				}
 				return (String) ((JsonObject) contentJson).getSimpleValue("token_endpoint");
