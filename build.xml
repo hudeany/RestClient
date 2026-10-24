@@ -12,7 +12,7 @@
 	<property name="VersionsUrl" value="https://api.github.com/repos/hudeany/RestClient/releases/latest" />
 
 	<property name="csv.version" value="26.1.14" />
-	<property name="mailapi.version" value="2.0.1" />
+	<property name="mailapi.version" value="2.0.2" />
 	<property name="json.version" value="26.2.16" />
 	<property name="proxyautoconfig.version" value="26.1.5" />
 	<property name="network.version" value="26.0.39" />
@@ -34,7 +34,7 @@
 	</resources>
 
 	<target name="download_dependencies" depends="register_antbuildhelp">
-		<getMavenDependency groupId="com.sun.mail" artifactId="mailapi" version="2.0.2" />
+		<getMavenDependency groupId="com.sun.mail" artifactId="mailapi" version="${mailapi.version}" />
 
 		<getDependency name="csv" version="${csv.version}" url="https://github.com/hudeany/csv/releases/download/{version}/csv-{version}.jar" />
 		<getDependency name="json" version="${json.version}" url="https://github.com/hudeany/json/releases/download/{version}/json-{version}.jar" />
