@@ -4,7 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -32,12 +32,12 @@ import java.util.regex.Pattern;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -49,7 +49,12 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 
 import de.soderer.restclient.worker.WorkerStats;
+import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.DialogStyle;
+import de.soderer.swing.modern.IconKind;
 import de.soderer.swing.modern.ModalDialog;
+import de.soderer.swing.modern.ModernUi;
+import de.soderer.swing.modern.QuestionDialog;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.worker.WorkerSimple;
@@ -70,8 +75,12 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 	private static final int COLUMN_STATUS = 4;
 	private static final int MAX_VISIBLE_ROWS = 15;
-	private static final Color SUCCESS_COLOR = new Color(0, 128, 0);
-	private static final Color ERROR_COLOR = Color.RED;
+	private static final int ROW_HEIGHT = 24;
+	private static final int PROGRESS_BAR_HEIGHT = 20;
+	private static final Color SUCCESS_COLOR = new Color(22, 128, 61);
+	private static final Color ERROR_COLOR = new Color(200, 35, 51);
+	/** Background of every second table row */
+	private static final Color STRIPE_COLOR = new Color(246, 248, 251);
 	private static final String CSV_HEADER = "WorkerID;Success count;Error count;Latest duration;Latest status;Minimum duration;Average duration;Maximum duration";
 
 	private final String text;
@@ -80,7 +89,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private WorkerStatsTableModel tableModel;
 	private JProgressBar progressBar;
 	private JTextArea descriptionLabel;
-	private JButton actionButton;
+	private JButton cancelButton;
+	private JButton closeButton;
 	private JButton downloadButton;
 	private Timer rampUpTimer;
 
@@ -119,6 +129,8 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		super(parent, title);
 
 		this.text = text;
+
+		setHeaderIcon(IconKind.PLAY);
 	}
 
 	/**
@@ -174,62 +186,76 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	}
 
 	private void createComponents() {
-		final int margin = 5;
-
-		final JPanel panel = new JPanel(new BorderLayout(margin, margin));
-		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
-
-		final JPanel topPanel = new JPanel(new BorderLayout(margin, margin));
+		final JPanel topPanel = new JPanel(new BorderLayout(0, 8));
+		topPanel.setOpaque(false);
 
 		descriptionLabel = new JTextArea(text);
 		descriptionLabel.setEditable(false);
 		descriptionLabel.setFocusable(false);
 		descriptionLabel.setOpaque(false);
+		descriptionLabel.setBorder(BorderFactory.createEmptyBorder());
 		descriptionLabel.setFont(UIManager.getFont("Label.font"));
 		topPanel.add(descriptionLabel, BorderLayout.NORTH);
 
 		totalTasks = tasksPerWorker >= 0 ? workerCount * tasksPerWorker : -1;
-		progressBar = new JProgressBar(0, Math.max(totalTasks, 1));
-		// Repeating until canceled has no end, so there is no meaningful percentage
-		progressBar.setIndeterminate(totalTasks < 0);
+		progressBar = ModernUi.createProgressBar();
+		progressBar.setMinimum(0);
+		progressBar.setMaximum(Math.max(totalTasks, 1));
+		progressBar.setValue(0);
+		// Repeating until canceled has no end, so the bar shows the number of finished runs instead of a percentage
+		progressBar.setStringPainted(true);
+		progressBar.setPreferredSize(new Dimension(progressBar.getPreferredSize().width, PROGRESS_BAR_HEIGHT));
+		updateProgressText();
 		topPanel.add(progressBar, BorderLayout.SOUTH);
 
-		panel.add(topPanel, BorderLayout.NORTH);
+		getContentArea().add(topPanel, BorderLayout.NORTH);
 
 		tableModel = new WorkerStatsTableModel();
 		table = new JTable(tableModel);
 		table.setFillsViewportHeight(true);
+		table.setRowHeight(ROW_HEIGHT);
+		table.setShowGrid(false);
+		table.setIntercellSpacing(new Dimension(0, 0));
+		table.setBackground(Color.WHITE);
 		table.getTableHeader().setReorderingAllowed(false);
 
-		final DefaultTableCellRenderer statusRenderer = new DefaultTableCellRenderer() {
+		final DefaultTableCellRenderer cellRenderer = new DefaultTableCellRenderer() {
 			private static final long serialVersionUID = -1826497624913770520L;
 
 			@Override
 			public Component getTableCellRendererComponent(final JTable renderTable, final Object value, final boolean isSelected, final boolean hasFocus, final int row, final int column) {
-				final Component component = super.getTableCellRendererComponent(renderTable, value, isSelected, hasFocus, row, column);
+				super.getTableCellRendererComponent(renderTable, value, isSelected, false, row, column);
+				setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+				// Numbers and durations right aligned, the status left aligned
+				setHorizontalAlignment(renderTable.convertColumnIndexToModel(column) == COLUMN_STATUS ? SwingConstants.LEADING : SwingConstants.TRAILING);
 				if (!isSelected) {
-					final Boolean latestStatusWasSuccess = row < workerStatsList.size() ? workerStatsList.get(row).getLatestStatusWasSuccess() : null;
-					if (latestStatusWasSuccess == null) {
-						component.setForeground(renderTable.getForeground());
-					} else {
-						component.setForeground(latestStatusWasSuccess ? SUCCESS_COLOR : ERROR_COLOR);
+					setBackground(row % 2 == 1 ? STRIPE_COLOR : renderTable.getBackground());
+					setForeground(renderTable.getForeground());
+					setFont(renderTable.getFont());
+					if (renderTable.convertColumnIndexToModel(column) == COLUMN_STATUS && row < workerStatsList.size()) {
+						final Boolean latestStatusWasSuccess = workerStatsList.get(row).getLatestStatusWasSuccess();
+						if (latestStatusWasSuccess != null) {
+							setForeground(latestStatusWasSuccess ? SUCCESS_COLOR : ERROR_COLOR);
+							setFont(renderTable.getFont().deriveFont(Font.BOLD));
+						}
 					}
 				}
-				return component;
+				return this;
 			}
 		};
-		table.getColumnModel().getColumn(COLUMN_STATUS).setCellRenderer(statusRenderer);
+		table.setDefaultRenderer(Object.class, cellRenderer);
 
-		// Columns as wide as their header texts, like SWT's TableColumn.pack() on an empty table
+		// Columns as wide as their header texts (plus room for the sort indicator), like SWT's TableColumn.pack() on an empty table
 		final JTableHeader header = table.getTableHeader();
 		int tableWidth = 0;
 		for (int i = 0; i < table.getColumnCount(); i++) {
 			final TableColumn column = table.getColumnModel().getColumn(i);
-			final Component headerComponent = header.getDefaultRenderer().getTableCellRendererComponent(table, column.getHeaderValue(), false, false, -1, i);
-			final int width = headerComponent.getPreferredSize().width + 16;
+			final Component headerComponent = header.getDefaultRenderer().getTableCellRendererComponent(table, column.getHeaderValue() + " ▲", false, false, -1, i);
+			final int width = headerComponent.getPreferredSize().width + 24;
 			column.setPreferredWidth(width);
 			tableWidth += width;
 		}
+		updateSortIndicator();
 		header.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(final MouseEvent event) {
@@ -242,6 +268,7 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 						sortColumn = columnIndex;
 						ascending = true;
 					}
+					updateSortIndicator();
 					refreshTable();
 				}
 			}
@@ -249,30 +276,20 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 
 		final int visibleRows = Math.min(workerCount, MAX_VISIBLE_ROWS);
 		table.setPreferredScrollableViewportSize(new Dimension(tableWidth, visibleRows * table.getRowHeight()));
-		panel.add(new JScrollPane(table), BorderLayout.CENTER);
+		final JScrollPane tableScrollPane = new JScrollPane(table);
+		ModernUi.styleScrollPane(tableScrollPane, Color.WHITE);
+		getContentArea().add(tableScrollPane, BorderLayout.CENTER);
 
-		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-
-		downloadButton = new JButton(LangResources.get("saveResults"));
+		downloadButton = addLeftButton(LangResources.get("saveResults"), IconKind.FILE, ButtonStyle.SECONDARY, event -> exportResults());
 		downloadButton.setEnabled(false);
-		downloadButton.setPreferredSize(new Dimension(Math.max(160, downloadButton.getPreferredSize().width), downloadButton.getPreferredSize().height));
-		downloadButton.addActionListener(event -> exportResults());
-		buttonPanel.add(downloadButton);
 
-		actionButton = new JButton(LangResources.get("cancel"));
-		actionButton.setPreferredSize(new Dimension(Math.max(120, actionButton.getPreferredSize().width), actionButton.getPreferredSize().height));
-		actionButton.addActionListener(event -> {
-			if (!finished) {
-				cancelExecution();
-			} else {
-				closeDialog();
-			}
-		});
-		buttonPanel.add(actionButton);
+		cancelButton = addButton(LangResources.get("cancel"), IconKind.STOP, ButtonStyle.DANGEROUS, event -> cancelExecution());
 
-		panel.add(buttonPanel, BorderLayout.SOUTH);
+		// Replaces the cancel button once the run has ended
+		closeButton = addButton(LangResources.get("close"), null, ButtonStyle.PRIMARY, event -> closeDialog());
+		closeButton.setVisible(false);
 
-		setContentPane(panel);
+		setResizable(true);
 
 		// Closing the window while workers are still running cancels them, instead of leaving them running unseen
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -282,6 +299,26 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 				closeDialog();
 			}
 		});
+	}
+
+	/**
+	 * Shows the sort direction in the header of the current sort column.
+	 */
+	private void updateSortIndicator() {
+		for (int i = 0; i < table.getColumnCount(); i++) {
+			final TableColumn column = table.getColumnModel().getColumn(i);
+			final int modelIndex = column.getModelIndex();
+			final String title = tableModel.getColumnName(modelIndex);
+			column.setHeaderValue(modelIndex == sortColumn ? title + (ascending ? " ▲" : " ▼") : title);
+		}
+		table.getTableHeader().repaint();
+	}
+
+	/**
+	 * Shows "done / total" in the progress bar, or "done / ∞" when repeating until canceled.
+	 */
+	private void updateProgressText() {
+		progressBar.setString(progress.get() + " / " + (totalTasks >= 0 ? String.valueOf(totalTasks) : MultipleWorkerConfigurationDialog.UNLIMITED_REPETITIONS));
 	}
 
 	private void closeDialog() {
@@ -398,6 +435,7 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 					if (totalTasks >= 0) {
 						progressBar.setValue(progress.get());
 					}
+					updateProgressText();
 					checkFinished();
 				}
 			});
@@ -516,8 +554,14 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 			final boolean allDone = cancelled || (totalTasks >= 0 && progress.get() >= totalTasks);
 			if (allDone) {
 				finished = true;
-				progressBar.setIndeterminate(false);
-				actionButton.setText(LangResources.get("close"));
+				if (totalTasks < 0) {
+					// Endless run ended by the user: show the bar as complete instead of empty
+					progressBar.setValue(progressBar.getMaximum());
+				}
+				updateProgressText();
+				cancelButton.setVisible(false);
+				closeButton.setVisible(true);
+				getRootPane().setDefaultButton(closeButton);
 				downloadButton.setEnabled(true);
 				tableModel.fireTableRowsUpdated(0, Math.max(0, workerStatsList.size() - 1));
 			}
@@ -535,14 +579,22 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 		}
 
 		final File exportFile = fileChooser.getSelectedFile();
-		if (exportFile.exists() && JOptionPane.showConfirmDialog(this, LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), getTitle(), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.YES_OPTION) {
-			return;
+		if (exportFile.exists()) {
+			// "Cancel" is the default answer, overwriting must be chosen deliberately
+			final Integer answer = new QuestionDialog(this, getTitle(), LangResources.get("overwriteExistingFile", exportFile.getAbsolutePath()), LangResources.get("cancel"), LangResources.get("ok"))
+					.withDialogStyle(DialogStyle.WARNING)
+					.open();
+			if (answer == null || answer != 1) {
+				return;
+			}
 		}
 
 		try (PrintWriter writer = new PrintWriter(exportFile, StandardCharsets.UTF_8)) {
 			writer.print(getResultsCSV());
 		} catch (final Exception e) {
-			JOptionPane.showMessageDialog(this, LangResources.get("errorMessage", e.getMessage()), LangResources.get("error"), JOptionPane.ERROR_MESSAGE);
+			new QuestionDialog(this, LangResources.get("error"), LangResources.get("errorMessage", e.getMessage()))
+					.withDialogStyle(DialogStyle.ERROR)
+					.open();
 		}
 	}
 
