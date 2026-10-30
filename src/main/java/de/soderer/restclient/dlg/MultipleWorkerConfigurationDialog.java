@@ -18,7 +18,7 @@ import javax.swing.SpinnerNumberModel;
 
 import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
-import de.soderer.swing.ModalDialog;
+import de.soderer.swing.modern.ModalDialogModern;
 import de.soderer.utilities.LangResources;
 
 /**
@@ -27,7 +27,7 @@ import de.soderer.utilities.LangResources;
  *
  * @serial exclude
  */
-public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
+public class MultipleWorkerConfigurationDialog extends ModalDialogModern<Boolean> {
 	private static final long serialVersionUID = -4906380342127559617L;
 
 	/** Repetitions value for "repeat until canceled" */

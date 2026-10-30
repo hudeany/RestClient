@@ -22,7 +22,7 @@ import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
-import de.soderer.swing.ModalDialog;
+import de.soderer.swing.modern.ModalDialogModern;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.StringUtilities;
@@ -34,7 +34,7 @@ import de.soderer.utilities.StringUtilities;
  *
  * @serial exclude
  */
-public class IdpCredentialsDialog extends ModalDialog<Credentials> {
+public class IdpCredentialsDialog extends ModalDialogModern<Credentials> {
 	private static final long serialVersionUID = 1839920463575017126L;
 
 	private static final int FIELD_WIDTH = 200;

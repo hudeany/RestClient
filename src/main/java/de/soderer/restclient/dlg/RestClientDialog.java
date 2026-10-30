@@ -64,12 +64,14 @@ import de.soderer.pac.utilities.ProxyConfiguration.ProxyConfigurationType;
 import de.soderer.restclient.RestClient;
 import de.soderer.restclient.image.ImageManager;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
-import de.soderer.swing.ErrorDialog;
-import de.soderer.swing.ModernUi;
-import de.soderer.swing.ProgressDialog;
-import de.soderer.swing.QuestionDialog;
-import de.soderer.swing.ShowDataDialog;
 import de.soderer.swing.SwingColor;
+import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.ErrorDialog;
+import de.soderer.swing.modern.IconKind;
+import de.soderer.swing.modern.ModernUi;
+import de.soderer.swing.modern.ProgressDialog;
+import de.soderer.swing.modern.QuestionDialog;
+import de.soderer.swing.modern.ShowDataDialog;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
@@ -192,9 +194,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		titlePanel.add(versionLabel);
 		header.add(titlePanel, BorderLayout.CENTER);
 
-		final JButton configButton = createHeaderButton(ModernUi.IconKind.GEAR, LangResources.get("configuration"));
+		final JButton configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
 		configButton.addActionListener(event -> openConfiguration());
-		final JButton helpButton = createHeaderButton(ModernUi.IconKind.HELP, LangResources.get("help"));
+		final JButton helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
 		helpButton.addActionListener(event -> new HelpDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION.toString() + ") " + LangResources.get("help"), applicationConfiguration).open());
 
 		final JPanel applicationButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
@@ -212,8 +214,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	/**
 	 * Transparent icon button for the gradient header; the text is shown as tooltip.
 	 */
-	private static JButton createHeaderButton(final ModernUi.IconKind iconKind, final String text) {
-		final JButton button = new ModernUi.ModernButton(null, iconKind, ModernUi.ButtonStyle.HEADER);
+	private static JButton createHeaderButton(final IconKind iconKind, final String text) {
+		final JButton button = new ModernUi.ModernButton(null, iconKind, ButtonStyle.HEADER);
 		button.setToolTipText(text);
 		button.getAccessibleContext().setAccessibleName(text);
 		return button;
@@ -252,19 +254,19 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		// First row: "Send request" takes the free width, export and import sit at the right edge
 		final JPanel sendRequestRow = new JPanel(new BorderLayout(8, 0));
 		sendRequestRow.setOpaque(false);
-		final JButton sendRequestButton = new ModernUi.ModernButton(LangResources.get("sendRequest"), ModernUi.IconKind.SEND, ModernUi.ButtonStyle.PRIMARY);
+		final JButton sendRequestButton = new ModernUi.ModernButton(LangResources.get("sendRequest"), IconKind.SEND, ButtonStyle.PRIMARY);
 		sendRequestButton.setPreferredSize(new Dimension(sendRequestButton.getPreferredSize().width, ACTION_BUTTON_HEIGHT));
 		sendRequestButton.addActionListener(event -> executeRequest());
 		sendRequestRow.add(sendRequestButton, BorderLayout.CENTER);
 
 		final JPanel exportImportContainer = new JPanel(new GridLayout(1, 2, 8, 0));
 		exportImportContainer.setOpaque(false);
-		exportRequestResponseButton = new ModernUi.ModernButton(LangResources.get("export"), ModernUi.IconKind.EXPORT, ModernUi.ButtonStyle.SECONDARY);
+		exportRequestResponseButton = new ModernUi.ModernButton(LangResources.get("export"), IconKind.EXPORT, ButtonStyle.SECONDARY);
 		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseTooltip"));
 		exportRequestResponseButton.addActionListener(event -> openExportFormatMenu());
 		exportImportContainer.add(exportRequestResponseButton);
 
-		final JButton importRequestResponseButton = new ModernUi.ModernButton(LangResources.get("import"), ModernUi.IconKind.IMPORT, ModernUi.ButtonStyle.SECONDARY);
+		final JButton importRequestResponseButton = new ModernUi.ModernButton(LangResources.get("import"), IconKind.IMPORT, ButtonStyle.SECONDARY);
 		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseTooltip"));
 		importRequestResponseButton.addActionListener(event -> importRequestResponse());
 		exportImportContainer.add(importRequestResponseButton);
@@ -279,7 +281,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		constraints.insets = new Insets(0, 0, 0, 0);
 		buttonRegion.add(sendRequestRow, constraints);
 
-		final JButton multipleRequestButton = new ModernUi.ModernButton(LangResources.get("multipleRequest"), ModernUi.IconKind.FAST_FORWARD, ModernUi.ButtonStyle.SECONDARY);
+		final JButton multipleRequestButton = new ModernUi.ModernButton(LangResources.get("multipleRequest"), IconKind.FAST_FORWARD, ButtonStyle.SECONDARY);
 		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
 		constraints.gridy = 1;
 		constraints.insets = new Insets(8, 0, 0, 0);
@@ -287,11 +289,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 8, 0));
 		clearCloseRow.setOpaque(false);
-		final JButton clearRequestDataButton = new ModernUi.ModernButton(LangResources.get("clearRequestData"), ModernUi.IconKind.TRASH, ModernUi.ButtonStyle.SECONDARY);
+		final JButton clearRequestDataButton = new ModernUi.ModernButton(LangResources.get("clearRequestData"), IconKind.TRASH, ButtonStyle.SECONDARY);
 		clearRequestDataButton.addActionListener(event -> setRequestPreset(null));
 		clearCloseRow.add(clearRequestDataButton);
 
-		final JButton closeButton = new ModernUi.ModernButton(LangResources.get("close"), ModernUi.IconKind.CLOSE, ModernUi.ButtonStyle.SECONDARY);
+		final JButton closeButton = new ModernUi.ModernButton(LangResources.get("close"), IconKind.CLOSE, ButtonStyle.SECONDARY);
 		closeButton.addActionListener(event -> closeApplication());
 		clearCloseRow.add(closeButton);
 

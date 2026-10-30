@@ -43,7 +43,7 @@ import de.soderer.restclient.dlg.RestClientDialog;
 import de.soderer.restclient.helper.IdpHelper;
 import de.soderer.restclient.helper.ResponseDataPathEvaluator;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
-import de.soderer.swing.ErrorDialog;
+import de.soderer.swing.modern.ErrorDialog;
 import de.soderer.utilities.ConfigurationProperties;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.IoUtilities;

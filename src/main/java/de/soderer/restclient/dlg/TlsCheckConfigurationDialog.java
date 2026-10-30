@@ -2,14 +2,12 @@ package de.soderer.restclient.dlg;
 
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Window;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
@@ -24,7 +22,10 @@ import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
-import de.soderer.swing.ModalDialog;
+import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.IconKind;
+import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModernUi;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.StringUtilities;
 
@@ -34,7 +35,7 @@ import de.soderer.utilities.StringUtilities;
  *
  * @serial exclude
  */
-public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfiguration> {
+public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfiguration> {
 	private static final long serialVersionUID = 8158372040158337392L;
 
 	private TlsCheckConfigurationType selectedType;
@@ -62,7 +63,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	 * @param checkCn initial state of the CN check (always off for {@link TlsCheckConfigurationType#NoCheck})
 	 */
 	public TlsCheckConfigurationDialog(final Window parent, final String title, final TlsCheckConfigurationType selectedType, final File selectedFile, final char[] password, final boolean checkCn) {
-		super(parent, title);
+		super(parent, title, IconKind.LOCK);
 
 		this.selectedType = selectedType == null ? TlsCheckConfigurationType.SystemTrustStore : selectedType;
 		this.selectedFile = selectedFile;
@@ -74,10 +75,10 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	}
 
 	private void createComponents() {
-		final int margin = 5;
+		final int margin = 8;
 
 		final JPanel panel = new JPanel(new GridBagLayout());
-		panel.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
+		panel.setOpaque(false);
 
 		final GridBagConstraints constraints = new GridBagConstraints();
 		constraints.insets = new Insets(2, 0, 2, 5);
@@ -88,6 +89,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		constraints.gridwidth = 3;
 		constraints.insets = new Insets(0, 0, margin, 0);
 		panel.add(new JLabel(LangResources.get("selectTlsCheckType")), constraints);
+		constraints.insets = new Insets(3, 0, 3, 8);
 		constraints.gridwidth = 1;
 		constraints.insets = new Insets(2, 0, 2, 5);
 
@@ -102,36 +104,31 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 				.withAllowCustomValues(false)
 				.withItems(typeItems)
 				.withText(selectedType.name());
-		addRow(panel, 1, new JLabel(LangResources.get("tlsCheckType") + ":"), typeDropDown, null);
+		addRow(panel, 1, ModernUi.createMutedLabel(LangResources.get("tlsCheckType") + ":"), typeDropDown, null);
 
-		fileLabel = new JLabel(LangResources.get("filePath") + ":");
+		fileLabel = ModernUi.createMutedLabel(LangResources.get("filePath") + ":");
 		fileText = new JTextField(30);
+		ModernUi.styleTextField(fileText, false);
 		if (selectedFile != null) {
 			fileText.setText(selectedFile.getAbsolutePath());
 		}
-		fileBrowseButton = new JButton(LangResources.get("browse"));
+		fileBrowseButton = new ModernUi.ModernButton(LangResources.get("browse"), IconKind.FOLDER, ButtonStyle.SECONDARY);
 		addRow(panel, 2, fileLabel, fileText, fileBrowseButton);
 
-		passwordLabel = new JLabel(LangResources.get("password") + ":");
+		passwordLabel = ModernUi.createMutedLabel(LangResources.get("password") + ":");
 		passwordText = new JPasswordField(password != null ? new String(password) : "");
+		ModernUi.styleTextField(passwordText, false);
 		addRow(panel, 3, passwordLabel, passwordText, null);
 
 		checkCnCheckbox = new JCheckBox(LangResources.get("checkCn"), checkCn);
+		checkCnCheckbox.setOpaque(false);
 		constraints.gridx = 0;
 		constraints.gridy = 4;
 		constraints.gridwidth = 3;
 		panel.add(checkCnCheckbox, constraints);
 
-		final JPanel buttonPanel = new JPanel(new GridLayout(1, 2, margin, 0));
-		okButton = new JButton(LangResources.get("ok"));
-		buttonPanel.add(okButton);
-		final JButton cancelButton = new JButton(LangResources.get("cancel"));
-		buttonPanel.add(cancelButton);
-
-		constraints.gridy = 5;
-		constraints.fill = GridBagConstraints.HORIZONTAL;
-		constraints.insets = new Insets(margin, 0, 0, 0);
-		panel.add(buttonPanel, constraints);
+		okButton = addButton(LangResources.get("ok"), null, ButtonStyle.PRIMARY, null);
+		final JButton cancelButton = addButton(LangResources.get("cancel"), null, ButtonStyle.SECONDARY, null);
 
 		typeDropDown.addActionListener(event -> {
 			final String typeText = typeDropDown.getText();
@@ -234,7 +231,8 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 			dispose();
 		});
 
-		setContentPane(panel);
+		getContentArea().add(panel);
+		ModernUi.blendIntoCard(typeDropDown);
 		getRootPane().setDefaultButton(okButton);
 
 		updateFieldStates();
@@ -247,7 +245,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	private static void addRow(final JPanel panel, final int row, final JLabel label, final java.awt.Component field, final JButton trailingButton) {
 		final GridBagConstraints constraints = new GridBagConstraints();
 		constraints.gridy = row;
-		constraints.insets = new Insets(2, 0, 2, 5);
+		constraints.insets = new Insets(3, 0, 3, 8);
 		constraints.gridx = 0;
 		constraints.anchor = GridBagConstraints.LINE_START;
 		panel.add(label, constraints);
@@ -256,14 +254,14 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		constraints.weightx = 1;
 		constraints.fill = GridBagConstraints.HORIZONTAL;
 		constraints.gridwidth = trailingButton == null ? 2 : 1;
-		constraints.insets = new Insets(2, 0, 2, trailingButton == null ? 0 : 5);
+		constraints.insets = new Insets(3, 0, 3, trailingButton == null ? 0 : 8);
 		panel.add(field, constraints);
 
 		if (trailingButton != null) {
 			constraints.gridx = 2;
 			constraints.weightx = 0;
 			constraints.gridwidth = 1;
-			constraints.insets = new Insets(2, 0, 2, 0);
+			constraints.insets = new Insets(3, 0, 3, 0);
 			panel.add(trailingButton, constraints);
 		}
 	}

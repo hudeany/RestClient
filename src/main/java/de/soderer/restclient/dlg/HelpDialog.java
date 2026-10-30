@@ -6,15 +6,17 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 
 import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.restclient.RestClient;
-import de.soderer.swing.ModalDialog;
-import de.soderer.swing.ShowDataDialog;
+import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.IconKind;
+import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModernUi;
+import de.soderer.swing.modern.ShowDataDialog;
 import de.soderer.utilities.IoUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.StringUtilities;
@@ -25,7 +27,7 @@ import de.soderer.utilities.VersionInfo;
  *
  * @serial exclude
  */
-public class HelpDialog extends ModalDialog<Boolean> {
+public class HelpDialog extends ModalDialogModern<Boolean> {
 	private static final long serialVersionUID = 2894531603447213845L;
 
 	/**
@@ -45,7 +47,7 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	 * @param applicationConfiguration application configuration, used for the proxy settings of the update check
 	 */
 	public HelpDialog(final RestClientDialog applicationDialog, final String title, final ApplicationConfigurationProperties applicationConfiguration) {
-		super(applicationDialog, title);
+		super(applicationDialog, title, IconKind.HELP);
 
 		this.applicationDialog = applicationDialog;
 		this.applicationConfiguration = applicationConfiguration;
@@ -54,21 +56,19 @@ public class HelpDialog extends ModalDialog<Boolean> {
 	}
 
 	private void createComponents() {
-		final int margin = 5;
-
 		// One column, all buttons equally wide and filling the dialog's width
-		final JPanel buttonSection = new JPanel(new GridLayout(0, 1, margin, margin));
-		buttonSection.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
+		final JPanel buttonSection = new JPanel(new GridLayout(0, 1, 0, 8));
+		buttonSection.setOpaque(false);
 
-		final JButton versionInfoButton = new JButton(LangResources.get("versionInfo"));
+		final JButton versionInfoButton = new ModernUi.ModernButton(LangResources.get("versionInfo"), IconKind.INFO, ButtonStyle.SECONDARY);
 		versionInfoButton.addActionListener(event -> new ShowDataDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION + ") " + LangResources.get("versionInfo"), VersionInfo.getVersionInfoText()).withResizable(true).open());
 		buttonSection.add(versionInfoButton);
 
-		final JButton manualButton = new JButton(LangResources.get("manual"));
+		final JButton manualButton = new ModernUi.ModernButton(LangResources.get("manual"), IconKind.FILE, ButtonStyle.SECONDARY);
 		manualButton.addActionListener(event -> new ShowDataDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION + ") " + LangResources.get("manual"), readManualText()).withResizable(true).withSize(800, 400).open());
 		buttonSection.add(manualButton);
 
-		final JButton checkUpdateButton = new JButton(LangResources.get("checkUpdate"));
+		final JButton checkUpdateButton = new ModernUi.ModernButton(LangResources.get("checkUpdate"), IconKind.REFRESH, ButtonStyle.SECONDARY);
 		checkUpdateButton.addActionListener(event -> {
 			try {
 				ApplicationUpdateUtilities.executeUpdate(applicationDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);
@@ -79,14 +79,12 @@ public class HelpDialog extends ModalDialog<Boolean> {
 		checkUpdateButton.setEnabled(!StringUtilities.isBlank(RestClient.VERSIONINFO_DOWNLOAD_URL));
 		buttonSection.add(checkUpdateButton);
 
-		final JButton closeButton = new JButton(LangResources.get("close"));
-		closeButton.addActionListener(event -> {
+		getContentArea().add(buttonSection);
+
+		final JButton closeButton = addButton(LangResources.get("close"), null, ButtonStyle.PRIMARY, event -> {
 			returnValue = true;
 			dispose();
 		});
-		buttonSection.add(closeButton);
-
-		add(buttonSection);
 
 		getRootPane().setDefaultButton(closeButton);
 
