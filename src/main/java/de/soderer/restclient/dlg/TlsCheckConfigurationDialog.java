@@ -22,9 +22,9 @@ import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.swing.DropDown.MatchMode;
 import de.soderer.swing.modern.ButtonStyle;
-import de.soderer.swing.modern.DropDownModern;
+import de.soderer.swing.modern.DropDown;
 import de.soderer.swing.modern.IconKind;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.StringUtilities;
@@ -35,7 +35,7 @@ import de.soderer.utilities.StringUtilities;
  *
  * @serial exclude
  */
-public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfiguration> {
+public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfiguration> {
 	private static final long serialVersionUID = 8158372040158337392L;
 
 	private TlsCheckConfigurationType selectedType;
@@ -43,7 +43,7 @@ public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfi
 	private char[] password;
 	private boolean checkCn;
 
-	private DropDownModern typeDropDown;
+	private DropDown typeDropDown;
 	private JLabel fileLabel;
 	private JTextField fileText;
 	private JButton fileBrowseButton;
@@ -98,7 +98,7 @@ public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfi
 		for (final TlsCheckConfigurationType type : TlsCheckConfigurationType.values()) {
 			typeItems.add(type.name());
 		}
-		typeDropDown = new DropDownModern()
+		typeDropDown = new DropDown()
 				.withCaseSensitive(false)
 				.withMatchMode(MatchMode.CONTAINS)
 				.withAllowCustomValues(false)

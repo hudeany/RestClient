@@ -17,8 +17,8 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
 import de.soderer.swing.DropDown.MatchMode;
-import de.soderer.swing.modern.DropDownModern;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.DropDown;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.utilities.LangResources;
 
 /**
@@ -27,7 +27,7 @@ import de.soderer.utilities.LangResources;
  *
  * @serial exclude
  */
-public class MultipleWorkerConfigurationDialog extends ModalDialogModern<Boolean> {
+public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = -4906380342127559617L;
 
 	/** Repetitions value for "repeat until canceled" */
@@ -65,7 +65,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialogModern<Boolean
 		for (int i = 1; i <= 50; i++) {
 			repetitionItems.add(String.valueOf(i));
 		}
-		final DropDownModern repetitionsDropDown = new DropDownModern()
+		final DropDown repetitionsDropDown = new DropDown()
 				.withMatchMode(MatchMode.STARTS_WITH)
 				.withAllowCustomValues(true)
 				.withItems(repetitionItems)

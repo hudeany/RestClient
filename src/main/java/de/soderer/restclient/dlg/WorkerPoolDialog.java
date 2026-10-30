@@ -49,7 +49,7 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 
 import de.soderer.restclient.worker.WorkerStats;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.utilities.DateUtilities;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.worker.WorkerSimple;
@@ -65,7 +65,7 @@ import de.soderer.utilities.worker.WorkerSimple;
  *
  * @serial exclude
  */
-public abstract class WorkerPoolDialog extends ModalDialogModern<Boolean> {
+public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 1427303826312908133L;
 
 	private static final int COLUMN_STATUS = 4;

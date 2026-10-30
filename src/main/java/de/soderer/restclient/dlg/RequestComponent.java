@@ -61,7 +61,7 @@ import de.soderer.swing.SwingColor;
 import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.ComboSelectionDialog;
 import de.soderer.swing.modern.CredentialsDialog;
-import de.soderer.swing.modern.DropDownModern;
+import de.soderer.swing.modern.DropDown;
 import de.soderer.swing.modern.IconKind;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.swing.modern.ProgressDialog;
@@ -103,7 +103,7 @@ public class RequestComponent extends JPanel {
 	private static final int LIST_HEIGHT = 92;
 	private static final int MIN_RIGHT_BUTTON_WIDTH = 100;
 
-	private DropDownModern presetCombo;
+	private DropDown presetCombo;
 	private JButton saveButton;
 	private JButton deleteButton;
 
@@ -111,12 +111,12 @@ public class RequestComponent extends JPanel {
 	private Runnable presetSelectionListener;
 	private Consumer<List<String>> presetsReorderedListener;
 
-	private DropDownModern httpMethodCombo;
+	private DropDown httpMethodCombo;
 	private HintTextField serviceUrlText;
 	private JButton tlsCheckButton;
 	private JButton openApiButton;
 	private HintTextField serviceMethodText;
-	private DropDownModern proxyUrlCombo;
+	private DropDown proxyUrlCombo;
 	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private JCheckBox followRedirectsButton;
 	private JSpinner maxRedirectHopsSpinner;
@@ -651,7 +651,7 @@ public class RequestComponent extends JPanel {
 		createPresetNameSection();
 
 		// Proxy and OpenAPI: label row above the field row, the right column shares its width with the TLS check column below
-		proxyUrlCombo = new DropDownModern()
+		proxyUrlCombo = new DropDown()
 				.withCaseSensitive(false)
 				.withMatchMode(MatchMode.STARTS_WITH)
 				.withAllowCustomValues(true)
@@ -690,7 +690,7 @@ public class RequestComponent extends JPanel {
 		addContentRow(redirectsRow, 0);
 
 		// Fixed list of HTTP methods: no custom values, no reordering
-		httpMethodCombo = new DropDownModern()
+		httpMethodCombo = new DropDown()
 				.withCaseSensitive(false)
 				.withMatchMode(MatchMode.STARTS_WITH)
 				.withAllowCustomValues(false)
@@ -1129,7 +1129,7 @@ public class RequestComponent extends JPanel {
 	private void createPresetNameSection() {
 		addContentRow(ModernUi.createMutedLabel(LangResources.get("preset")), 0);
 
-		presetCombo = new DropDownModern()
+		presetCombo = new DropDown()
 				.withCaseSensitive(false)
 				.withMatchMode(MatchMode.CONTAINS)
 				.withAllowCustomValues(true)

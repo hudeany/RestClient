@@ -14,7 +14,7 @@ import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.restclient.RestClient;
 import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.IconKind;
-import de.soderer.swing.modern.ModalDialogModern;
+import de.soderer.swing.modern.ModalDialog;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.swing.modern.ShowDataDialog;
 import de.soderer.utilities.IoUtilities;
@@ -27,7 +27,7 @@ import de.soderer.utilities.VersionInfo;
  *
  * @serial exclude
  */
-public class HelpDialog extends ModalDialogModern<Boolean> {
+public class HelpDialog extends ModalDialog<Boolean> {
 	private static final long serialVersionUID = 2894531603447213845L;
 
 	/**
