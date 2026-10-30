@@ -60,15 +60,15 @@ public class HelpDialog extends ModalDialog<Boolean> {
 		final JPanel buttonSection = new JPanel(new GridLayout(0, 1, 0, 8));
 		buttonSection.setOpaque(false);
 
-		final JButton versionInfoButton = new ModernUi.ModernButton(LangResources.get("versionInfo"), IconKind.INFO, ButtonStyle.SECONDARY);
+		final JButton versionInfoButton = new ModernUi.Button(LangResources.get("versionInfo"), IconKind.INFO, ButtonStyle.SECONDARY);
 		versionInfoButton.addActionListener(event -> new ShowDataDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION + ") " + LangResources.get("versionInfo"), VersionInfo.getVersionInfoText()).withResizable(true).open());
 		buttonSection.add(versionInfoButton);
 
-		final JButton manualButton = new ModernUi.ModernButton(LangResources.get("manual"), IconKind.FILE, ButtonStyle.SECONDARY);
+		final JButton manualButton = new ModernUi.Button(LangResources.get("manual"), IconKind.FILE, ButtonStyle.SECONDARY);
 		manualButton.addActionListener(event -> new ShowDataDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION + ") " + LangResources.get("manual"), readManualText()).withResizable(true).withSize(800, 400).open());
 		buttonSection.add(manualButton);
 
-		final JButton checkUpdateButton = new ModernUi.ModernButton(LangResources.get("checkUpdate"), IconKind.REFRESH, ButtonStyle.SECONDARY);
+		final JButton checkUpdateButton = new ModernUi.Button(LangResources.get("checkUpdate"), IconKind.REFRESH, ButtonStyle.SECONDARY);
 		checkUpdateButton.addActionListener(event -> {
 			try {
 				ApplicationUpdateUtilities.executeUpdate(applicationDialog, RestClient.VERSIONINFO_DOWNLOAD_URL, applicationConfiguration.getProxyConfiguration(), RestClient.APPLICATION_NAME, RestClient.VERSION, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, null, null, true, false);

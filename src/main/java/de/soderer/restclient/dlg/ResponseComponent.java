@@ -452,11 +452,11 @@ public class ResponseComponent extends JPanel {
 		downloadTargetRow.add(downloadTargetText, downloadConstraints);
 		downloadConstraints.weightx = 0;
 		downloadConstraints.fill = GridBagConstraints.NONE;
-		final JButton downloadTargetBrowseFileButton = new ModernUi.ModernButton(LangResources.get("downloadTargetBrowseFile"), IconKind.FILE, ButtonStyle.SECONDARY);
+		final JButton downloadTargetBrowseFileButton = new ModernUi.Button(LangResources.get("downloadTargetBrowseFile"), IconKind.FILE, ButtonStyle.SECONDARY);
 		downloadTargetBrowseFileButton.addActionListener(event -> browseDownloadTarget(false));
 		downloadTargetRow.add(downloadTargetBrowseFileButton, downloadConstraints);
 		downloadConstraints.insets = new Insets(0, 0, 0, 0);
-		final JButton downloadTargetBrowseDirectoryButton = new ModernUi.ModernButton(LangResources.get("downloadTargetBrowseDirectory"), IconKind.FOLDER, ButtonStyle.SECONDARY);
+		final JButton downloadTargetBrowseDirectoryButton = new ModernUi.Button(LangResources.get("downloadTargetBrowseDirectory"), IconKind.FOLDER, ButtonStyle.SECONDARY);
 		downloadTargetBrowseDirectoryButton.addActionListener(event -> browseDownloadTarget(true));
 		downloadTargetRow.add(downloadTargetBrowseDirectoryButton, downloadConstraints);
 		add(downloadTargetRow, rowConstraints(row++, 0));

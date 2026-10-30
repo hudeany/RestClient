@@ -112,7 +112,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		if (selectedFile != null) {
 			fileText.setText(selectedFile.getAbsolutePath());
 		}
-		fileBrowseButton = new ModernUi.ModernButton(LangResources.get("browse"), IconKind.FOLDER, ButtonStyle.SECONDARY);
+		fileBrowseButton = new ModernUi.Button(LangResources.get("browse"), IconKind.FOLDER, ButtonStyle.SECONDARY);
 		addRow(panel, 2, fileLabel, fileText, fileBrowseButton);
 
 		passwordLabel = ModernUi.createMutedLabel(LangResources.get("password") + ":");
