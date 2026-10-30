@@ -42,7 +42,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
-import de.soderer.applicationbase.ApplicationConfigurationDialog;
+import de.soderer.applicationbase.ApplicationConfigurationDialogModern;
 import de.soderer.applicationbase.ApplicationConfigurationProperties;
 import de.soderer.applicationbase.ApplicationUpdateUtilities;
 import de.soderer.applicationbase.UpdateableGuiApplication;
@@ -317,7 +317,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				iconData = IoUtilities.toByteArray(inputStream);
 			}
 
-			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, RestClient.VERSION, RestClient.VERSION_BUILDTIME, applicationConfiguration, iconData, ImageManager.getImage("RestClient.png").getImage(), RestClient.VERSIONINFO_DOWNLOAD_URL, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null);
+			final ApplicationConfigurationDialogModern dialog = new ApplicationConfigurationDialogModern(this, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, RestClient.VERSION, RestClient.VERSION_BUILDTIME, applicationConfiguration, iconData, ImageManager.getImage("RestClient.png").getImage(), RestClient.VERSIONINFO_DOWNLOAD_URL, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null);
 			if (dialog.open() == Result.OK) {
 				applicationConfiguration.save();
 				requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));

@@ -16,8 +16,8 @@ import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
-import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
+import de.soderer.swing.modern.DropDownModern;
 import de.soderer.swing.modern.ModalDialogModern;
 import de.soderer.utilities.LangResources;
 
@@ -65,7 +65,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialogModern<Boolean
 		for (int i = 1; i <= 50; i++) {
 			repetitionItems.add(String.valueOf(i));
 		}
-		final DropDown repetitionsDropDown = new DropDown()
+		final DropDownModern repetitionsDropDown = new DropDownModern()
 				.withMatchMode(MatchMode.STARTS_WITH)
 				.withAllowCustomValues(true)
 				.withItems(repetitionItems)

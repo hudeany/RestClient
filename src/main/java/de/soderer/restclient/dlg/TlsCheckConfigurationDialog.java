@@ -20,9 +20,9 @@ import javax.swing.event.DocumentListener;
 
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
-import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
 import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.DropDownModern;
 import de.soderer.swing.modern.IconKind;
 import de.soderer.swing.modern.ModalDialogModern;
 import de.soderer.swing.modern.ModernUi;
@@ -43,7 +43,7 @@ public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfi
 	private char[] password;
 	private boolean checkCn;
 
-	private DropDown typeDropDown;
+	private DropDownModern typeDropDown;
 	private JLabel fileLabel;
 	private JTextField fileText;
 	private JButton fileBrowseButton;
@@ -98,7 +98,7 @@ public class TlsCheckConfigurationDialog extends ModalDialogModern<TlsCheckConfi
 		for (final TlsCheckConfigurationType type : TlsCheckConfigurationType.values()) {
 			typeItems.add(type.name());
 		}
-		typeDropDown = new DropDown()
+		typeDropDown = new DropDownModern()
 				.withCaseSensitive(false)
 				.withMatchMode(MatchMode.CONTAINS)
 				.withAllowCustomValues(false)
