@@ -1,7 +1,9 @@
 package de.soderer.restclient.dlg;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -63,6 +65,7 @@ import de.soderer.restclient.RestClient;
 import de.soderer.restclient.image.ImageManager;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.swing.ErrorDialog;
+import de.soderer.swing.ModernUi;
 import de.soderer.swing.ProgressDialog;
 import de.soderer.swing.QuestionDialog;
 import de.soderer.swing.ShowDataDialog;
@@ -94,7 +97,7 @@ import de.soderer.yaml.data.YamlSequence;
 public class RestClientDialog extends UpdateableGuiApplication {
 	private static final long serialVersionUID = 6013829307145576321L;
 
-	private static final int ACTION_BUTTON_HEIGHT = 48;
+	private static final int ACTION_BUTTON_HEIGHT = 44;
 
 	private RequestComponent requestPart;
 	private ResponseComponent responsePart;
@@ -120,7 +123,18 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		final JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, createLeftPart(), createRightPart());
 		splitPane.setResizeWeight(0.5);
 		splitPane.setContinuousLayout(true);
-		setContentPane(splitPane);
+		ModernUi.styleSplitPane(splitPane);
+
+		final JPanel mainPanel = new JPanel(new BorderLayout());
+		mainPanel.setBackground(ModernUi.BACKGROUND);
+		mainPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 6, 8));
+		mainPanel.add(splitPane, BorderLayout.CENTER);
+
+		final JPanel contentPane = new JPanel(new BorderLayout());
+		contentPane.setBackground(ModernUi.BACKGROUND);
+		contentPane.add(createHeader(), BorderLayout.NORTH);
+		contentPane.add(mainPanel, BorderLayout.CENTER);
+		setContentPane(contentPane);
 
 		setSize(1200, 900);
 		setMinimumSize(new Dimension(500, 450));
@@ -160,110 +174,137 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		}
 	}
 
-	private JPanel createLeftPart() throws Exception {
-		final JPanel leftPart = new JPanel(new BorderLayout(0, 3));
-		leftPart.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
-
-		final JPanel titleRow = new JPanel(new GridBagLayout());
-		final GridBagConstraints titleConstraints = new GridBagConstraints();
-		titleConstraints.insets = new Insets(0, 0, 0, 3);
+	/**
+	 * Gradient header with logo, application title, version and the configuration and help buttons.
+	 */
+	private JPanel createHeader() throws Exception {
+		final ModernUi.GradientHeader header = new ModernUi.GradientHeader();
+		header.add(ModernUi.createLogo(ImageManager.getImage("RestClient.png")), BorderLayout.WEST);
 
 		final JLabel applicationLabel = new JLabel(LangResources.get("title"));
-		applicationLabel.setFont(new Font("Arial", Font.BOLD, 16));
-		titleConstraints.weightx = 1;
-		titleConstraints.anchor = GridBagConstraints.LINE_START;
-		titleRow.add(applicationLabel, titleConstraints);
+		applicationLabel.setForeground(Color.WHITE);
+		applicationLabel.setFont(ModernUi.baseFont().deriveFont(Font.BOLD, 21f));
+		final JLabel versionLabel = new JLabel("Version " + RestClient.VERSION);
+		versionLabel.setForeground(new Color(255, 255, 255, 190));
+		final JPanel titlePanel = new JPanel(new GridLayout(2, 1, 0, 0));
+		titlePanel.setOpaque(false);
+		titlePanel.add(applicationLabel);
+		titlePanel.add(versionLabel);
+		header.add(titlePanel, BorderLayout.CENTER);
 
-		titleConstraints.weightx = 0;
-		final JButton configButton = new JButton(ImageManager.getImage("wrench.png"));
-		configButton.setToolTipText(LangResources.get("configuration"));
+		final JButton configButton = createHeaderButton(ModernUi.IconKind.GEAR, LangResources.get("configuration"));
 		configButton.addActionListener(event -> openConfiguration());
-		titleRow.add(configButton, titleConstraints);
-
-		titleConstraints.insets = new Insets(0, 0, 0, 0);
-		final JButton helpButton = new JButton(ImageManager.getImage("question.png"));
-		helpButton.setToolTipText(LangResources.get("help"));
+		final JButton helpButton = createHeaderButton(ModernUi.IconKind.HELP, LangResources.get("help"));
 		helpButton.addActionListener(event -> new HelpDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION.toString() + ") " + LangResources.get("help"), applicationConfiguration).open());
-		titleRow.add(helpButton, titleConstraints);
 
-		leftPart.add(titleRow, BorderLayout.NORTH);
+		final JPanel applicationButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+		applicationButtonPanel.setOpaque(false);
+		applicationButtonPanel.add(configButton);
+		applicationButtonPanel.add(helpButton);
+		// GridBagLayout centers the buttons vertically in the header
+		final JPanel eastPanel = new JPanel(new GridBagLayout());
+		eastPanel.setOpaque(false);
+		eastPanel.add(applicationButtonPanel);
+		header.add(eastPanel, BorderLayout.EAST);
+		return header;
+	}
 
+	/**
+	 * Transparent icon button for the gradient header; the text is shown as tooltip.
+	 */
+	private static JButton createHeaderButton(final ModernUi.IconKind iconKind, final String text) {
+		final JButton button = new ModernUi.ModernButton(null, iconKind, ModernUi.ButtonStyle.HEADER);
+		button.setToolTipText(text);
+		button.getAccessibleContext().setAccessibleName(text);
+		return button;
+	}
+
+	private JPanel createLeftPart() throws Exception {
 		requestPart = new RequestComponent();
-		requestPart.setBorder(BorderFactory.createEtchedBorder());
 		requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
 		requestPart.addSaveButtonListener(this::saveRequestPreset);
 		requestPart.addDeleteButtonListener(this::deleteRequestPreset);
 		requestPart.addPresetSelectionListener(this::loadSelectedRequestPreset);
 		requestPart.addPresetsReorderedListener(this::saveRequestPresetOrder);
-		leftPart.add(requestPart, BorderLayout.CENTER);
 
 		loadPresets();
 
-		return leftPart;
+		ModernUi.blendIntoCard(requestPart);
+		final ModernUi.Card requestCard = new ModernUi.Card(null, null, 8);
+		requestCard.setContent(requestPart);
+		return requestCard;
 	}
 
 	private JPanel createRightPart() {
-		final JPanel rightPart = new JPanel(new BorderLayout(0, 3));
-		rightPart.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
-
 		responsePart = new ResponseComponent();
-		responsePart.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEtchedBorder(), BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 		responsePart.clearResponse();
-		rightPart.add(responsePart, BorderLayout.CENTER);
+		ModernUi.blendIntoCard(responsePart);
+		final ModernUi.Card responseCard = new ModernUi.Card(null, null, 8);
+		responseCard.setContent(responsePart);
 
 		final JPanel buttonRegion = new JPanel(new GridBagLayout());
+		buttonRegion.setOpaque(false);
 		final GridBagConstraints constraints = new GridBagConstraints();
 		constraints.gridx = 0;
 		constraints.weightx = 1;
 		constraints.fill = GridBagConstraints.HORIZONTAL;
-		constraints.insets = new Insets(3, 0, 0, 0);
 
 		// First row: "Send request" takes the free width, export and import sit at the right edge
-		final JPanel sendRequestRow = new JPanel(new BorderLayout(5, 0));
-		final JButton sendRequestButton = new JButton(LangResources.get("sendRequest"));
+		final JPanel sendRequestRow = new JPanel(new BorderLayout(8, 0));
+		sendRequestRow.setOpaque(false);
+		final JButton sendRequestButton = new ModernUi.ModernButton(LangResources.get("sendRequest"), ModernUi.IconKind.SEND, ModernUi.ButtonStyle.PRIMARY);
 		sendRequestButton.setPreferredSize(new Dimension(sendRequestButton.getPreferredSize().width, ACTION_BUTTON_HEIGHT));
 		sendRequestButton.addActionListener(event -> executeRequest());
 		sendRequestRow.add(sendRequestButton, BorderLayout.CENTER);
 
-		final JPanel exportImportContainer = new JPanel(new GridLayout(1, 2, 5, 0));
-		exportRequestResponseButton = new JButton(LangResources.get("export"));
+		final JPanel exportImportContainer = new JPanel(new GridLayout(1, 2, 8, 0));
+		exportImportContainer.setOpaque(false);
+		exportRequestResponseButton = new ModernUi.ModernButton(LangResources.get("export"), ModernUi.IconKind.EXPORT, ModernUi.ButtonStyle.SECONDARY);
 		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseTooltip"));
 		exportRequestResponseButton.addActionListener(event -> openExportFormatMenu());
 		exportImportContainer.add(exportRequestResponseButton);
 
-		final JButton importRequestResponseButton = new JButton(LangResources.get("import"));
+		final JButton importRequestResponseButton = new ModernUi.ModernButton(LangResources.get("import"), ModernUi.IconKind.IMPORT, ModernUi.ButtonStyle.SECONDARY);
 		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseTooltip"));
 		importRequestResponseButton.addActionListener(event -> importRequestResponse());
 		exportImportContainer.add(importRequestResponseButton);
 
-		// Square-ish buttons of the same height as "Send request", but wide enough for their texts
+		// Same height as "Send request", same width for both
 		final int exportImportWidth = Math.max(ACTION_BUTTON_HEIGHT, Math.max(exportRequestResponseButton.getPreferredSize().width, importRequestResponseButton.getPreferredSize().width));
 		exportRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
 		importRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
 		sendRequestRow.add(exportImportContainer, BorderLayout.EAST);
 
 		constraints.gridy = 0;
+		constraints.insets = new Insets(0, 0, 0, 0);
 		buttonRegion.add(sendRequestRow, constraints);
 
-		final JButton multipleRequestButton = new JButton(LangResources.get("multipleRequest"));
+		final JButton multipleRequestButton = new ModernUi.ModernButton(LangResources.get("multipleRequest"), ModernUi.IconKind.FAST_FORWARD, ModernUi.ButtonStyle.SECONDARY);
 		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
 		constraints.gridy = 1;
+		constraints.insets = new Insets(8, 0, 0, 0);
 		buttonRegion.add(multipleRequestButton, constraints);
 
-		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 5, 0));
-		final JButton clearRequestDataButton = new JButton(LangResources.get("clearRequestData"));
+		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 8, 0));
+		clearCloseRow.setOpaque(false);
+		final JButton clearRequestDataButton = new ModernUi.ModernButton(LangResources.get("clearRequestData"), ModernUi.IconKind.TRASH, ModernUi.ButtonStyle.SECONDARY);
 		clearRequestDataButton.addActionListener(event -> setRequestPreset(null));
 		clearCloseRow.add(clearRequestDataButton);
 
-		final JButton closeButton = new JButton(LangResources.get("close"));
+		final JButton closeButton = new ModernUi.ModernButton(LangResources.get("close"), ModernUi.IconKind.CLOSE, ModernUi.ButtonStyle.SECONDARY);
 		closeButton.addActionListener(event -> closeApplication());
 		clearCloseRow.add(closeButton);
 
 		constraints.gridy = 2;
 		buttonRegion.add(clearCloseRow, constraints);
 
-		rightPart.add(buttonRegion, BorderLayout.SOUTH);
+		final ModernUi.Card actionCard = new ModernUi.Card(null, null, 8);
+		actionCard.setContent(buttonRegion);
 
+		final JPanel rightPart = new JPanel(new BorderLayout(0, 2));
+		rightPart.setOpaque(false);
+		rightPart.add(responseCard, BorderLayout.CENTER);
+		rightPart.add(actionCard, BorderLayout.SOUTH);
 		return rightPart;
 	}
 

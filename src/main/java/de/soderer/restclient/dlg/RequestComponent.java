@@ -60,6 +60,7 @@ import de.soderer.swing.ComboSelectionDialog;
 import de.soderer.swing.CredentialsDialog;
 import de.soderer.swing.DropDown;
 import de.soderer.swing.DropDown.MatchMode;
+import de.soderer.swing.ModernUi;
 import de.soderer.swing.ProgressDialog;
 import de.soderer.swing.QuestionDialog;
 import de.soderer.swing.SimpleInputDialog;
@@ -97,7 +98,7 @@ public class RequestComponent extends JPanel {
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
 
 	private static final int KEY_FIELD_WIDTH = 150;
-	private static final int LIST_HEIGHT = 75;
+	private static final int LIST_HEIGHT = 92;
 	private static final int MIN_RIGHT_BUTTON_WIDTH = 100;
 
 	private DropDown presetCombo;
@@ -619,13 +620,13 @@ public class RequestComponent extends JPanel {
 
 	private void createOuterScrollArea() {
 		content = new ViewportWidthPanel(new GridBagLayout());
-		content.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+		content.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 8));
 
 		createUI();
 
 		final JScrollPane outerScrolled = new JScrollPane(content, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		outerScrolled.setBorder(BorderFactory.createEmptyBorder());
-		outerScrolled.getVerticalScrollBar().setUnitIncrement(16);
+		ModernUi.styleScrollBars(outerScrolled, ModernUi.CARD);
 		add(outerScrolled, BorderLayout.CENTER);
 	}
 
@@ -640,7 +641,7 @@ public class RequestComponent extends JPanel {
 		constraints.weighty = weighty;
 		constraints.fill = weighty > 0 ? GridBagConstraints.BOTH : GridBagConstraints.HORIZONTAL;
 		constraints.anchor = GridBagConstraints.FIRST_LINE_START;
-		constraints.insets = new Insets(2, 0, 2, 0);
+		constraints.insets = new Insets(3, 0, 3, 0);
 		content.add(component, constraints);
 	}
 
@@ -657,11 +658,11 @@ public class RequestComponent extends JPanel {
 		proxyUrlCombo.addActionListener(event -> updateShowProxyButtonState());
 		proxyUrlCombo.addValidationListener(valid -> updateShowProxyButtonState());
 
-		openApiButton = new JButton("OpenAPI");
+		openApiButton = new ModernUi.ModernButton("OpenAPI", ModernUi.IconKind.FILE, ModernUi.ButtonStyle.SECONDARY);
 		openApiButton.setEnabled(false);
 		openApiButton.addActionListener(event -> openApi());
 
-		addContentRow(createLabeledFieldRow(new JLabel(LangResources.get("proxyURL")), proxyUrlCombo, new JLabel(" "), openApiButton), 0);
+		addContentRow(createLabeledFieldRow(ModernUi.createMutedLabel(LangResources.get("proxyURL")), proxyUrlCombo, new JLabel(" "), openApiButton), 0);
 
 		final JPanel redirectsRow = new JPanel(new GridBagLayout());
 		final GridBagConstraints redirectsConstraints = new GridBagConstraints();
@@ -669,14 +670,14 @@ public class RequestComponent extends JPanel {
 		followRedirectsButton = new JCheckBox(LangResources.get("followRedirects"));
 		followRedirectsButton.addActionListener(event -> maxRedirectHopsSpinner.setEnabled(followRedirectsButton.isSelected()));
 		redirectsRow.add(followRedirectsButton, redirectsConstraints);
-		redirectsRow.add(new JLabel(LangResources.get("maxRedirectHops")), redirectsConstraints);
+		redirectsRow.add(ModernUi.createMutedLabel(LangResources.get("maxRedirectHops")), redirectsConstraints);
 		maxRedirectHopsSpinner = new JSpinner(new SpinnerNumberModel(HttpRequest.DEFAULT_MAX_REDIRECTS, 1, 999, 1));
 		// Disabled until "Follow redirects" is checked, since the hop count is meaningless otherwise
 		maxRedirectHopsSpinner.setEnabled(false);
 		redirectsRow.add(maxRedirectHopsSpinner, redirectsConstraints);
 
 		// Shows the proxy determined via WPAD or PAC file for the current request URL
-		showProxyButton = new JButton(LangResources.get("showProxy"));
+		showProxyButton = new ModernUi.ModernButton(LangResources.get("showProxy"), ModernUi.IconKind.SEARCH, ModernUi.ButtonStyle.SECONDARY);
 		showProxyButton.setToolTipText(LangResources.get("showProxyTooltip"));
 		showProxyButton.setEnabled(false);
 		showProxyButton.addActionListener(event -> showDeterminedProxy());
@@ -698,9 +699,10 @@ public class RequestComponent extends JPanel {
 		httpMethodCombo.addValidationListener(valid -> checkRequestContentStatus());
 
 		serviceUrlText = new HintTextField(LangResources.get("serviceUrlHint"));
+		ModernUi.styleTextField(serviceUrlText, false);
 		serviceUrlText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> openApiButton.setEnabled(StringUtilities.isNotBlank(serviceUrlText.getText()))));
 
-		tlsCheckButton = new JButton();
+		tlsCheckButton = new ModernUi.ModernButton("", ModernUi.IconKind.LOCK, ModernUi.ButtonStyle.SECONDARY);
 		tlsCheckButton.addActionListener(event -> {
 			final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getWindow(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword(), tlsCheckConfiguration.getCheckCn());
 			final TlsCheckConfiguration result = dialog.open();
@@ -717,12 +719,12 @@ public class RequestComponent extends JPanel {
 		methodUrlConstraints.insets = new Insets(0, 0, 2, 7);
 		methodUrlConstraints.gridy = 0;
 		methodUrlConstraints.gridx = 0;
-		methodUrlRow.add(new JLabel(LangResources.get("httpMethod")), methodUrlConstraints);
+		methodUrlRow.add(ModernUi.createMutedLabel(LangResources.get("httpMethod")), methodUrlConstraints);
 		methodUrlConstraints.gridx = 1;
-		methodUrlRow.add(new JLabel(LangResources.get("serviceURL")), methodUrlConstraints);
+		methodUrlRow.add(ModernUi.createMutedLabel(LangResources.get("serviceURL")), methodUrlConstraints);
 		methodUrlConstraints.gridx = 2;
 		methodUrlConstraints.insets = new Insets(0, 0, 2, 0);
-		methodUrlRow.add(new JLabel(LangResources.get("tlsCheck")), methodUrlConstraints);
+		methodUrlRow.add(ModernUi.createMutedLabel(LangResources.get("tlsCheck")), methodUrlConstraints);
 		methodUrlConstraints.gridy = 1;
 		methodUrlConstraints.gridx = 0;
 		methodUrlConstraints.insets = new Insets(0, 0, 0, 7);
@@ -738,11 +740,12 @@ public class RequestComponent extends JPanel {
 
 		alignRightColumnButtons();
 
-		addContentRow(new JLabel(LangResources.get("serviceMethod")), 0);
+		addContentRow(ModernUi.createMutedLabel(LangResources.get("serviceMethod")), 0);
 		serviceMethodText = new HintTextField(LangResources.get("serviceMethodHint"));
+		ModernUi.styleTextField(serviceMethodText, false);
 		addContentRow(serviceMethodText, 0);
 
-		final JButton headerAddButton = new JButton("+");
+		final JButton headerAddButton = createAddButton();
 		headerSection = new KeyValueSection();
 		addContentRow(createSectionHeader(LangResources.get("httpRequestHeader"), headerAddButton), 0);
 		addContentRow(headerSection.getScrollPane(), 0);
@@ -754,7 +757,7 @@ public class RequestComponent extends JPanel {
 
 		addContentRow(createHeaderButtonRegion(), 0);
 
-		final JButton urlParamAddButton = new JButton("+");
+		final JButton urlParamAddButton = createAddButton();
 		urlParamSection = new KeyValueSection();
 		addContentRow(createSectionHeader(LangResources.get("urlParameter"), urlParamAddButton), 0);
 		addContentRow(urlParamSection.getScrollPane(), 0);
@@ -764,7 +767,7 @@ public class RequestComponent extends JPanel {
 			checkRequestContentStatus();
 		});
 
-		htmlFormAddButton = new JButton("+");
+		htmlFormAddButton = createAddButton();
 		htmlFormParamSection = new KeyValueSection();
 		addContentRow(createSectionHeader(LangResources.get("htmlFormParameter"), htmlFormAddButton), 0);
 		addContentRow(htmlFormParamSection.getScrollPane(), 0);
@@ -773,9 +776,10 @@ public class RequestComponent extends JPanel {
 			checkRequestContentStatus();
 		});
 
-		addContentRow(new JLabel(LangResources.get("requestBody")), 0);
+		addContentRow(createSectionHeader(LangResources.get("requestBody"), null), 0);
 		requestBodyText = new JTextArea();
 		final JScrollPane requestBodyScrolled = new JScrollPane(requestBodyText);
+		ModernUi.styleTextArea(requestBodyText, requestBodyScrolled, false);
 		requestBodyScrolled.setPreferredSize(new Dimension(100, LIST_HEIGHT));
 		requestBodyScrolled.setMinimumSize(new Dimension(100, LIST_HEIGHT));
 		addContentRow(requestBodyScrolled, 1);
@@ -824,15 +828,31 @@ public class RequestComponent extends JPanel {
 		return row;
 	}
 
+	/**
+	 * Bold section title with a thin separator line above it and an optional add button at the right edge.
+	 */
 	private static JPanel createSectionHeader(final String title, final JButton addButton) {
 		final JPanel sectionHeader = new JPanel(new BorderLayout());
-		sectionHeader.add(new JLabel(title), BorderLayout.CENTER);
-		sectionHeader.add(addButton, BorderLayout.EAST);
+		sectionHeader.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(1, 0, 0, 0, ModernUi.INNER_BORDER),
+			BorderFactory.createEmptyBorder(8, 0, 0, 0)));
+		sectionHeader.add(ModernUi.createSectionTitle(title), BorderLayout.CENTER);
+		if (addButton != null) {
+			sectionHeader.add(addButton, BorderLayout.EAST);
+		}
 		return sectionHeader;
 	}
 
+	/** Small square "+" button for adding a row to a key/value section */
+	private static JButton createAddButton() {
+		final JButton addButton = new ModernUi.ModernButton(null, ModernUi.IconKind.PLUS, ModernUi.ButtonStyle.SECONDARY);
+		addButton.setPreferredSize(new Dimension(28, 28));
+		addButton.getAccessibleContext().setAccessibleName("+");
+		return addButton;
+	}
+
 	private JPanel createHeaderButtonRegion() {
-		final JButton addBasicAuthButton = new JButton(LangResources.get("addBasicAuth"));
+		final JButton addBasicAuthButton = new ModernUi.ModernButton(LangResources.get("addBasicAuth"), ModernUi.IconKind.LOCK, ModernUi.ButtonStyle.SECONDARY);
 		addBasicAuthButton.addActionListener(event -> {
 			final CredentialsDialog credentialsDialog = new CredentialsDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterBasicAuthCredentials"), true, true);
 			final Credentials credentials = credentialsDialog.open();
@@ -843,7 +863,7 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton addTokenAuthButton = new JButton(LangResources.get("addTokenAuth"));
+		final JButton addTokenAuthButton = new ModernUi.ModernButton(LangResources.get("addTokenAuth"), ModernUi.IconKind.LOCK, ModernUi.ButtonStyle.SECONDARY);
 		addTokenAuthButton.addActionListener(event -> {
 			final String token = new SimpleInputDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterAuthToken")).open();
 			if (token != null) {
@@ -853,10 +873,10 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton createTokenAuthButton = new JButton(LangResources.get("fetchIdpToken"));
+		final JButton createTokenAuthButton = new ModernUi.ModernButton(LangResources.get("fetchIdpToken"), ModernUi.IconKind.LOCK, ModernUi.ButtonStyle.SECONDARY);
 		createTokenAuthButton.addActionListener(event -> fetchIdpToken());
 
-		final JButton contentTypeButton = new JButton(LangResources.get("addContentType"));
+		final JButton contentTypeButton = new ModernUi.ModernButton(LangResources.get("addContentType"), ModernUi.IconKind.PLUS, ModernUi.ButtonStyle.SECONDARY);
 		contentTypeButton.addActionListener(event -> {
 			final List<String> contentTypes = new ArrayList<>();
 			for (final HttpContentType contentTypeItem : HttpContentType.values()) {
@@ -870,7 +890,7 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton standardHeaderButton = new JButton(LangResources.get("addStandardHeader"));
+		final JButton standardHeaderButton = new ModernUi.ModernButton(LangResources.get("addStandardHeader"), ModernUi.IconKind.PLUS, ModernUi.ButtonStyle.SECONDARY);
 		standardHeaderButton.addActionListener(event -> {
 			final List<String> standardHeaders = List.of(
 					"Accept",
@@ -899,7 +919,7 @@ public class RequestComponent extends JPanel {
 		final GridBagConstraints constraints = new GridBagConstraints();
 		constraints.fill = GridBagConstraints.HORIZONTAL;
 		constraints.weightx = 1;
-		constraints.insets = new Insets(2, 2, 2, 2);
+		constraints.insets = new Insets(2, 0, 2, 6);
 		constraints.gridy = 0;
 		constraints.gridx = 0;
 		headerButtonRegion.add(addBasicAuthButton, constraints);
@@ -1105,7 +1125,7 @@ public class RequestComponent extends JPanel {
 	}
 
 	private void createPresetNameSection() {
-		addContentRow(new JLabel(LangResources.get("preset")), 0);
+		addContentRow(ModernUi.createMutedLabel(LangResources.get("preset")), 0);
 
 		presetCombo = new DropDown()
 				.withCaseSensitive(false)
@@ -1125,8 +1145,8 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		saveButton = new JButton(LangResources.get("save"));
-		deleteButton = new JButton(LangResources.get("delete"));
+		saveButton = new ModernUi.ModernButton(LangResources.get("save"), ModernUi.IconKind.IMPORT, ModernUi.ButtonStyle.SECONDARY);
+		deleteButton = new ModernUi.ModernButton(LangResources.get("delete"), ModernUi.IconKind.TRASH, ModernUi.ButtonStyle.DANGEROUS);
 
 		final JPanel comboButtonRow = new JPanel(new GridBagLayout());
 		final GridBagConstraints constraints = new GridBagConstraints();
@@ -1391,7 +1411,8 @@ public class RequestComponent extends JPanel {
 			scrollPane = new JScrollPane(container, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 			scrollPane.setPreferredSize(new Dimension(100, LIST_HEIGHT));
 			scrollPane.setMinimumSize(new Dimension(100, LIST_HEIGHT));
-			scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+			container.setBackground(ModernUi.CARD);
+			ModernUi.styleScrollPane(scrollPane, ModernUi.CARD);
 			relayout();
 		}
 
@@ -1487,10 +1508,17 @@ public class RequestComponent extends JPanel {
 		private final class KeyValueRow {
 			private final HintTextField nameText = new HintTextField(LangResources.get("nameHint"));
 			private final HintTextField valueText = new HintTextField(LangResources.get("valueHint"));
-			private final JButton removeButton = new JButton("-");
+			private final JButton removeButton = new ModernUi.ModernButton(null, ModernUi.IconKind.CLOSE, ModernUi.ButtonStyle.SECONDARY);
 
 			private KeyValueRow() {
-				nameText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, nameText.getPreferredSize().height));
+				ModernUi.styleTextField(nameText, false);
+				ModernUi.styleTextField(valueText, false);
+				final int rowHeight = nameText.getPreferredSize().height;
+				nameText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, rowHeight));
+				// Square remove button as high as the text fields
+				removeButton.setPreferredSize(new Dimension(rowHeight, rowHeight));
+				removeButton.setToolTipText("-");
+				removeButton.getAccessibleContext().setAccessibleName("-");
 				removeButton.addActionListener(event -> removeRow(this));
 			}
 

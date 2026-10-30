@@ -3,6 +3,7 @@ package de.soderer.restclient.dlg;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -35,6 +36,7 @@ import de.soderer.json.path.JsonPath;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
 import de.soderer.restclient.helper.ResponseDataPathEvaluator;
+import de.soderer.swing.ModernUi;
 import de.soderer.utilities.LangResources;
 import de.soderer.utilities.StringUtilities;
 import de.soderer.utilities.Utilities;
@@ -58,8 +60,8 @@ public class ResponseComponent extends JPanel {
 	private static final long serialVersionUID = -3418745931227019654L;
 
 	private static final int KEY_FIELD_WIDTH = 150;
-	private static final int LIST_HEIGHT = 75;
-	private static final Color REDIRECT_WARNING_COLOR = new Color(170, 0, 0);
+	private static final int LIST_HEIGHT = 92;
+	private static final Color REDIRECT_WARNING_COLOR = ModernUi.DANGER;
 
 	private JTextField ipAddressText;
 	private JTextField httpCodeText;
@@ -101,6 +103,34 @@ public class ResponseComponent extends JPanel {
 	 */
 	public void setHttpCode(final Integer code) {
 		httpCodeText.setText(code != null ? code.toString() : "");
+		updateHttpCodeColors(code);
+	}
+
+	/**
+	 * Colors the HTTP code field by status class: green for success, blue for redirects, red for errors.
+	 */
+	private void updateHttpCodeColors(final Integer code) {
+		final Color background;
+		final Color foreground;
+		if (code == null) {
+			background = ModernUi.READ_ONLY_BACKGROUND;
+			foreground = ModernUi.TEXT;
+		} else if (code >= 200 && code < 300) {
+			background = ModernUi.SUCCESS_LIGHT;
+			foreground = ModernUi.SUCCESS;
+		} else if (code >= 300 && code < 400) {
+			background = ModernUi.ACCENT_LIGHT;
+			foreground = ModernUi.ACCENT_PRESSED;
+		} else if (code >= 400) {
+			background = ModernUi.DANGER_LIGHT;
+			foreground = ModernUi.DANGER;
+		} else {
+			background = ModernUi.WARNING_LIGHT;
+			foreground = ModernUi.WARNING;
+		}
+		httpCodeText.setBackground(background);
+		httpCodeText.setForeground(foreground);
+		httpCodeText.setFont(httpCodeText.getFont().deriveFont(code == null ? Font.PLAIN : Font.BOLD));
 	}
 
 	/**
@@ -139,7 +169,7 @@ public class ResponseComponent extends JPanel {
 				hintText += " " + LangResources.get("redirectCredentialsDroppedHint");
 			}
 			redirectHintLabel.setText(hintText);
-			redirectHintLabel.setForeground(credentialsDroppedOnRedirect ? REDIRECT_WARNING_COLOR : UIManager.getColor("Label.foreground"));
+			redirectHintLabel.setForeground(credentialsDroppedOnRedirect ? REDIRECT_WARNING_COLOR : ModernUi.ACCENT_PRESSED);
 		} else {
 			redirectHintLabel.setText("");
 		}
@@ -321,7 +351,7 @@ public class ResponseComponent extends JPanel {
 	}
 
 	private void createUI() {
-		setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+		setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 
 		int row = 0;
 
@@ -330,11 +360,11 @@ public class ResponseComponent extends JPanel {
 		final GridBagConstraints codeAndTimeConstraints = new GridBagConstraints();
 		codeAndTimeConstraints.weightx = 1;
 		codeAndTimeConstraints.fill = GridBagConstraints.HORIZONTAL;
-		codeAndTimeConstraints.insets = new Insets(0, 0, 2, 5);
+		codeAndTimeConstraints.insets = new Insets(0, 0, 2, 8);
 		codeAndTimeConstraints.gridy = 0;
-		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseCode")), codeAndTimeConstraints);
-		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseIpAddress")), codeAndTimeConstraints);
-		sectionCodeAndTime.add(new JLabel(LangResources.get("httpResponseTime")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseCode")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseIpAddress")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseTime")), codeAndTimeConstraints);
 		codeAndTimeConstraints.gridy = 1;
 		httpCodeText = createReadOnlyField();
 		sectionCodeAndTime.add(httpCodeText, codeAndTimeConstraints);
@@ -351,7 +381,8 @@ public class ResponseComponent extends JPanel {
 		redirectHintLabel.setVisible(false);
 		add(redirectHintLabel, rowConstraints(row++, 0));
 
-		final JLabel headerLabel = new JLabel(LangResources.get("httpResponseHeader"));
+		final JLabel headerLabel = ModernUi.createSectionTitle(LangResources.get("httpResponseHeader"));
+		headerLabel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 		add(headerLabel, rowConstraints(row++, 0));
 		headerContainer = createKeyValueContainer();
 		final JScrollPane headerScrolled = createListScrollPane(headerContainer);
@@ -359,13 +390,15 @@ public class ResponseComponent extends JPanel {
 		responseDisplayComponents.add(headerLabel);
 		responseDisplayComponents.add(headerScrolled);
 
-		final JLabel bodyLabel = new JLabel(LangResources.get("responseBody"));
+		final JLabel bodyLabel = ModernUi.createSectionTitle(LangResources.get("responseBody"));
+		bodyLabel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 		add(bodyLabel, rowConstraints(row++, 0));
 
 		// JTextArea already supports Ctrl+A / Ctrl+C, which the SWT variant had to add by hand
 		responseBodyText = new JTextArea();
 		responseBodyText.setEditable(false);
 		final JScrollPane responseBodyScrolled = new JScrollPane(responseBodyText);
+		ModernUi.styleTextArea(responseBodyText, responseBodyScrolled, true);
 		final GridBagConstraints bodyConstraints = rowConstraints(row++, 1);
 		bodyConstraints.fill = GridBagConstraints.BOTH;
 		add(responseBodyScrolled, bodyConstraints);
@@ -377,9 +410,11 @@ public class ResponseComponent extends JPanel {
 		fillerConstraints.fill = GridBagConstraints.BOTH;
 		add(Box.createGlue(), fillerConstraints);
 
-		final JPanel responseDataPathRow = new JPanel(new BorderLayout(5, 0));
-		responseDataPathRow.add(new JLabel(LangResources.get("responseDataPath")), BorderLayout.WEST);
+		final JPanel responseDataPathRow = new JPanel(new BorderLayout(8, 0));
+		responseDataPathRow.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+		responseDataPathRow.add(ModernUi.createMutedLabel(LangResources.get("responseDataPath")), BorderLayout.WEST);
 		responseDataPathText = new HintTextField(LangResources.get("responseDataPathHint"));
+		ModernUi.styleTextField(responseDataPathText, false);
 		responseDataPathText.setToolTipText(LangResources.get("responseDataPathTooltip"));
 		responseDataPathText.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
@@ -402,9 +437,10 @@ public class ResponseComponent extends JPanel {
 
 		final JPanel downloadTargetRow = new JPanel(new GridBagLayout());
 		final GridBagConstraints downloadConstraints = new GridBagConstraints();
-		downloadConstraints.insets = new Insets(0, 0, 0, 5);
-		downloadTargetRow.add(new JLabel(LangResources.get("downloadTarget")), downloadConstraints);
+		downloadConstraints.insets = new Insets(0, 0, 0, 8);
+		downloadTargetRow.add(ModernUi.createMutedLabel(LangResources.get("downloadTarget")), downloadConstraints);
 		downloadTargetText = new HintTextField(LangResources.get("downloadTargetHint"));
+		ModernUi.styleTextField(downloadTargetText, false);
 		downloadTargetText.setText(Utilities.getUsersDefaultDownloadDirectory());
 		downloadTargetText.setToolTipText(LangResources.get("downloadTargetTooltip"));
 		// GridBagLayout shrinks to minimum sizes when space gets tight, keep the path field usable
@@ -414,16 +450,17 @@ public class ResponseComponent extends JPanel {
 		downloadTargetRow.add(downloadTargetText, downloadConstraints);
 		downloadConstraints.weightx = 0;
 		downloadConstraints.fill = GridBagConstraints.NONE;
-		final JButton downloadTargetBrowseFileButton = new JButton(LangResources.get("downloadTargetBrowseFile"));
+		final JButton downloadTargetBrowseFileButton = new ModernUi.ModernButton(LangResources.get("downloadTargetBrowseFile"), ModernUi.IconKind.FILE, ModernUi.ButtonStyle.SECONDARY);
 		downloadTargetBrowseFileButton.addActionListener(event -> browseDownloadTarget(false));
 		downloadTargetRow.add(downloadTargetBrowseFileButton, downloadConstraints);
 		downloadConstraints.insets = new Insets(0, 0, 0, 0);
-		final JButton downloadTargetBrowseDirectoryButton = new JButton(LangResources.get("downloadTargetBrowseDirectory"));
+		final JButton downloadTargetBrowseDirectoryButton = new ModernUi.ModernButton(LangResources.get("downloadTargetBrowseDirectory"), ModernUi.IconKind.FOLDER, ModernUi.ButtonStyle.SECONDARY);
 		downloadTargetBrowseDirectoryButton.addActionListener(event -> browseDownloadTarget(true));
 		downloadTargetRow.add(downloadTargetBrowseDirectoryButton, downloadConstraints);
 		add(downloadTargetRow, rowConstraints(row++, 0));
 
-		randomParamsLabel = new JLabel(LangResources.get("randomParameters"));
+		randomParamsLabel = ModernUi.createSectionTitle(LangResources.get("randomParameters"));
+		randomParamsLabel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 		randomParamsLabel.setVisible(false);
 		add(randomParamsLabel, rowConstraints(row++, 0));
 
@@ -468,18 +505,21 @@ public class ResponseComponent extends JPanel {
 	private static JTextField createReadOnlyField() {
 		final JTextField field = new JTextField();
 		field.setEditable(false);
+		ModernUi.styleTextField(field, true);
 		return field;
 	}
 
 	private static ViewportWidthPanel createKeyValueContainer() {
-		return new ViewportWidthPanel(new GridBagLayout());
+		final ViewportWidthPanel container = new ViewportWidthPanel(new GridBagLayout());
+		container.setBackground(ModernUi.CARD);
+		return container;
 	}
 
 	private static JScrollPane createListScrollPane(final ViewportWidthPanel container) {
 		final JScrollPane scrollPane = new JScrollPane(container, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		scrollPane.setPreferredSize(new Dimension(100, LIST_HEIGHT));
 		scrollPane.setMinimumSize(new Dimension(100, LIST_HEIGHT));
-		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+		ModernUi.styleScrollPane(scrollPane, ModernUi.CARD);
 		return scrollPane;
 	}
 
@@ -529,7 +569,7 @@ public class ResponseComponent extends JPanel {
 	 */
 	public void clearResponse() {
 		lastResponseBody = null;
-		httpCodeText.setText("");
+		setHttpCode(null);
 		ipAddressText.setText("");
 		timeText.setText("");
 		// Headers too: otherwise a canceled request still exports the previous response's headers,
@@ -602,7 +642,7 @@ public class ResponseComponent extends JPanel {
 			setOpaque(false);
 			setBorder(null);
 			setFont(UIManager.getFont("Label.font"));
-			setForeground(UIManager.getColor("Label.foreground"));
+			setForeground(ModernUi.TEXT);
 
 			// The wrapped height is only known once the width is, so lay out again after a width change
 			addComponentListener(new ComponentAdapter() {
