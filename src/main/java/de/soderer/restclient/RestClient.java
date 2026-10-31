@@ -79,7 +79,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	 * application to the Linux Gnome dock).
 	 *
 	 * X11 WM_CLASS of all windows, also used as StartupWMClass of the Linux desktop link */
-	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer- + APPLICATION_NAME";
+	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-" + APPLICATION_NAME;
 
 	/**
 	 * Email address offered in error dialogs for sending error reports.
