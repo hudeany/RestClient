@@ -129,6 +129,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		splitPane.setContinuousLayout(true);
 		ModernUi.styleSplitPane(splitPane);
 
+		// Presets may only be loaded after both parts exist, because applying a preset
+		// also writes into the response part (download target, response data path)
+		loadPresets();
+
 		final JPanel mainPanel = new JPanel(new BorderLayout());
 		mainPanel.setBackground(ModernUi.BACKGROUND);
 		mainPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 6, 8));
@@ -231,8 +235,6 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPart.addDeleteButtonListener(this::deleteRequestPreset);
 		requestPart.addPresetSelectionListener(this::loadSelectedRequestPreset);
 		requestPart.addPresetsReorderedListener(this::saveRequestPresetOrder);
-
-		loadPresets();
 
 		ModernUi.blendIntoCard(requestPart);
 		final Card requestCard = new Card(null, null, 8);
