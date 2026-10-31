@@ -73,11 +73,14 @@ import de.soderer.yaml.data.YamlSequence;
 public class RestClient extends UpdateableConsoleApplication implements WorkerParentDual {
 	/** The Constant APPLICATION_NAME. */
 	public static final String APPLICATION_NAME = "RestClient";
+
 	/**
 	 * Startup class name of the application, also used as AWT window manager class (e.g. for pinning the
 	 * application to the Linux Gnome dock).
-	 */
-	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer-restclient";
+	 *
+	 * X11 WM_CLASS of all windows, also used as StartupWMClass of the Linux desktop link */
+	public static final String APPLICATION_STARTUPCLASS_NAME = "de-soderer- + APPLICATION_NAME";
+
 	/**
 	 * Email address offered in error dialogs for sending error reports.
 	 */
