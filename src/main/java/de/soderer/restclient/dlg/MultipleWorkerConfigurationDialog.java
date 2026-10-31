@@ -8,7 +8,7 @@ import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.JButton;
+import de.soderer.swing.modern.Button;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
@@ -85,7 +85,7 @@ public class MultipleWorkerConfigurationDialog extends ModalDialog<Boolean> {
 
 		getContentArea().add(formPanel, BorderLayout.CENTER);
 
-		final JButton startButton = addButton(LangResources.get("start"), IconKind.PLAY, ButtonStyle.PRIMARY, event -> {
+		final Button startButton = addButton(LangResources.get("start"), IconKind.PLAY, ButtonStyle.PRIMARY, event -> {
 			workerCount = (Integer) workersSpinner.getValue();
 			repetitions = normalizeRepetitions(repetitionsDropDown.getText());
 			pauseSeconds = (Integer) pauseSpinner.getValue();

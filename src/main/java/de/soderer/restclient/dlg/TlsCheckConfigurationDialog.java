@@ -8,7 +8,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -21,6 +20,7 @@ import javax.swing.event.DocumentListener;
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.swing.DropDown.MatchMode;
+import de.soderer.swing.modern.Button;
 import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.DropDown;
 import de.soderer.swing.modern.IconKind;
@@ -46,11 +46,11 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 	private DropDown typeDropDown;
 	private JLabel fileLabel;
 	private JTextField fileText;
-	private JButton fileBrowseButton;
+	private Button fileBrowseButton;
 	private JLabel passwordLabel;
 	private JPasswordField passwordText;
 	private JCheckBox checkCnCheckbox;
-	private JButton okButton;
+	private Button okButton;
 
 	/**
 	 * Creates the dialog with the given initial values.
@@ -112,7 +112,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		if (selectedFile != null) {
 			fileText.setText(selectedFile.getAbsolutePath());
 		}
-		fileBrowseButton = new ModernUi.Button(LangResources.get("browse"), IconKind.FOLDER, ButtonStyle.SECONDARY);
+		fileBrowseButton = new Button(LangResources.get("browse"), IconKind.FOLDER, ButtonStyle.SECONDARY);
 		addRow(panel, 2, fileLabel, fileText, fileBrowseButton);
 
 		passwordLabel = ModernUi.createMutedLabel(LangResources.get("password") + ":");
@@ -128,7 +128,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		panel.add(checkCnCheckbox, constraints);
 
 		okButton = addButton(LangResources.get("ok"), null, ButtonStyle.PRIMARY, null);
-		final JButton cancelButton = addButton(LangResources.get("cancel"), null, ButtonStyle.SECONDARY, null);
+		final Button cancelButton = addButton(LangResources.get("cancel"), null, ButtonStyle.SECONDARY, null);
 
 		typeDropDown.addActionListener(event -> {
 			final String typeText = typeDropDown.getText();
@@ -242,7 +242,7 @@ public class TlsCheckConfigurationDialog extends ModalDialog<TlsCheckConfigurati
 		setLocationRelativeTo(getOwner());
 	}
 
-	private static void addRow(final JPanel panel, final int row, final JLabel label, final java.awt.Component field, final JButton trailingButton) {
+	private static void addRow(final JPanel panel, final int row, final JLabel label, final java.awt.Component field, final Button trailingButton) {
 		final GridBagConstraints constraints = new GridBagConstraints();
 		constraints.gridy = row;
 		constraints.insets = new Insets(3, 0, 3, 8);

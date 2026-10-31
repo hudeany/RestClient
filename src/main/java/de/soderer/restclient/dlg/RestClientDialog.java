@@ -31,7 +31,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -65,8 +64,11 @@ import de.soderer.restclient.RestClient;
 import de.soderer.restclient.image.ImageManager;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.swing.SwingColor;
+import de.soderer.swing.modern.Button;
 import de.soderer.swing.modern.ButtonStyle;
+import de.soderer.swing.modern.Card;
 import de.soderer.swing.modern.ErrorDialog;
+import de.soderer.swing.modern.GradientHeader;
 import de.soderer.swing.modern.IconKind;
 import de.soderer.swing.modern.ModernUi;
 import de.soderer.swing.modern.ProgressDialog;
@@ -104,7 +106,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	private RequestComponent requestPart;
 	private ResponseComponent responsePart;
 
-	private JButton exportRequestResponseButton;
+	private Button exportRequestResponseButton;
 
 	private final ApplicationConfigurationProperties applicationConfiguration;
 
@@ -180,7 +182,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * Gradient header with logo, application title, version and the help and configuration buttons.
 	 */
 	private JPanel createHeader() throws Exception {
-		final ModernUi.GradientHeader header = new ModernUi.GradientHeader();
+		final GradientHeader header = new GradientHeader();
 		header.add(ModernUi.createLogo(ImageManager.getImage("RestClient.png")), BorderLayout.WEST);
 
 		final JLabel applicationLabel = new JLabel(LangResources.get("title"));
@@ -194,9 +196,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		titlePanel.add(versionLabel);
 		header.add(titlePanel, BorderLayout.CENTER);
 
-		final JButton configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
+		final Button configButton = createHeaderButton(IconKind.GEAR, LangResources.get("configuration"));
 		configButton.addActionListener(event -> openConfiguration());
-		final JButton helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
+		final Button helpButton = createHeaderButton(IconKind.HELP, LangResources.get("help"));
 		helpButton.addActionListener(event -> new HelpDialog(this, RestClient.APPLICATION_NAME + " (" + RestClient.VERSION.toString() + ") " + LangResources.get("help"), applicationConfiguration).open());
 
 		final JPanel applicationButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
@@ -215,8 +217,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	/**
 	 * Transparent icon button for the gradient header; the text is shown as tooltip.
 	 */
-	private static JButton createHeaderButton(final IconKind iconKind, final String text) {
-		final JButton button = new ModernUi.Button(null, iconKind, ButtonStyle.HEADER);
+	private static Button createHeaderButton(final IconKind iconKind, final String text) {
+		final Button button = new Button(null, iconKind, ButtonStyle.HEADER);
 		button.setToolTipText(text);
 		button.getAccessibleContext().setAccessibleName(text);
 		return button;
@@ -233,7 +235,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		loadPresets();
 
 		ModernUi.blendIntoCard(requestPart);
-		final ModernUi.Card requestCard = new ModernUi.Card(null, null, 8);
+		final Card requestCard = new Card(null, null, 8);
 		requestCard.setContent(requestPart);
 		return requestCard;
 	}
@@ -242,7 +244,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart = new ResponseComponent();
 		responsePart.clearResponse();
 		ModernUi.blendIntoCard(responsePart);
-		final ModernUi.Card responseCard = new ModernUi.Card(null, null, 8);
+		final Card responseCard = new Card(null, null, 8);
 		responseCard.setContent(responsePart);
 
 		final JPanel buttonRegion = new JPanel(new GridBagLayout());
@@ -255,19 +257,19 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		// First row: "Send request" takes the free width, export and import sit at the right edge
 		final JPanel sendRequestRow = new JPanel(new BorderLayout(8, 0));
 		sendRequestRow.setOpaque(false);
-		final JButton sendRequestButton = new ModernUi.Button(LangResources.get("sendRequest"), IconKind.SEND, ButtonStyle.PRIMARY);
+		final Button sendRequestButton = new Button(LangResources.get("sendRequest"), IconKind.SEND, ButtonStyle.PRIMARY);
 		sendRequestButton.setPreferredSize(new Dimension(sendRequestButton.getPreferredSize().width, ACTION_BUTTON_HEIGHT));
 		sendRequestButton.addActionListener(event -> executeRequest());
 		sendRequestRow.add(sendRequestButton, BorderLayout.CENTER);
 
 		final JPanel exportImportContainer = new JPanel(new GridLayout(1, 2, 8, 0));
 		exportImportContainer.setOpaque(false);
-		exportRequestResponseButton = new ModernUi.Button(LangResources.get("export"), IconKind.EXPORT, ButtonStyle.SECONDARY);
+		exportRequestResponseButton = new Button(LangResources.get("export"), IconKind.EXPORT, ButtonStyle.SECONDARY);
 		exportRequestResponseButton.setToolTipText(LangResources.get("exportRequestResponseTooltip"));
 		exportRequestResponseButton.addActionListener(event -> openExportFormatMenu());
 		exportImportContainer.add(exportRequestResponseButton);
 
-		final JButton importRequestResponseButton = new ModernUi.Button(LangResources.get("import"), IconKind.IMPORT, ButtonStyle.SECONDARY);
+		final Button importRequestResponseButton = new Button(LangResources.get("import"), IconKind.IMPORT, ButtonStyle.SECONDARY);
 		importRequestResponseButton.setToolTipText(LangResources.get("importRequestResponseTooltip"));
 		importRequestResponseButton.addActionListener(event -> importRequestResponse());
 		exportImportContainer.add(importRequestResponseButton);
@@ -282,7 +284,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		constraints.insets = new Insets(0, 0, 0, 0);
 		buttonRegion.add(sendRequestRow, constraints);
 
-		final JButton multipleRequestButton = new ModernUi.Button(LangResources.get("multipleRequest"), IconKind.FAST_FORWARD, ButtonStyle.SECONDARY);
+		final Button multipleRequestButton = new Button(LangResources.get("multipleRequest"), IconKind.FAST_FORWARD, ButtonStyle.SECONDARY);
 		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
 		constraints.gridy = 1;
 		constraints.insets = new Insets(8, 0, 0, 0);
@@ -290,18 +292,18 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 8, 0));
 		clearCloseRow.setOpaque(false);
-		final JButton clearRequestDataButton = new ModernUi.Button(LangResources.get("clearRequestData"), IconKind.TRASH, ButtonStyle.SECONDARY);
+		final Button clearRequestDataButton = new Button(LangResources.get("clearRequestData"), IconKind.TRASH, ButtonStyle.SECONDARY);
 		clearRequestDataButton.addActionListener(event -> setRequestPreset(null));
 		clearCloseRow.add(clearRequestDataButton);
 
-		final JButton closeButton = new ModernUi.Button(LangResources.get("close"), IconKind.CLOSE, ButtonStyle.SECONDARY);
+		final Button closeButton = new Button(LangResources.get("close"), IconKind.CLOSE, ButtonStyle.SECONDARY);
 		closeButton.addActionListener(event -> closeApplication());
 		clearCloseRow.add(closeButton);
 
 		constraints.gridy = 2;
 		buttonRegion.add(clearCloseRow, constraints);
 
-		final ModernUi.Card actionCard = new ModernUi.Card(null, null, 8);
+		final Card actionCard = new Card(null, null, 8);
 		actionCard.setContent(buttonRegion);
 
 		final JPanel rightPart = new JPanel(new BorderLayout(0, 2));

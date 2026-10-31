@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -58,6 +57,7 @@ import de.soderer.restclient.helper.IdpHelper;
 import de.soderer.restclient.worker.ExecuteHttpRequestWorker;
 import de.soderer.swing.DropDown.MatchMode;
 import de.soderer.swing.SwingColor;
+import de.soderer.swing.modern.Button;
 import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.ComboSelectionDialog;
 import de.soderer.swing.modern.CredentialsDialog;
@@ -104,8 +104,8 @@ public class RequestComponent extends JPanel {
 	private static final int MIN_RIGHT_BUTTON_WIDTH = 100;
 
 	private DropDown presetCombo;
-	private JButton saveButton;
-	private JButton deleteButton;
+	private Button saveButton;
+	private Button deleteButton;
 
 	private final List<String> presetNames = new ArrayList<>();
 	private Runnable presetSelectionListener;
@@ -113,14 +113,14 @@ public class RequestComponent extends JPanel {
 
 	private DropDown httpMethodCombo;
 	private HintTextField serviceUrlText;
-	private JButton tlsCheckButton;
-	private JButton openApiButton;
+	private Button tlsCheckButton;
+	private Button openApiButton;
 	private HintTextField serviceMethodText;
 	private DropDown proxyUrlCombo;
 	private final List<String> proxyUrlPresets = new ArrayList<>();
 	private JCheckBox followRedirectsButton;
 	private JSpinner maxRedirectHopsSpinner;
-	private JButton showProxyButton;
+	private Button showProxyButton;
 	private JTextArea requestBodyText;
 
 	private String idpUrl = null;
@@ -132,7 +132,7 @@ public class RequestComponent extends JPanel {
 	private KeyValueSection headerSection;
 	private KeyValueSection urlParamSection;
 	private KeyValueSection htmlFormParamSection;
-	private JButton htmlFormAddButton;
+	private Button htmlFormAddButton;
 
 	private ViewportWidthPanel content;
 	private int contentRow = 0;
@@ -660,7 +660,7 @@ public class RequestComponent extends JPanel {
 		proxyUrlCombo.addActionListener(event -> updateShowProxyButtonState());
 		proxyUrlCombo.addValidationListener(valid -> updateShowProxyButtonState());
 
-		openApiButton = new ModernUi.Button("OpenAPI", IconKind.FILE, ButtonStyle.SECONDARY);
+		openApiButton = new Button("OpenAPI", IconKind.FILE, ButtonStyle.SECONDARY);
 		openApiButton.setEnabled(false);
 		openApiButton.addActionListener(event -> openApi());
 
@@ -679,7 +679,7 @@ public class RequestComponent extends JPanel {
 		redirectsRow.add(maxRedirectHopsSpinner, redirectsConstraints);
 
 		// Shows the proxy determined via WPAD or PAC file for the current request URL
-		showProxyButton = new ModernUi.Button(LangResources.get("showProxy"), IconKind.SEARCH, ButtonStyle.SECONDARY);
+		showProxyButton = new Button(LangResources.get("showProxy"), IconKind.SEARCH, ButtonStyle.SECONDARY);
 		showProxyButton.setToolTipText(LangResources.get("showProxyTooltip"));
 		showProxyButton.setEnabled(false);
 		showProxyButton.addActionListener(event -> showDeterminedProxy());
@@ -704,7 +704,7 @@ public class RequestComponent extends JPanel {
 		ModernUi.styleTextField(serviceUrlText, false);
 		serviceUrlText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> openApiButton.setEnabled(StringUtilities.isNotBlank(serviceUrlText.getText()))));
 
-		tlsCheckButton = new ModernUi.Button("", IconKind.LOCK, ButtonStyle.SECONDARY);
+		tlsCheckButton = new Button("", IconKind.LOCK, ButtonStyle.SECONDARY);
 		tlsCheckButton.addActionListener(event -> {
 			final TlsCheckConfigurationDialog dialog = new TlsCheckConfigurationDialog(getWindow(), RestClient.APPLICATION_NAME, tlsCheckConfiguration.getType(), tlsCheckConfiguration.getTrustoreOrPemFile(), tlsCheckConfiguration.getTrustorePassword(), tlsCheckConfiguration.getCheckCn());
 			final TlsCheckConfiguration result = dialog.open();
@@ -747,7 +747,7 @@ public class RequestComponent extends JPanel {
 		ModernUi.styleTextField(serviceMethodText, false);
 		addContentRow(serviceMethodText, 0);
 
-		final JButton headerAddButton = createAddButton();
+		final Button headerAddButton = createAddButton();
 		headerSection = new KeyValueSection();
 		addContentRow(createSectionHeader(LangResources.get("httpRequestHeader"), headerAddButton), 0);
 		addContentRow(headerSection.getScrollPane(), 0);
@@ -759,7 +759,7 @@ public class RequestComponent extends JPanel {
 
 		addContentRow(createHeaderButtonRegion(), 0);
 
-		final JButton urlParamAddButton = createAddButton();
+		final Button urlParamAddButton = createAddButton();
 		urlParamSection = new KeyValueSection();
 		addContentRow(createSectionHeader(LangResources.get("urlParameter"), urlParamAddButton), 0);
 		addContentRow(urlParamSection.getScrollPane(), 0);
@@ -833,7 +833,7 @@ public class RequestComponent extends JPanel {
 	/**
 	 * Bold section title with a thin separator line above it and an optional add button at the right edge.
 	 */
-	private static JPanel createSectionHeader(final String title, final JButton addButton) {
+	private static JPanel createSectionHeader(final String title, final Button addButton) {
 		final JPanel sectionHeader = new JPanel(new BorderLayout());
 		sectionHeader.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createMatteBorder(1, 0, 0, 0, ModernUi.INNER_BORDER),
@@ -846,15 +846,15 @@ public class RequestComponent extends JPanel {
 	}
 
 	/** Small square "+" button for adding a row to a key/value section */
-	private static JButton createAddButton() {
-		final JButton addButton = new ModernUi.Button(null, IconKind.PLUS, ButtonStyle.SECONDARY);
+	private static Button createAddButton() {
+		final Button addButton = new Button(null, IconKind.PLUS, ButtonStyle.SECONDARY);
 		addButton.setPreferredSize(new Dimension(28, 28));
 		addButton.getAccessibleContext().setAccessibleName("+");
 		return addButton;
 	}
 
 	private JPanel createHeaderButtonRegion() {
-		final JButton addBasicAuthButton = new ModernUi.Button(LangResources.get("addBasicAuth"), IconKind.LOCK, ButtonStyle.SECONDARY);
+		final Button addBasicAuthButton = new Button(LangResources.get("addBasicAuth"), IconKind.LOCK, ButtonStyle.SECONDARY);
 		addBasicAuthButton.addActionListener(event -> {
 			final CredentialsDialog credentialsDialog = new CredentialsDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterBasicAuthCredentials"), true, true);
 			final Credentials credentials = credentialsDialog.open();
@@ -865,7 +865,7 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton addTokenAuthButton = new ModernUi.Button(LangResources.get("addTokenAuth"), IconKind.LOCK, ButtonStyle.SECONDARY);
+		final Button addTokenAuthButton = new Button(LangResources.get("addTokenAuth"), IconKind.LOCK, ButtonStyle.SECONDARY);
 		addTokenAuthButton.addActionListener(event -> {
 			final String token = new SimpleInputDialog(getWindow(), RestClient.APPLICATION_NAME, LangResources.get("enterAuthToken")).open();
 			if (token != null) {
@@ -875,10 +875,10 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton createTokenAuthButton = new ModernUi.Button(LangResources.get("fetchIdpToken"), IconKind.LOCK, ButtonStyle.SECONDARY);
+		final Button createTokenAuthButton = new Button(LangResources.get("fetchIdpToken"), IconKind.LOCK, ButtonStyle.SECONDARY);
 		createTokenAuthButton.addActionListener(event -> fetchIdpToken());
 
-		final JButton contentTypeButton = new ModernUi.Button(LangResources.get("addContentType"), IconKind.PLUS, ButtonStyle.SECONDARY);
+		final Button contentTypeButton = new Button(LangResources.get("addContentType"), IconKind.PLUS, ButtonStyle.SECONDARY);
 		contentTypeButton.addActionListener(event -> {
 			final List<String> contentTypes = new ArrayList<>();
 			for (final HttpContentType contentTypeItem : HttpContentType.values()) {
@@ -892,7 +892,7 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		final JButton standardHeaderButton = new ModernUi.Button(LangResources.get("addStandardHeader"), IconKind.PLUS, ButtonStyle.SECONDARY);
+		final Button standardHeaderButton = new Button(LangResources.get("addStandardHeader"), IconKind.PLUS, ButtonStyle.SECONDARY);
 		standardHeaderButton.addActionListener(event -> {
 			final List<String> standardHeaders = List.of(
 					"Accept",
@@ -1147,8 +1147,8 @@ public class RequestComponent extends JPanel {
 			}
 		});
 
-		saveButton = new ModernUi.Button(LangResources.get("save"), IconKind.IMPORT, ButtonStyle.SECONDARY);
-		deleteButton = new ModernUi.Button(LangResources.get("delete"), IconKind.TRASH, ButtonStyle.DANGEROUS);
+		saveButton = new Button(LangResources.get("save"), IconKind.IMPORT, ButtonStyle.SECONDARY);
+		deleteButton = new Button(LangResources.get("delete"), IconKind.TRASH, ButtonStyle.DANGEROUS);
 
 		final JPanel comboButtonRow = new JPanel(new GridBagLayout());
 		final GridBagConstraints constraints = new GridBagConstraints();
@@ -1510,7 +1510,7 @@ public class RequestComponent extends JPanel {
 		private final class KeyValueRow {
 			private final HintTextField nameText = new HintTextField(LangResources.get("nameHint"));
 			private final HintTextField valueText = new HintTextField(LangResources.get("valueHint"));
-			private final JButton removeButton = new ModernUi.Button(null, IconKind.CLOSE, ButtonStyle.SECONDARY);
+			private final Button removeButton = new Button(null, IconKind.CLOSE, ButtonStyle.SECONDARY);
 
 			private KeyValueRow() {
 				ModernUi.styleTextField(nameText, false);

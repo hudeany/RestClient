@@ -11,7 +11,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -22,6 +21,8 @@ import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import de.soderer.swing.modern.Button;
+import de.soderer.swing.modern.ButtonStyle;
 import de.soderer.swing.modern.ModalDialog;
 import de.soderer.utilities.Credentials;
 import de.soderer.utilities.LangResources;
@@ -41,7 +42,7 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 
 	private final String text;
 
-	private JButton okButton;
+	private Button okButton;
 	private JTextField idpUrlTextField;
 	private JTextField idpRealmTextField;
 	private JTextField usernameTextField;
@@ -123,14 +124,14 @@ public class IdpCredentialsDialog extends ModalDialog<Credentials> {
 		panel.add(credentialsPanel, BorderLayout.CENTER);
 
 		final JPanel buttonPanel = new JPanel(new GridLayout(1, 2, margin, 0));
-		okButton = new JButton(LangResources.get("ok"));
+		okButton = new Button(LangResources.get("ok"), null, ButtonStyle.SECONDARY);
 		okButton.addActionListener(event -> {
 			returnValue = getCredentials();
 			dispose();
 		});
 		buttonPanel.add(okButton);
 
-		final JButton cancelButton = new JButton(LangResources.get("cancel"));
+		final Button cancelButton = new Button(LangResources.get("cancel"), null, ButtonStyle.SECONDARY);
 		cancelButton.addActionListener(event -> {
 			returnValue = null;
 			dispose();

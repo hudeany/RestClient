@@ -30,7 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
+import de.soderer.swing.modern.Button;
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -89,9 +89,9 @@ public abstract class WorkerPoolDialog extends ModalDialog<Boolean> {
 	private WorkerStatsTableModel tableModel;
 	private JProgressBar progressBar;
 	private JTextArea descriptionLabel;
-	private JButton cancelButton;
-	private JButton closeButton;
-	private JButton downloadButton;
+	private Button cancelButton;
+	private Button closeButton;
+	private Button downloadButton;
 	private Timer rampUpTimer;
 
 	/** Only accessed on the Swing event dispatch thread (sorted in place for display) */
