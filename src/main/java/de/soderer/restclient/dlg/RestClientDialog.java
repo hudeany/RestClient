@@ -103,6 +103,13 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 	private static final int ACTION_BUTTON_HEIGHT = 44;
 
+	/**
+	 * Minimum width of the request part (left side of the split pane), so the divider cannot be dragged
+	 * so far to the left that the request fields and buttons become unusable. The response part gets its
+	 * minimum width implicitly from its fixed-width rows (download target, action buttons).
+	 */
+	private static final int REQUEST_PART_MIN_WIDTH = 420;
+
 	private RequestComponent requestPart;
 	private ResponseComponent responsePart;
 
@@ -239,6 +246,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		ModernUi.blendIntoCard(requestPart);
 		final Card requestCard = new Card(null, null, 8);
 		requestCard.setContent(requestPart);
+		// The request part lives in a scroll pane, whose minimum size is next to nothing, so JSplitPane
+		// would let the divider squeeze it almost completely. Only the width matters for a horizontal split.
+		requestCard.setMinimumSize(new Dimension(REQUEST_PART_MIN_WIDTH, 0));
 		return requestCard;
 	}
 

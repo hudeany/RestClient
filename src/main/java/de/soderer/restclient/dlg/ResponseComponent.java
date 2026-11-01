@@ -62,6 +62,8 @@ public class ResponseComponent extends JPanel {
 	private static final long serialVersionUID = -3418745931227019654L;
 
 	private static final int KEY_FIELD_WIDTH = 150;
+	/** Width the key field keeps even when the list gets very narrow */
+	private static final int KEY_FIELD_MIN_WIDTH = 80;
 	private static final int LIST_HEIGHT = 92;
 	private static final Color REDIRECT_WARNING_COLOR = ModernUi.DANGER;
 
@@ -511,6 +513,22 @@ public class ResponseComponent extends JPanel {
 		return field;
 	}
 
+	/**
+	 * Read-only, word wrapping text looking like a read-only text field (see {@link #createReadOnlyField()}).
+	 * Styling is taken over from such a field, because the ModernUi text field styling expects a JTextField.
+	 */
+	private static JTextArea createWrappingReadOnlyField() {
+		final JTextField template = createReadOnlyField();
+		final WrappingLabel field = new WrappingLabel();
+		field.setOpaque(true);
+		field.setBackground(template.getBackground());
+		field.setForeground(template.getForeground());
+		field.setFont(template.getFont());
+		field.setBorder(template.getBorder());
+		// Word wrapping still breaks long tokens without spaces (e.g. cookies, JWTs) at any character
+		return field;
+	}
+
 	private static ViewportWidthPanel createKeyValueContainer() {
 		final ViewportWidthPanel container = new ViewportWidthPanel(new GridBagLayout());
 		container.setBackground(ModernUi.CARD);
@@ -541,11 +559,20 @@ public class ResponseComponent extends JPanel {
 			final JTextField keyText = createReadOnlyField();
 			keyText.setText(keyValuePair[0]);
 			keyText.setCaretPosition(0);
-			keyText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, keyText.getPreferredSize().height));
+			// Full name as tooltip, in case it is wider than the field
+			keyText.setToolTipText(keyValuePair[0]);
+			final int rowHeight = keyText.getPreferredSize().height;
+			keyText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, rowHeight));
+			// GridBagLayout falls back to minimum sizes when the preferred sizes do not fit,
+			// which would otherwise squeeze the key field until no text is visible anymore
+			keyText.setMinimumSize(new Dimension(KEY_FIELD_MIN_WIDTH, rowHeight));
 			constraints.gridx = 0;
+			// Stays at the top when the value wraps over several lines
+			constraints.anchor = GridBagConstraints.FIRST_LINE_START;
 			container.add(keyText, constraints);
 
-			final JTextField valueText = createReadOnlyField();
+			// Long values wrap over several lines instead of requesting the width of their whole text
+			final JTextArea valueText = createWrappingReadOnlyField();
 			valueText.setText(keyValuePair[1]);
 			valueText.setCaretPosition(0);
 			constraints.gridx = 1;
@@ -633,6 +660,7 @@ public class ResponseComponent extends JPanel {
 	 * Read-only, word wrapping text taking the width its layout gives it, the
 	 * Swing counterpart of an SWT Label with SWT.WRAP. A plain wrapping JTextArea
 	 * would request the width of its unwrapped text and widen the whole panel.
+	 * Also used for the values in the key/value lists, see {@link #createWrappingReadOnlyField()}.
 	 */
 	private static final class WrappingLabel extends JTextArea {
 		private static final long serialVersionUID = 5617640286134870133L;

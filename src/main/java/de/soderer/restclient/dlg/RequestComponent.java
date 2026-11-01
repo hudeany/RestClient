@@ -100,6 +100,14 @@ public class RequestComponent extends JPanel {
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
 
 	private static final int KEY_FIELD_WIDTH = 150;
+	/** Width the name field keeps even when the list gets very narrow */
+	private static final int KEY_FIELD_MIN_WIDTH = 80;
+	/**
+	 * Preferred width of the value field. Kept small on purpose: the value gets all remaining width via
+	 * weightx anyway, but a preferred width matching a long text would make the row's preferred width exceed
+	 * the available width, and GridBagLayout would then squeeze all fields down to their minimum sizes.
+	 */
+	private static final int VALUE_FIELD_PREFERRED_WIDTH = 50;
 	private static final int LIST_HEIGHT = 92;
 	private static final int MIN_RIGHT_BUTTON_WIDTH = 100;
 
@@ -1517,8 +1525,15 @@ public class RequestComponent extends JPanel {
 				ModernUi.styleTextField(valueText, false);
 				final int rowHeight = nameText.getPreferredSize().height;
 				nameText.setPreferredSize(new Dimension(KEY_FIELD_WIDTH, rowHeight));
+				// GridBagLayout falls back to minimum sizes when the preferred sizes do not fit,
+				// which would otherwise squeeze the name field until no text is visible anymore
+				nameText.setMinimumSize(new Dimension(KEY_FIELD_MIN_WIDTH, rowHeight));
+				valueText.setPreferredSize(new Dimension(VALUE_FIELD_PREFERRED_WIDTH, rowHeight));
+				// Full name as tooltip, since long names are cut off in the field
+				nameText.getDocument().addDocumentListener(new SimpleDocumentListener(() -> nameText.setToolTipText(StringUtilities.isNotBlank(nameText.getText()) ? nameText.getText() : null)));
 				// Square remove button as high as the text fields
 				removeButton.setPreferredSize(new Dimension(rowHeight, rowHeight));
+				removeButton.setMinimumSize(new Dimension(rowHeight, rowHeight));
 				removeButton.setToolTipText("-");
 				removeButton.getAccessibleContext().setAccessibleName("-");
 				removeButton.addActionListener(event -> removeRow(this));
