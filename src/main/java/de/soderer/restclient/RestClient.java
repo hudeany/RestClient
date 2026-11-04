@@ -98,6 +98,11 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	public static final String CONFIG_KEY_PROXY_URL_PRESETS = "ProxyUrlPresets";
 
 	/**
+	 * Configuration key of the wake on lan WoL hosts offered in the dropdown.
+	 */
+	public static final String CONFIG_KEY_WAKE_ON_LAN_TARGETS = "WakeOnLanPresets";
+
+	/**
 	 * Keystore file of the application, handed to the GUI application base class.
 	 */
 	public static final File KEYSTORE_FILE = new File(System.getProperty("user.home") + File.separator + "." + APPLICATION_NAME + File.separator + "." + APPLICATION_NAME + ".keystore");

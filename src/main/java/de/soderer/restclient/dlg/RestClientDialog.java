@@ -2,6 +2,7 @@ package de.soderer.restclient.dlg;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -15,7 +16,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -38,6 +43,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JSplitPane;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.WindowConstants;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
@@ -94,7 +100,7 @@ import de.soderer.yaml.data.YamlSequence;
 /**
  * Main window of the RestClient GUI: the request editor ({@link RequestComponent}) on the left and the
  * response view ({@link ResponseComponent}) on the right, plus request presets, export/import as YAML
- * or cURL command and the worker pool load test.
+ * or cURL command, the worker pool load test, ping of the service URL's host and Wake-on-LAN.
  *
  * @serial exclude
  */
@@ -110,10 +116,15 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 */
 	private static final int REQUEST_PART_MIN_WIDTH = 420;
 
+	/** Maximum number of previously used Wake-on-LAN targets kept in the configuration. */
+	private static final int MAX_WAKE_ON_LAN_TARGETS = 10;
+
 	private RequestComponent requestPart;
 	private ResponseComponent responsePart;
 
 	private Button exportRequestResponseButton;
+	private Button pingButton;
+	private Button wakeOnLanButton;
 
 	private final ApplicationConfigurationProperties applicationConfiguration;
 
@@ -286,21 +297,47 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		importRequestResponseButton.addActionListener(event -> importRequestResponse());
 		exportImportContainer.add(importRequestResponseButton);
 
-		// Same height as "Send request", same width for both
-		final int exportImportWidth = Math.max(ACTION_BUTTON_HEIGHT, Math.max(exportRequestResponseButton.getPreferredSize().width, importRequestResponseButton.getPreferredSize().width));
-		exportRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
-		importRequestResponseButton.setPreferredSize(new Dimension(exportImportWidth, ACTION_BUTTON_HEIGHT));
+		// Second row: "Multiple request" takes the free width, ping and Wake-on-LAN sit at the right edge,
+		// in the same columns as export and import
+		final JPanel multipleRequestRow = new JPanel(new BorderLayout(8, 0));
+		multipleRequestRow.setOpaque(false);
+		final Button multipleRequestButton = new Button(LangResources.get("multipleRequest"), IconKind.FAST_FORWARD, ButtonStyle.SECONDARY);
+		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
+		multipleRequestRow.add(multipleRequestButton, BorderLayout.CENTER);
+
+		final JPanel networkToolsContainer = new JPanel(new GridLayout(1, 2, 8, 0));
+		networkToolsContainer.setOpaque(false);
+		pingButton = new Button(LangResources.get("ping"), (IconKind) null, ButtonStyle.SECONDARY);
+		pingButton.setToolTipText(LangResources.get("pingTooltip"));
+		pingButton.addActionListener(event -> executePing());
+		networkToolsContainer.add(pingButton);
+
+		wakeOnLanButton = new Button(LangResources.get("wakeOnLan"), (IconKind) null, ButtonStyle.SECONDARY);
+		wakeOnLanButton.setToolTipText(LangResources.get("wakeOnLanTooltip"));
+		wakeOnLanButton.addActionListener(event -> executeWakeOnLan());
+		networkToolsContainer.add(wakeOnLanButton);
+		multipleRequestRow.add(networkToolsContainer, BorderLayout.EAST);
+
+		// Same width for all four buttons at the right edge, so they form two aligned columns
+		final int rightButtonWidth = Math.max(ACTION_BUTTON_HEIGHT, Math.max(
+				Math.max(exportRequestResponseButton.getPreferredSize().width, importRequestResponseButton.getPreferredSize().width),
+				Math.max(pingButton.getPreferredSize().width, wakeOnLanButton.getPreferredSize().width)));
+		// Export and import have the same height as "Send request"
+		exportRequestResponseButton.setPreferredSize(new Dimension(rightButtonWidth, ACTION_BUTTON_HEIGHT));
+		importRequestResponseButton.setPreferredSize(new Dimension(rightButtonWidth, ACTION_BUTTON_HEIGHT));
 		sendRequestRow.add(exportImportContainer, BorderLayout.EAST);
+		// Ping and Wake-on-LAN have the same height as "Multiple request"
+		final int networkToolsHeight = multipleRequestButton.getPreferredSize().height;
+		pingButton.setPreferredSize(new Dimension(rightButtonWidth, networkToolsHeight));
+		wakeOnLanButton.setPreferredSize(new Dimension(rightButtonWidth, networkToolsHeight));
 
 		constraints.gridy = 0;
 		constraints.insets = new Insets(0, 0, 0, 0);
 		buttonRegion.add(sendRequestRow, constraints);
 
-		final Button multipleRequestButton = new Button(LangResources.get("multipleRequest"), IconKind.FAST_FORWARD, ButtonStyle.SECONDARY);
-		multipleRequestButton.addActionListener(event -> executeMultipleRequest());
 		constraints.gridy = 1;
 		constraints.insets = new Insets(8, 0, 0, 0);
-		buttonRegion.add(multipleRequestButton, constraints);
+		buttonRegion.add(multipleRequestRow, constraints);
 
 		final JPanel clearCloseRow = new JPanel(new GridLayout(1, 2, 8, 0));
 		clearCloseRow.setOpaque(false);
@@ -1472,6 +1509,239 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart.setResponseBody((String) responseYamlMapping.getSimpleValue("responseBody"));
 		responsePart.setRedirectInfo(0, null, false);
 		responsePart.setRandomParameters(null);
+	}
+
+	/**
+	 * Result of {@link #executePing()} for the response part.
+	 */
+	private record PingSummary(String ipAddress, String time, String text) {
+	}
+
+	/**
+	 * Pings the host of the service URL: ICMP echo by the system's ping command and, if the URL defines a
+	 * port (explicitly or by its http/https scheme), TCP connections to that port. The TCP connections go
+	 * through the request's proxy if it is an HTTP proxy (by a CONNECT request), otherwise directly.
+	 * Runs in the background, the result is shown in the response part.
+	 */
+	private void executePing() {
+		final String host;
+		final int port;
+		final String serviceUrl = requestPart.getServiceUrl();
+		try {
+			final URI uri = new URI(serviceUrl.trim().contains("://") ? serviceUrl.trim() : "http://" + serviceUrl.trim());
+			String uriHost = uri.getHost();
+			if (uriHost != null && uriHost.startsWith("[") && uriHost.endsWith("]")) {
+				uriHost = uriHost.substring(1, uriHost.length() - 1);
+			}
+			host = uriHost;
+			if (uri.getPort() > 0) {
+				port = uri.getPort();
+			} else if ("https".equalsIgnoreCase(uri.getScheme())) {
+				port = 443;
+			} else if ("http".equalsIgnoreCase(uri.getScheme())) {
+				port = 80;
+			} else {
+				port = -1;
+			}
+		} catch (@SuppressWarnings("unused") final Exception e) {
+			showErrorMessage(LangResources.get("ping"), LangResources.get("pingNoHost"));
+			return;
+		}
+		if (StringUtilities.isBlank(host)) {
+			showErrorMessage(LangResources.get("ping"), LangResources.get("pingNoHost"));
+			return;
+		}
+
+		Proxy determinedProxy = null;
+		if (port > 0) {
+			try {
+				determinedProxy = getRequestProxy(serviceUrl);
+			} catch (@SuppressWarnings("unused") final Exception e) {
+				// The proxy setting is only relevant for the TCP connection test, which then goes directly
+				determinedProxy = null;
+			}
+		}
+		// NetworkUtilities.testConnection() tunnels by an HTTP CONNECT request, which does not work with a SOCKS proxy
+		final Proxy tcpProxy = determinedProxy != null && determinedProxy.type() == Proxy.Type.HTTP ? determinedProxy : null;
+
+		pingButton.setEnabled(false);
+		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		showNetworkToolResult(null, null, LangResources.get("pingRunning", host));
+
+		new SwingWorker<PingSummary, Void>() {
+			@Override
+			protected PingSummary doInBackground() {
+				return runPing(host, port, tcpProxy);
+			}
+
+			@Override
+			protected void done() {
+				try {
+					final PingSummary pingSummary = get();
+					showNetworkToolResult(pingSummary.ipAddress(), pingSummary.time(), pingSummary.text());
+				} catch (final Exception e) {
+					final Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+					showNetworkToolResult(null, null, cause.getClass().getSimpleName() + ":\n" + cause.getMessage());
+				} finally {
+					pingButton.setEnabled(true);
+					setCursor(Cursor.getDefaultCursor());
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Executes the ping checks, called in a background thread.
+	 */
+	private static PingSummary runPing(final String host, final int port, final Proxy tcpProxy) {
+		final int pingCount = 4;
+		final StringBuilder text = new StringBuilder();
+
+		String ipAddress = null;
+		try {
+			ipAddress = InetAddress.getByName(host).getHostAddress();
+		} catch (@SuppressWarnings("unused") final Exception e) {
+			// Without a proxy the host must be resolvable locally, with an HTTP proxy only the proxy resolves it
+			if (tcpProxy == null) {
+				return new PingSummary(null, null, LangResources.get("pingUnknownHost", host));
+			}
+		}
+
+		if (ipAddress != null) {
+			text.append("ICMP ").append(host).append(" (").append(ipAddress).append(")\n");
+			try {
+				final NetworkUtilities.PingResult pingResult = NetworkUtilities.icmpPing(host, pingCount, 2);
+				text.append(LangResources.get(pingResult.reachable() ? "pingIcmpReachable" : "pingIcmpNotReachable")).append("\n\n");
+				text.append(pingResult.output().strip()).append("\n");
+			} catch (final Exception e) {
+				text.append(LangResources.get("pingIcmpNotPossible", e.getMessage())).append("\n");
+			}
+		} else {
+			text.append(LangResources.get("pingIcmpSkippedNoLocalResolution", host)).append("\n");
+		}
+
+		String averageTime = null;
+		if (port > 0) {
+			final String target = (host.contains(":") ? "[" + host + "]" : host) + ":" + port;
+			text.append("\nTCP ").append(target);
+			if (tcpProxy != null) {
+				text.append(" (").append(LangResources.get("pingViaProxy", proxyToString(tcpProxy))).append(")");
+			}
+			text.append("\n");
+
+			long totalMillis = 0;
+			int successCount = 0;
+			for (int i = 0; i < pingCount; i++) {
+				final long start = System.nanoTime();
+				try {
+					if (NetworkUtilities.testConnection(host, port, 3000, tcpProxy)) {
+						final long millis = (System.nanoTime() - start) / 1_000_000;
+						totalMillis += millis;
+						successCount++;
+						text.append(LangResources.get("pingTcpSuccess", target, millis)).append("\n");
+					} else {
+						text.append(LangResources.get("pingTcpRejectedByProxy", target)).append("\n");
+					}
+				} catch (final Exception e) {
+					text.append(LangResources.get("pingTcpFailed", target, e.getMessage())).append("\n");
+				}
+			}
+			if (successCount > 0) {
+				averageTime = (totalMillis / successCount) + " ms";
+			}
+			text.append(LangResources.get("pingTcpSummary", successCount, pingCount)).append("\n");
+		}
+
+		return new PingSummary(ipAddress, averageTime, text.toString());
+	}
+
+	private static String proxyToString(final Proxy proxy) {
+		if (proxy.address() instanceof final InetSocketAddress proxyAddress) {
+			return proxyAddress.getHostString() + ":" + proxyAddress.getPort();
+		} else {
+			return proxy.toString();
+		}
+	}
+
+	/**
+	 * Determines the proxy for a URL from the request's proxy setting, the same way as {@link #executeRequest()}.
+	 *
+	 * @return the proxy, null if no proxy is configured (system default)
+	 */
+	private Proxy getRequestProxy(final String url) throws Exception {
+		if (StringUtilities.isBlank(requestPart.getProxyUrl())) {
+			return null;
+		} else if ("DIRECT".equalsIgnoreCase(requestPart.getProxyUrl())) {
+			return Proxy.NO_PROXY;
+		} else if ("WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
+			return new ProxyConfiguration(ProxyConfigurationType.WPAD).getProxy(url);
+		} else {
+			return HttpUtilities.getProxyFromString(requestPart.getProxyUrl());
+		}
+	}
+
+	/**
+	 * Asks for the Wake-on-LAN target and sends the magic packet. The target is stored as most recently
+	 * used one in the application configuration.
+	 */
+	private void executeWakeOnLan() {
+		final List<String> wakeOnLanTargets = readWakeOnLanTargets();
+		final WakeOnLanDialog dialog = new WakeOnLanDialog(this, LangResources.get("wakeOnLan"), wakeOnLanTargets);
+		if (!dialog.open()) {
+			return;
+		}
+
+		try {
+			final List<String> sentTo = NetworkUtilities.wakeOnLan(dialog.getMacAddress(), dialog.getBroadcastAddress(), dialog.getPort());
+
+			// Most recently used target first, without older entries of the same MAC address
+			final List<String> updatedTargets = new ArrayList<>();
+			updatedTargets.add(WakeOnLanDialog.createTargetEntry(dialog.getMacAddress(), dialog.getBroadcastAddress(), dialog.getPort()));
+			for (final String targetEntry : wakeOnLanTargets) {
+				if (!WakeOnLanDialog.getMacAddressOfTargetEntry(targetEntry).trim().equalsIgnoreCase(dialog.getMacAddress()) && updatedTargets.size() < MAX_WAKE_ON_LAN_TARGETS) {
+					updatedTargets.add(targetEntry);
+				}
+			}
+			applicationConfiguration.set(RestClient.CONFIG_KEY_WAKE_ON_LAN_TARGETS, updatedTargets);
+			applicationConfiguration.save();
+
+			showNetworkToolResult(null, null, LangResources.get("wakeOnLanSent", dialog.getMacAddress().toUpperCase(Locale.ROOT), String.join("\n", sentTo)));
+		} catch (final Exception e) {
+			showErrorMessage(LangResources.get("wakeOnLan"), e.getClass().getSimpleName() + ": " + e.getMessage());
+		}
+	}
+
+	private List<String> readWakeOnLanTargets() {
+		try {
+			final List<String> wakeOnLanTargets = applicationConfiguration.getList(RestClient.CONFIG_KEY_WAKE_ON_LAN_TARGETS);
+			final List<String> result = new ArrayList<>();
+			if (wakeOnLanTargets != null) {
+				for (final String targetEntry : wakeOnLanTargets) {
+					if (StringUtilities.isNotBlank(targetEntry)) {
+						result.add(targetEntry.trim());
+					}
+				}
+			}
+			return result;
+		} catch (@SuppressWarnings("unused") final Exception e) {
+			// Missing or unreadable configuration value: start without previously used targets
+			return new ArrayList<>();
+		}
+	}
+
+	/**
+	 * Shows the text result of a network tool (ping, Wake-on-LAN) in the response part, which has no HTTP data then.
+	 */
+	private void showNetworkToolResult(final String ipAddress, final String time, final String text) {
+		responsePart.clearResponse();
+		responsePart.setIpAddress(ipAddress);
+		responsePart.setHttpCode(null);
+		responsePart.setTime(time);
+		responsePart.setResponseHeaders(new LinkedHashMap<>());
+		responsePart.setResponseBody(text);
+		responsePart.setRedirectInfo(0, null, false);
+		responsePart.setRandomParameters(null);
+		responsePart.showResponse();
 	}
 
 	private void executeRequest() {
