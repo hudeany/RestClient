@@ -15,6 +15,6 @@
 	<classpathentry kind="lib" path="lib/soderer-console-26.0.17.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-swing-26.0.46.jar"/>
 	<classpathentry kind="lib" path="lib/soderer-applicationbase-26.0.63.jar"/>
-	<classpathentry kind="lib" path="lib/network-26.0.42.jar" sourcepath="lib/network-26.0.42-sources.jar"/>
+	<classpathentry kind="lib" path="lib/network-26.0.43.jar" sourcepath="lib/network-26.0.43-sources.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
