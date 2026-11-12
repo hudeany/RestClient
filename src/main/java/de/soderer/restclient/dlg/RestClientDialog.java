@@ -369,7 +369,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				iconData = IoUtilities.toByteArray(inputStream);
 			}
 
-			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, RestClient.VERSION, RestClient.VERSION_BUILDTIME, applicationConfiguration, iconData, ImageManager.getImage("RestClient.png").getImage(), RestClient.VERSIONINFO_DOWNLOAD_URL, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null);
+			final ApplicationConfigurationDialog dialog = new ApplicationConfigurationDialog(this, RestClient.APPLICATION_NAME, RestClient.APPLICATION_STARTUPCLASS_NAME, RestClient.VERSION, RestClient.VERSION_BUILDTIME, applicationConfiguration, iconData, ImageManager.getImage("RestClient.png").getImage(), RestClient.VERSIONINFO_DOWNLOAD_URL, RestClient.TRUSTED_UPDATE_CA_CERTIFICATES, null, false);
 			if (dialog.open() == Result.OK) {
 				applicationConfiguration.save();
 				requestPart.setProxyUrlPresets(applicationConfiguration.getList(RestClient.CONFIG_KEY_PROXY_URL_PRESETS));
