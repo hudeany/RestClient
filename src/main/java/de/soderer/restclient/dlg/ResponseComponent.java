@@ -34,6 +34,7 @@ import de.soderer.json.JsonReader;
 import de.soderer.json.path.JsonPath;
 import de.soderer.network.HttpConstants;
 import de.soderer.network.HttpContentType;
+import de.soderer.network.HttpVersion;
 import de.soderer.restclient.helper.ResponseDataPathEvaluator;
 import de.soderer.swing.modern.Button;
 import de.soderer.swing.modern.ButtonStyle;
@@ -48,7 +49,7 @@ import de.soderer.yaml.data.YamlDocument;
 import de.soderer.yaml.data.YamlNode;
 
 /**
- * Response view of the main window: HTTP code, IP address, duration, redirect hint, response headers and
+ * Response view of the main window: HTTP code, HTTP version actually used, IP address, duration, redirect hint, response headers and
  * response body, plus the response content data path, the download target and the resolved random parameters.
  *
  * <p>
@@ -69,6 +70,7 @@ public class ResponseComponent extends JPanel {
 
 	private JTextField ipAddressText;
 	private JTextField httpCodeText;
+	private JTextField httpVersionText;
 	private JTextField timeText;
 	private WrappingLabel redirectHintLabel;
 	private ViewportWidthPanel headerContainer;
@@ -78,6 +80,9 @@ public class ResponseComponent extends JPanel {
 	private JLabel randomParamsLabel;
 	private ViewportWidthPanel randomParamsContainer;
 	private JScrollPane randomParamsScrolled;
+
+	/** HTTP version actually used for the shown response, null if unknown */
+	private HttpVersion httpVersion;
 
 	/** Response headers as currently shown, in display order */
 	private Map<String, String> responseHeaders = new LinkedHashMap<>();
@@ -135,6 +140,40 @@ public class ResponseComponent extends JPanel {
 		httpCodeText.setBackground(background);
 		httpCodeText.setForeground(foreground);
 		httpCodeText.setFont(httpCodeText.getFont().deriveFont(code == null ? Font.PLAIN : Font.BOLD));
+	}
+
+	/**
+	 * Sets the HTTP version actually used for the response. If it differs from the requested version
+	 * (a requested HTTP/2 fell back to HTTP/1.1, because the server does not support HTTP/2), the field
+	 * is highlighted and explains the fallback in its tooltip.
+	 *
+	 * @param usedHttpVersion the HTTP version actually used, or null to clear the field
+	 * @param requestedHttpVersion the HTTP version requested, or null if unknown
+	 */
+	public void setHttpVersion(final HttpVersion usedHttpVersion, final HttpVersion requestedHttpVersion) {
+		httpVersion = usedHttpVersion;
+		httpVersionText.setText(usedHttpVersion != null ? usedHttpVersion.getProtocolName() : "");
+		httpVersionText.setCaretPosition(0);
+
+		if (usedHttpVersion != null && requestedHttpVersion != null && usedHttpVersion != requestedHttpVersion) {
+			httpVersionText.setBackground(ModernUi.WARNING_LIGHT);
+			httpVersionText.setForeground(ModernUi.WARNING);
+			httpVersionText.setToolTipText(LangResources.get("httpVersionFallbackTooltip", requestedHttpVersion.getProtocolName(), usedHttpVersion.getProtocolName()));
+		} else {
+			httpVersionText.setBackground(ModernUi.READ_ONLY_BACKGROUND);
+			httpVersionText.setForeground(ModernUi.TEXT);
+			httpVersionText.setToolTipText(null);
+		}
+		httpVersionText.setFont(httpVersionText.getFont().deriveFont(usedHttpVersion != null && requestedHttpVersion != null && usedHttpVersion != requestedHttpVersion ? Font.BOLD : Font.PLAIN));
+	}
+
+	/**
+	 * Returns the HTTP version actually used for the shown response.
+	 *
+	 * @return the HTTP version, or null if none is shown
+	 */
+	public HttpVersion getHttpVersion() {
+		return httpVersion;
 	}
 
 	/**
@@ -367,17 +406,21 @@ public class ResponseComponent extends JPanel {
 		codeAndTimeConstraints.insets = new Insets(0, 0, 2, 8);
 		codeAndTimeConstraints.gridy = 0;
 		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseCode")), codeAndTimeConstraints);
+		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpVersion")), codeAndTimeConstraints);
 		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseIpAddress")), codeAndTimeConstraints);
 		sectionCodeAndTime.add(ModernUi.createMutedLabel(LangResources.get("httpResponseTime")), codeAndTimeConstraints);
 		codeAndTimeConstraints.gridy = 1;
 		httpCodeText = createReadOnlyField();
 		sectionCodeAndTime.add(httpCodeText, codeAndTimeConstraints);
+		httpVersionText = createReadOnlyField();
+		sectionCodeAndTime.add(httpVersionText, codeAndTimeConstraints);
 		ipAddressText = createReadOnlyField();
 		sectionCodeAndTime.add(ipAddressText, codeAndTimeConstraints);
 		timeText = createReadOnlyField();
 		sectionCodeAndTime.add(timeText, codeAndTimeConstraints);
 		add(sectionCodeAndTime, rowConstraints(row++, 0));
 		responseDisplayComponents.add(httpCodeText);
+		responseDisplayComponents.add(httpVersionText);
 		responseDisplayComponents.add(ipAddressText);
 		responseDisplayComponents.add(timeText);
 
@@ -592,13 +635,14 @@ public class ResponseComponent extends JPanel {
 	}
 
 	/**
-	 * Clears all response data (code, IP address, time, headers, body, redirect hint, random parameters)
+	 * Clears all response data (code, HTTP version, IP address, time, headers, body, redirect hint, random parameters)
 	 * and hides the response parts until {@link #showResponse()} is called. The data path and download target
 	 * are settings and stay unchanged.
 	 */
 	public void clearResponse() {
 		lastResponseBody = null;
 		setHttpCode(null);
+		setHttpVersion(null, null);
 		ipAddressText.setText("");
 		timeText.setText("");
 		// Headers too: otherwise a canceled request still exports the previous response's headers,

@@ -94,6 +94,7 @@ public class ExecuteHttpRequestWorker extends WorkerSimple<HttpResponse> {
 		httpRequest.setConnectionTimeoutMillis(httpRequestTemplate.getConnectTimeoutMillis());
 		httpRequest.setReadTimeoutMillis(httpRequestTemplate.getReadTimeoutMillis());
 		httpRequest.setEncoding(httpRequestTemplate.getEncoding());
+		httpRequest.setHttpVersion(httpRequestTemplate.getHttpVersion());
 
 		if (httpRequestTemplate.getDownloadTarget() != null) {
 			// Also relevant for the single "send request" execution, not just the worker

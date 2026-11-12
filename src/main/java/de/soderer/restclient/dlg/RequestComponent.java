@@ -48,6 +48,7 @@ import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
+import de.soderer.network.HttpVersion;
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.pac.utilities.ProxyConfiguration;
@@ -76,8 +77,8 @@ import de.soderer.yaml.YamlReader;
 import de.soderer.yaml.YamlToJsonConverter;
 
 /**
- * Request editor of the main window: preset selection, proxy, redirects, HTTP method, service URL,
- * TLS check, service method, HTTP headers, URL parameters, HTML form parameters and request body.
+ * Request editor of the main window: preset selection, proxy, redirects, HTTP method, HTTP version,
+ * service URL, TLS check, service method, HTTP headers, URL parameters, HTML form parameters and request body.
  *
  * <p>
  * Also offers helpers to add authorization headers (basic auth, bearer token, IdP token), a Content-Type
@@ -98,6 +99,7 @@ public class RequestComponent extends JPanel {
 	 * method fails with an "unsupported HTTP method" error, see {@link #setHttpMethod(String)}.
 	 */
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
+
 
 	private static final int KEY_FIELD_WIDTH = 150;
 	/** Width the name field keeps even when the list gets very narrow */
@@ -129,6 +131,9 @@ public class RequestComponent extends JPanel {
 	private JCheckBox followRedirectsButton;
 	private JSpinner maxRedirectHopsSpinner;
 	private Button showProxyButton;
+	/** Toggles the requested HTTP version between HTTP/1.1 and HTTP/2, showing the current one as its text */
+	private Button httpVersionButton;
+	private HttpVersion httpVersion = HttpVersion.HTTP_1_1;
 	private JTextArea requestBodyText;
 
 	private String idpUrl = null;
@@ -216,6 +221,54 @@ public class RequestComponent extends JPanel {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns the selected HTTP version to request.
+	 *
+	 * @return the HTTP version, HTTP/1.1 by default
+	 */
+	public HttpVersion getHttpVersion() {
+		return httpVersion;
+	}
+
+	/**
+	 * Selects the HTTP version to request.
+	 *
+	 * @param httpVersion the HTTP version, null for HTTP/1.1
+	 * @throws IllegalArgumentException for HTTP/1.0, which cannot be requested
+	 */
+	public void setHttpVersion(final HttpVersion httpVersion) {
+		if (httpVersion == HttpVersion.HTTP_1_0) {
+			throw new IllegalArgumentException(LangResources.get("unsupportedHttpVersion", httpVersion.getProtocolName()));
+		}
+		this.httpVersion = httpVersion == null ? HttpVersion.HTTP_1_1 : httpVersion;
+		httpVersionButton.setText(this.httpVersion.getProtocolName());
+	}
+
+	/**
+	 * Parses an HTTP version as stored in presets and export files or given in the GUI. Accepts the
+	 * protocol name ("HTTP/2", "HTTP/1.1"), the enum name ("HTTP_2") and the plain version number
+	 * ("2", "2.0", "1.1").
+	 *
+	 * @param value the HTTP version text, may be null
+	 * @return the HTTP version, null for a blank value
+	 * @throws IllegalArgumentException if the value is no HTTP version that can be requested
+	 */
+	public static HttpVersion parseHttpVersion(final String value) {
+		if (StringUtilities.isBlank(value)) {
+			return null;
+		}
+		final String versionNumber = value.trim().toUpperCase(Locale.ROOT).replaceFirst("^HTTP[/_ -]?", "").replace('_', '.');
+		switch (versionNumber) {
+			case "1.1":
+				return HttpVersion.HTTP_1_1;
+			case "2":
+			case "2.0":
+				return HttpVersion.HTTP_2;
+			default:
+				throw new IllegalArgumentException(LangResources.get("unsupportedHttpVersion", value));
+		}
 	}
 
 	/**
@@ -692,6 +745,21 @@ public class RequestComponent extends JPanel {
 		showProxyButton.setEnabled(false);
 		showProxyButton.addActionListener(event -> showDeterminedProxy());
 		redirectsRow.add(showProxyButton, redirectsConstraints);
+
+		// Each click switches the requested HTTP version between HTTP/1.1 and HTTP/2
+		httpVersionButton = new Button(HttpVersion.HTTP_1_1.getProtocolName(), (IconKind) null, ButtonStyle.SECONDARY);
+		httpVersionButton.setToolTipText(LangResources.get("httpVersion") + ": " + LangResources.get("httpVersionTooltip"));
+		httpVersionButton.getAccessibleContext().setAccessibleName(LangResources.get("httpVersion"));
+		// Fixed width for the wider of both texts, so the button does not change its size when toggled
+		int httpVersionButtonWidth = 0;
+		for (final HttpVersion selectableHttpVersion : new HttpVersion[] { HttpVersion.HTTP_2, HttpVersion.HTTP_1_1 }) {
+			httpVersionButton.setText(selectableHttpVersion.getProtocolName());
+			httpVersionButtonWidth = Math.max(httpVersionButtonWidth, httpVersionButton.getPreferredSize().width);
+		}
+		httpVersionButton.setPreferredSize(new Dimension(httpVersionButtonWidth, httpVersionButton.getPreferredSize().height));
+		setHttpVersion(HttpVersion.HTTP_1_1);
+		httpVersionButton.addActionListener(event -> setHttpVersion(httpVersion == HttpVersion.HTTP_2 ? HttpVersion.HTTP_1_1 : HttpVersion.HTTP_2));
+		redirectsRow.add(httpVersionButton, redirectsConstraints);
 
 		redirectsConstraints.weightx = 1;
 		redirectsRow.add(Box.createGlue(), redirectsConstraints);

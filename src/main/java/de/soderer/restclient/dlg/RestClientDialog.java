@@ -61,6 +61,7 @@ import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
+import de.soderer.network.HttpVersion;
 import de.soderer.network.NetworkUtilities;
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
@@ -592,6 +593,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestPart.setProxyUrl("");
 			requestPart.setMaxRedirects(0);
 			requestPart.setHttpMethod("GET");
+			requestPart.setHttpVersion(HttpVersion.HTTP_1_1);
 			requestPart.setServiceUrl("");
 			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 			requestPart.setServiceMethod("");
@@ -613,6 +615,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			final Object maxRedirectsObject = jsonObject.getSimpleValue("maxRedirects");
 			requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
 			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
+			// Older presets saved before this field existed simply won't have it -> default to HTTP/1.1
+			requestPart.setHttpVersion(RequestComponent.parseHttpVersion((String) jsonObject.getSimpleValue("httpVersion")));
 			requestPart.setServiceUrl((String) jsonObject.getSimpleValue("serviceUrl"));
 
 			final Object tlsCheckConfigurationObject = jsonObject.getSimpleValue("tlsCheck");
@@ -706,6 +710,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPresetJsonObject.add("proxyUrl", requestPart.getProxyUrl());
 		requestPresetJsonObject.add("maxRedirects", requestPart.getMaxRedirects());
 		requestPresetJsonObject.add("httpMethod", requestPart.getHttpMethod());
+		requestPresetJsonObject.add("httpVersion", requestPart.getHttpVersion().getProtocolName());
 		requestPresetJsonObject.add("serviceUrl", requestPart.getServiceUrl());
 
 		final TlsCheckConfiguration tlsCheckConfiguration = requestPart.getTlsCheckConfiguration();
@@ -951,6 +956,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			curlCommand.append(" \\\n  -L --max-redirs ").append(requestPart.getMaxRedirects());
 		}
 
+		if (requestPart.getHttpVersion() == HttpVersion.HTTP_2) {
+			// Same behaviour as in RestClient: HTTP/2 is negotiated, with fallback to HTTP/1.1
+			curlCommand.append(" \\\n  --http2");
+		}
+
 		if (StringUtilities.isNotBlank(requestPart.getProxyUrl()) && !"DIRECT".equalsIgnoreCase(requestPart.getProxyUrl()) && !"WPAD".equalsIgnoreCase(requestPart.getProxyUrl())) {
 			// WPAD proxy autodetection has no cURL equivalent and is left out here
 			curlCommand.append(" \\\n  -x ").append(shellQuote(requestPart.getProxyUrl()));
@@ -981,7 +991,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 	 * Parses a cURL command line (as copied from a browser's "Copy as cURL" or written by hand) and
 	 * fills {@link #requestPart} with it. Best-effort parser covering the commonly used options
 	 * (-X/--request, -H/--header, -d/--data/--data-raw/--data-binary, -u/--user, -x/--proxy,
-	 * -k/--insecure, -L/--location, --max-redirs, --cacert, --url); unrecognized options are ignored.
+	 * -k/--insecure, -L/--location, --max-redirs, --cacert, --url, --http2, --http1.1); unrecognized options are ignored.
 	 * A --cacert file is mapped to {@link TlsCheckConfigurationType#SingleCertificateFile} (a single,
 	 * unencrypted PEM certificate file, as opposed to a password-protected truststore).
 	 */
@@ -999,6 +1009,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		int maxRedirects = 0;
 		String proxyUrl = null;
 		String cacertFile = null;
+		HttpVersion httpVersion = HttpVersion.HTTP_1_1;
 		final Map<String, String> httpHeaders = new LinkedHashMap<>();
 
 		for (int i = 0; i < tokens.size(); i++) {
@@ -1033,6 +1044,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				maxRedirects = Integer.parseInt(tokens.get(++i));
 			} else if ("--cacert".equals(token) && i + 1 < tokens.size()) {
 				cacertFile = tokens.get(++i);
+			} else if ("--http2".equals(token) || "--http2-prior-knowledge".equals(token)) {
+				httpVersion = HttpVersion.HTTP_2;
+			} else if ("--http1.1".equals(token)) {
+				httpVersion = HttpVersion.HTTP_1_1;
 			} else if ("--url".equals(token) && i + 1 < tokens.size()) {
 				url = tokens.get(++i);
 			} else if (url == null && !token.startsWith("-")) {
@@ -1073,6 +1088,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPart.setProxyUrl(proxyUrl == null ? "" : proxyUrl);
 		requestPart.setMaxRedirects(maxRedirects);
 		requestPart.setHttpMethod(httpMethod == null ? "GET" : httpMethod);
+		requestPart.setHttpVersion(httpVersion);
 		requestPart.setServiceUrl(serviceUrl);
 		requestPart.setServiceMethod(null);
 		requestPart.setHttpHeaders(httpHeaders);
@@ -1243,6 +1259,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			requestYamlMapping.add("maxRedirects", requestPart.getMaxRedirects());
 		}
 		requestYamlMapping.add("httpMethod", requestPart.getHttpMethod());
+		if (requestPart.getHttpVersion() != HttpVersion.HTTP_1_1) {
+			requestYamlMapping.add("httpVersion", requestPart.getHttpVersion().getProtocolName());
+		}
 
 		final YamlScalar serviceUrlKeyYamlScalar = new YamlScalar("serviceUrl");
 		final YamlScalar serviceUrlYamlScalar = new YamlScalar(requestPart.getServiceUrl());
@@ -1346,6 +1365,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (responsePart.getHttpCode() != null) {
 			responseYamlMapping.add("httpCode", responsePart.getHttpCode());
 		}
+		if (responsePart.getHttpVersion() != null) {
+			responseYamlMapping.add("httpVersion", responsePart.getHttpVersion().getProtocolName());
+		}
 		if (StringUtilities.isNotBlank(responsePart.getIpAddress())) {
 			responseYamlMapping.add("ipAddress", responsePart.getIpAddress());
 		}
@@ -1406,6 +1428,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		final Object maxRedirectsObject = requestYamlMapping.getSimpleValue("maxRedirects");
 		requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
 		requestPart.setHttpMethod((String) requestYamlMapping.getSimpleValue("httpMethod"));
+		requestPart.setHttpVersion(RequestComponent.parseHttpVersion((String) requestYamlMapping.getSimpleValue("httpVersion")));
 		requestPart.setServiceUrl((String) requestYamlMapping.getSimpleValue("serviceUrl"));
 
 		if (requestYamlMapping.containsKey("tlsCheck")) {
@@ -1490,6 +1513,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		// Cast via Number, since the YAML reader is not guaranteed to return an Integer for every number value
 		final Object httpCodeObject = responseYamlMapping.getSimpleValue("httpCode");
 		responsePart.setHttpCode(httpCodeObject instanceof Number ? Integer.valueOf(((Number) httpCodeObject).intValue()) : null);
+		responsePart.setHttpVersion(parseResponseHttpVersion((String) responseYamlMapping.getSimpleValue("httpVersion")), requestPart.getHttpVersion());
 		responsePart.setIpAddress((String) responseYamlMapping.getSimpleValue("ipAddress"));
 		responsePart.setTime((String) responseYamlMapping.getSimpleValue("time"));
 		responsePart.setDownloadTarget((String) responseYamlMapping.getSimpleValue("downloadTarget"));
@@ -1509,6 +1533,26 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart.setResponseBody((String) responseYamlMapping.getSimpleValue("responseBody"));
 		responsePart.setRedirectInfo(0, null, false);
 		responsePart.setRandomParameters(null);
+	}
+
+	/**
+	 * Parses the HTTP version of an imported response. Unlike a requested version this may also be
+	 * HTTP/1.0 (reported for old servers). An unknown value is ignored, since it is display data only.
+	 */
+	private static HttpVersion parseResponseHttpVersion(final String value) {
+		if (StringUtilities.isBlank(value)) {
+			return null;
+		}
+		for (final HttpVersion httpVersion : HttpVersion.values()) {
+			if (httpVersion.getProtocolName().equalsIgnoreCase(value.trim()) || httpVersion.name().equalsIgnoreCase(value.trim())) {
+				return httpVersion;
+			}
+		}
+		try {
+			return RequestComponent.parseHttpVersion(value);
+		} catch (@SuppressWarnings("unused") final IllegalArgumentException e) {
+			return null;
+		}
 	}
 
 	/**
@@ -1736,6 +1780,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		responsePart.clearResponse();
 		responsePart.setIpAddress(ipAddress);
 		responsePart.setHttpCode(null);
+		responsePart.setHttpVersion(null, null);
 		responsePart.setTime(time);
 		responsePart.setResponseHeaders(new LinkedHashMap<>());
 		responsePart.setResponseBody(text);
@@ -1752,6 +1797,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			try {
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 				httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
+				httpRequest.setHttpVersion(requestPart.getHttpVersion());
 
 				if (StringUtilities.isNotBlank(responsePart.getDownloadTarget())) {
 					// Only actually used as a download destination if the response signals a
@@ -1816,6 +1862,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 				responsePart.setIpAddress(httpResponse.getIpAddress());
 				responsePart.setHttpCode(httpResponse.getHttpCode());
+				responsePart.setHttpVersion(httpResponse.getHttpVersion(), httpRequest.getHttpVersion());
 				responsePart.setTime(DateUtilities.getShortHumanReadableTimespan(responseDuration, true, false));
 				responsePart.setResponseHeaders(httpResponse.getHeaders());
 				responsePart.setResponseBody(httpResponse.getContent());
@@ -1830,6 +1877,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
 				responsePart.setIpAddress("");
 				responsePart.setHttpCode(null);
+				responsePart.setHttpVersion(null, null);
 				responsePart.setTime("");
 				final Map<String, String> responseHeaders = new LinkedHashMap<>();
 				responsePart.setResponseHeaders(responseHeaders);
@@ -1859,6 +1907,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				if (result != null && result) {
 					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 					httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
+					httpRequest.setHttpVersion(requestPart.getHttpVersion());
 
 					for (final Entry<String, String> httpRequestHeadersEntry : requestPart.getHttpHeaders().entrySet()) {
 						httpRequest.addHeader(httpRequestHeadersEntry.getKey(), httpRequestHeadersEntry.getValue());
