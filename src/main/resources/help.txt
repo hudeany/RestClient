@@ -22,14 +22,19 @@ Request parameters
 	fields can still be changed afterwards.
 
 	--url <url>                      Full request URL (required unless --preset or --request-file is used)
-	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, OPTIONS, TRACE (default: GET)
-	--header <name: value>           Adds an HTTP request header. Repeatable.
+	--method <method>                HTTP method: GET, HEAD, POST, PUT, DELETE, OPTIONS, TRACE (default: GET).
+	                                  PATCH is additionally supported with --http-version HTTP/2.
+	--http-version <version>         HTTP protocol version: HTTP/1.1 or HTTP/2 (default: HTTP/1.1). With HTTP/2 the
+	                                  version is negotiated (TLS ALPN for https, h2c upgrade for http); if the
+	                                  server does not support it, HTTP/1.1 is used. With -v the actually used
+	                                  version is printed.
+	--header <name: value>          Adds an HTTP request header. Repeatable.
 	--url-param <name=value>         Adds a URL (query string) parameter. Repeatable.
 	--form-param <name=value>        Adds an HTML form (application/x-www-form-urlencoded) parameter. Repeatable.
 	                                  Form parameters are sent as the request body for every HTTP method and take
 	                                  precedence over --body. Note: with GET, Java's HttpURLConnection then sends
 	                                  the request as POST instead.
-	--body <text>                    Request body text. Only used for POST/PUT, and only if no --form-param was given.
+	--body <text>                    Request body text. Only used for POST/PUT/PATCH, and only if no --form-param was given.
 	--body-file <path>                Reads the request body from a local text file instead of --body.
 	--proxy <DIRECT|WPAD|host:port>  Proxy to use for this request. DIRECT disables any proxy, WPAD autodetects one.
 	--max-redirects <n>              Maximum number of redirects to follow (default: 0, i.e. do not follow redirects)

@@ -592,8 +592,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			requestPart.setProxyUrl("");
 			requestPart.setMaxRedirects(0);
-			requestPart.setHttpMethod("GET");
 			requestPart.setHttpVersion(HttpVersion.HTTP_1_1);
+			requestPart.setHttpMethod("GET");
 			requestPart.setServiceUrl("");
 			requestPart.setTlsCheckConfiguration(new TlsCheckConfiguration(TlsCheckConfigurationType.SystemTrustStore, true));
 			requestPart.setServiceMethod("");
@@ -614,9 +614,10 @@ public class RestClientDialog extends UpdateableGuiApplication {
 			// Older presets saved before this field existed simply won't have it -> default to 0 (off)
 			final Object maxRedirectsObject = jsonObject.getSimpleValue("maxRedirects");
 			requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
-			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
-			// Older presets saved before this field existed simply won't have it -> default to HTTP/1.1
+			// Older presets saved before this field existed simply won't have it -> default to HTTP/1.1.
+			// Set before the method, since the version determines the selectable methods (PATCH only with HTTP/2)
 			requestPart.setHttpVersion(RequestComponent.parseHttpVersion((String) jsonObject.getSimpleValue("httpVersion")));
+			requestPart.setHttpMethod((String) jsonObject.getSimpleValue("httpMethod"));
 			requestPart.setServiceUrl((String) jsonObject.getSimpleValue("serviceUrl"));
 
 			final Object tlsCheckConfigurationObject = jsonObject.getSimpleValue("tlsCheck");
@@ -945,9 +946,8 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				formBody.append(URLEncoder.encode(formParameterEntry.getValue() != null ? formParameterEntry.getValue() : "", StandardCharsets.UTF_8));
 			}
 			curlCommand.append(" \\\n  --data ").append(shellQuote(formBody.toString()));
-		} else if (StringUtilities.isNotBlank(requestPart.getRequestBody())
-				&& ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod()))) {
-			// Same rule as executeRequest(): the body text is only sent for POST/PUT. Exporting it for any
+		} else if (StringUtilities.isNotBlank(requestPart.getRequestBody()) && isRequestBodyMethod(requestPart.getHttpMethod())) {
+			// Same rule as executeRequest(): the body text is only sent for POST/PUT/PATCH. Exporting it for any
 			// other method would make cURL send it anyway and even turn a GET request into a POST (--data).
 			curlCommand.append(" \\\n  --data ").append(shellQuote(requestPart.getRequestBody()));
 		}
@@ -977,6 +977,34 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		// (it is a separate token-acquisition request performed by RestClient itself) and is left out.
 
 		return curlCommand.toString();
+	}
+
+	/**
+	 * Whether a request body text is sent for the given HTTP method (POST, PUT and PATCH). For all other
+	 * methods the body text is ignored, same as in the command line mode (see RestClient).
+	 */
+	private static boolean isRequestBodyMethod(final String httpMethod) {
+		return "POST".equalsIgnoreCase(httpMethod) || "PUT".equalsIgnoreCase(httpMethod) || "PATCH".equalsIgnoreCase(httpMethod);
+	}
+
+	/**
+	 * Whether the given HTTP method can only be sent with HTTP/2, which uses java.net.http.HttpClient.
+	 * HttpURLConnection (used for HTTP/1.1) rejects it with a ProtocolException.
+	 */
+	private static boolean isHttp2OnlyMethod(final String httpMethod) {
+		return httpMethod != null && RestClient.CLI_HTTP_METHODS_HTTP_2_ONLY.contains(httpMethod.trim().toUpperCase(Locale.ROOT));
+	}
+
+	/**
+	 * Checks up front that the HTTP method can be sent with the selected HTTP version, so the user gets a
+	 * clear message instead of the ProtocolException of HttpURLConnection.
+	 *
+	 * @throws Exception if the method is only supported with HTTP/2, but another version is selected
+	 */
+	private static void checkHttpMethodSupportedByHttpVersion(final String httpMethod, final HttpVersion httpVersion) throws Exception {
+		if (isHttp2OnlyMethod(httpMethod) && httpVersion != HttpVersion.HTTP_2) {
+			throw new Exception(LangResources.get("httpMethodRequiresHttp2", httpMethod));
+		}
 	}
 
 	/**
@@ -1064,6 +1092,11 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		if (httpMethod != null && !RequestComponent.isSupportedHttpMethod(httpMethod)) {
 			throw new Exception(LangResources.get("unsupportedHttpMethod", httpMethod));
 		}
+		// "curl -X PATCH" without --http2 is still imported (switched to HTTP/2), since HTTP/1.1 cannot send PATCH here
+		// and cURL itself would send it - the user can see the changed HTTP version in the request part
+		if (httpMethod != null && isHttp2OnlyMethod(httpMethod)) {
+			httpVersion = HttpVersion.HTTP_2;
+		}
 
 		String serviceUrl = url;
 		final Map<String, String> urlParameters = new LinkedHashMap<>();
@@ -1087,8 +1120,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPart.setPresetName(null);
 		requestPart.setProxyUrl(proxyUrl == null ? "" : proxyUrl);
 		requestPart.setMaxRedirects(maxRedirects);
-		requestPart.setHttpMethod(httpMethod == null ? "GET" : httpMethod);
+		// Version before method, since the version determines the selectable methods (PATCH only with HTTP/2)
 		requestPart.setHttpVersion(httpVersion);
+		requestPart.setHttpMethod(httpMethod == null ? "GET" : httpMethod);
 		requestPart.setServiceUrl(serviceUrl);
 		requestPart.setServiceMethod(null);
 		requestPart.setHttpHeaders(httpHeaders);
@@ -1427,8 +1461,9 @@ public class RestClientDialog extends UpdateableGuiApplication {
 		requestPart.setProxyUrl(requestYamlMapping.containsKey("proxyUrl") ? (String) requestYamlMapping.getSimpleValue("proxyUrl") : "");
 		final Object maxRedirectsObject = requestYamlMapping.getSimpleValue("maxRedirects");
 		requestPart.setMaxRedirects(maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue());
-		requestPart.setHttpMethod((String) requestYamlMapping.getSimpleValue("httpMethod"));
+		// Version before method, since the version determines the selectable methods (PATCH only with HTTP/2)
 		requestPart.setHttpVersion(RequestComponent.parseHttpVersion((String) requestYamlMapping.getSimpleValue("httpVersion")));
+		requestPart.setHttpMethod((String) requestYamlMapping.getSimpleValue("httpMethod"));
 		requestPart.setServiceUrl((String) requestYamlMapping.getSimpleValue("serviceUrl"));
 
 		if (requestYamlMapping.containsKey("tlsCheck")) {
@@ -1795,6 +1830,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 
 			ExecuteHttpRequestWorker worker = null;
 			try {
+				checkHttpMethodSupportedByHttpVersion(requestPart.getHttpMethod(), requestPart.getHttpVersion());
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 				httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 				httpRequest.setHttpVersion(requestPart.getHttpVersion());
@@ -1819,7 +1855,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 					httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
 				}
 
-				if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
+				if (isRequestBodyMethod(requestPart.getHttpMethod())) {
 					if (requestPart.getHtmlFormParameters().size() == 0) {
 						if (StringUtilities.isNotBlank(requestPart.getRequestBody())) {
 							httpRequest.setRequestBody(requestPart.getRequestBody());
@@ -1905,6 +1941,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 				final MultipleWorkerConfigurationDialog configurationDialog = new MultipleWorkerConfigurationDialog(this, LangResources.get("multipleWorkerSettings"));
 				final Boolean result = configurationDialog.open();
 				if (result != null && result) {
+					checkHttpMethodSupportedByHttpVersion(requestPart.getHttpMethod(), requestPart.getHttpVersion());
 					final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(requestPart.getHttpMethod()), requestPart.getServiceUrl() + (StringUtilities.isNotBlank(requestPart.getServiceMethod()) ? "/" + requestPart.getServiceMethod() : ""));
 					httpRequest.setMaxRedirects(requestPart.getMaxRedirects());
 					httpRequest.setHttpVersion(requestPart.getHttpVersion());
@@ -1921,7 +1958,7 @@ public class RestClientDialog extends UpdateableGuiApplication {
 						httpRequest.addPostParameter(htmlFormParametersEntry.getKey(), htmlFormParametersEntry.getValue());
 					}
 
-					if ("POST".equalsIgnoreCase(requestPart.getHttpMethod()) || "PUT".equalsIgnoreCase(requestPart.getHttpMethod())) {
+					if (isRequestBodyMethod(requestPart.getHttpMethod())) {
 						if (requestPart.getHtmlFormParameters().size() == 0) {
 							if (StringUtilities.isNotBlank(requestPart.getRequestBody())) {
 								httpRequest.setRequestBody(requestPart.getRequestBody());

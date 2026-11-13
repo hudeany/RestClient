@@ -35,6 +35,7 @@ import de.soderer.network.HttpMethod;
 import de.soderer.network.HttpRequest;
 import de.soderer.network.HttpResponse;
 import de.soderer.network.HttpUtilities;
+import de.soderer.network.HttpVersion;
 import de.soderer.network.TlsCheckConfiguration;
 import de.soderer.network.TlsCheckConfiguration.TlsCheckConfigurationType;
 import de.soderer.pac.utilities.ProxyConfiguration;
@@ -87,10 +88,17 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 	public static final String APPLICATION_ERROR_EMAIL_ADRESS = "RestClient.Error@soderer.de";
 
 	/**
-	 * HTTP methods supported by the command line parameter "--method". PATCH and CONNECT are missing on purpose:
-	 * HttpURLConnection (used by HttpUtilities) rejects them with a ProtocolException.
+	 * HTTP methods supported by the command line parameter "--method" for every HTTP version. PATCH and CONNECT
+	 * are missing on purpose: HttpURLConnection (used by HttpUtilities for HTTP/1.1) rejects them with a
+	 * ProtocolException.
 	 */
 	public static final List<String> CLI_HTTP_METHODS = List.of("GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "TRACE");
+
+	/**
+	 * Additional HTTP methods supported by the command line parameter "--method" only with "--http-version HTTP/2",
+	 * which is sent via java.net.http.HttpClient. CONNECT stays unsupported, HttpClient rejects it as well.
+	 */
+	public static final List<String> CLI_HTTP_METHODS_HTTP_2_ONLY = List.of("PATCH");
 
 	/**
 	 * Configuration key of the proxy URLs offered in the proxy URL dropdown, in addition to "DIRECT" and "WPAD".
@@ -260,6 +268,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			// Read the parameters
 			String cliUrl = null;
 			String cliMethod = null;
+			String cliHttpVersion = null;
 			final Map<String, String> cliHeaders = new LinkedHashMap<>();
 			final Map<String, String> cliUrlParameters = new LinkedHashMap<>();
 			final Map<String, String> cliFormParameters = new LinkedHashMap<>();
@@ -294,6 +303,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 						break;
 					case "--method":
 						cliMethod = requireValue(arguments, i++, argument);
+						break;
+					case "--http-version":
+						cliHttpVersion = requireValue(arguments, i++, argument);
 						break;
 					case "--header": {
 						final String headerLine = requireValue(arguments, i++, argument);
@@ -434,6 +446,8 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				// precedence as the GUI, where a loaded preset fills the form and the user can still edit
 				// individual fields afterwards.
 				String httpMethod = "GET";
+				// null means "not set": the HttpRequest default is used then
+				String httpVersion = null;
 				String serviceUrl = null;
 				final Map<String, String> httpHeaders = new LinkedHashMap<>();
 				final Map<String, String> urlParameters = new LinkedHashMap<>();
@@ -466,6 +480,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 					final Object maxRedirectsObject = presetJsonObject.getSimpleValue("maxRedirects");
 					maxRedirects = maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue();
 					httpMethod = (String) presetJsonObject.getSimpleValue("httpMethod");
+					httpVersion = (String) presetJsonObject.getSimpleValue("httpVersion");
 					serviceUrl = (String) presetJsonObject.getSimpleValue("serviceUrl");
 					final String serviceMethod = (String) presetJsonObject.getSimpleValue("serviceMethod");
 					if (StringUtilities.isNotBlank(serviceMethod)) {
@@ -533,6 +548,7 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 						final Object maxRedirectsObject = requestYamlMapping.getSimpleValue("maxRedirects");
 						maxRedirects = maxRedirectsObject == null ? 0 : ((Number) maxRedirectsObject).intValue();
 						httpMethod = (String) requestYamlMapping.getSimpleValue("httpMethod");
+						httpVersion = (String) requestYamlMapping.getSimpleValue("httpVersion");
 						serviceUrl = (String) requestYamlMapping.getSimpleValue("serviceUrl");
 						final String serviceMethod = (String) requestYamlMapping.getSimpleValue("serviceMethod");
 						if (StringUtilities.isNotBlank(serviceMethod)) {
@@ -601,9 +617,26 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				if (cliMethod != null) {
 					httpMethod = cliMethod;
 				}
+				if (cliHttpVersion != null) {
+					httpVersion = cliHttpVersion;
+				}
+				// Checked up front (also for versions from a preset or request file), so an invalid value
+				// is reported as a parameter error together with the usage text
+				final HttpVersion resolvedHttpVersion = parseRequestHttpVersion(httpVersion);
 				// Checked up front (also for methods from a preset or request file), since HttpURLConnection
-				// would only reject an unsupported method like PATCH or CONNECT when sending the request
-				if (!CLI_HTTP_METHODS.contains(httpMethod.trim().toUpperCase(Locale.ROOT))) {
+				// would only reject an unsupported method like PATCH or CONNECT when sending the request.
+				// PATCH is only possible with HTTP/2, which is sent via java.net.http.HttpClient.
+				final String normalizedHttpMethod = httpMethod.trim().toUpperCase(Locale.ROOT);
+				if (resolvedHttpVersion == HttpVersion.HTTP_2) {
+					if (!CLI_HTTP_METHODS.contains(normalizedHttpMethod) && !CLI_HTTP_METHODS_HTTP_2_ONLY.contains(normalizedHttpMethod)) {
+						final List<String> supportedMethods = new ArrayList<>(CLI_HTTP_METHODS);
+						supportedMethods.addAll(CLI_HTTP_METHODS_HTTP_2_ONLY);
+						throw new ParameterException("method", "Unsupported HTTP method '" + httpMethod + "' for HTTP/2 (supported: " + String.join(", ", supportedMethods) + ")");
+					}
+				} else if (!CLI_HTTP_METHODS.contains(normalizedHttpMethod)) {
+					if (CLI_HTTP_METHODS_HTTP_2_ONLY.contains(normalizedHttpMethod)) {
+						throw new ParameterException("method", "HTTP method '" + httpMethod + "' is only supported with --http-version HTTP/2");
+					}
 					throw new ParameterException("method", "Unsupported HTTP method '" + httpMethod + "' (supported: " + String.join(", ", CLI_HTTP_METHODS) + ")");
 				}
 				httpHeaders.putAll(cliHeaders);
@@ -690,6 +723,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 
 				final HttpRequest httpRequest = new HttpRequest(HttpMethod.getHttpMethodByName(httpMethod), serviceUrl);
 				httpRequest.setMaxRedirects(maxRedirects);
+				if (resolvedHttpVersion != null) {
+					httpRequest.setHttpVersion(resolvedHttpVersion);
+				}
 
 				if (StringUtilities.isNotBlank(downloadTarget)) {
 					httpRequest.setDownloadTarget(new File(downloadTarget));
@@ -728,7 +764,9 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 				}
 
 				if (cliVerbose) {
-					System.err.println("HTTP " + httpResponse.getHttpCode());
+					// Shows the actually used version, which may differ from the requested one (HTTP/2 falls back to HTTP/1.1)
+					final HttpVersion responseHttpVersion = httpResponse.getHttpVersion();
+					System.err.println((responseHttpVersion != null ? responseHttpVersion.getProtocolName() : "HTTP") + " " + httpResponse.getHttpCode());
 					if (httpResponse.getHeaders() != null) {
 						for (final Entry<String, String> headerEntry : httpResponse.getHeaders().entrySet()) {
 							System.err.println(headerEntry.getKey() + ": " + headerEntry.getValue());
@@ -791,6 +829,35 @@ public class RestClient extends UpdateableConsoleApplication implements WorkerPa
 			throw new ParameterException(flagName, "Missing value for parameter");
 		}
 		return arguments[index + 1];
+	}
+
+	/**
+	 * Parses the HTTP version for a request (command line, preset or request file). Accepts the protocol
+	 * name ("HTTP/1.1", "HTTP/2"), the enum name ("HTTP_1_1", "HTTP_2") or the plain version number
+	 * ("1.1", "2"), ignoring case. HTTP/1.0 is rejected, because it can only be reported by a response,
+	 * not requested.
+	 *
+	 * @param httpVersion the version text, may be null or blank
+	 * @return the parsed version, or null if none was given (the HttpRequest default is used then)
+	 * @throws ParameterException if the version is unknown or cannot be requested
+	 */
+	private static HttpVersion parseRequestHttpVersion(final String httpVersion) throws ParameterException {
+		if (StringUtilities.isBlank(httpVersion)) {
+			return null;
+		}
+		final String versionText = httpVersion.trim();
+		for (final HttpVersion candidate : HttpVersion.values()) {
+			if (candidate.getProtocolName().equalsIgnoreCase(versionText)
+					|| candidate.name().equalsIgnoreCase(versionText)
+					|| candidate.getProtocolName().substring("HTTP/".length()).equals(versionText)) {
+				if (candidate == HttpVersion.HTTP_1_0) {
+					break;
+				}
+				return candidate;
+			}
+		}
+		throw new ParameterException("http-version", "Unsupported HTTP version '" + httpVersion + "' (supported: "
+				+ HttpVersion.HTTP_1_1.getProtocolName() + ", " + HttpVersion.HTTP_2.getProtocolName() + ")");
 	}
 
 	private static void printPresetNames() throws Exception {

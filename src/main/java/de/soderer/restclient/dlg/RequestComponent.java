@@ -93,12 +93,19 @@ public class RequestComponent extends JPanel {
 	private static final long serialVersionUID = -6541962730287135460L;
 
 	/**
-	 * HTTP methods offered in the method dropdown and accepted by preset, YAML, cURL and OpenAPI imports.
-	 * PATCH and CONNECT are missing because HttpURLConnection (used by HttpUtilities) rejects them with a
-	 * ProtocolException; OPTIONS and TRACE are deliberately not offered in the GUI. Importing any other
-	 * method fails with an "unsupported HTTP method" error, see {@link #setHttpMethod(String)}.
+	 * HTTP methods offered in the method dropdown for every HTTP version and accepted by preset, YAML, cURL
+	 * and OpenAPI imports. PATCH and CONNECT are missing because HttpURLConnection (used by HttpUtilities for
+	 * HTTP/1.1) rejects them with a ProtocolException; OPTIONS and TRACE are deliberately not offered in the
+	 * GUI. Importing any other method fails with an "unsupported HTTP method" error, see
+	 * {@link #setHttpMethod(String)}.
 	 */
 	private static final List<String> HTTP_METHODS = List.of("GET", "POST", "PUT", "DELETE", "HEAD");
+
+	/**
+	 * HTTP methods additionally offered in the method dropdown while HTTP/2 is selected, which is sent via
+	 * java.net.http.HttpClient. Same list as for the command line, see {@link RestClient#CLI_HTTP_METHODS_HTTP_2_ONLY}.
+	 */
+	private static final List<String> HTTP_2_ONLY_METHODS = RestClient.CLI_HTTP_METHODS_HTTP_2_ONLY;
 
 
 	private static final int KEY_FIELD_WIDTH = 150;
@@ -186,6 +193,10 @@ public class RequestComponent extends JPanel {
 	/**
 	 * Selects an HTTP method.
 	 *
+	 * A method that is only supported with HTTP/2 (PATCH) switches the HTTP version to HTTP/2, so presets,
+	 * YAML, cURL and OpenAPI imports with such a method work independent of the order in which method and
+	 * version are set.
+	 *
 	 * @param method the HTTP method (case-insensitive), or null to keep the current one
 	 * @throws IllegalArgumentException if the method is not supported, see {@link #isSupportedHttpMethod(String)}
 	 */
@@ -195,32 +206,79 @@ public class RequestComponent extends JPanel {
 				// Silently keeping the previous method would send the request with a wrong method later on
 				throw new IllegalArgumentException(LangResources.get("unsupportedHttpMethod", method));
 			}
-			for (final String httpMethod : HTTP_METHODS) {
-				if (httpMethod.equalsIgnoreCase(method.trim())) {
-					httpMethodCombo.setText(httpMethod);
-					break;
-				}
+			final String normalizedMethod = method.trim().toUpperCase(Locale.ROOT);
+			if (!isSupportedHttpMethod(normalizedMethod, httpVersion)) {
+				// Also rebuilds the dropdown items, so the method is selectable afterwards
+				setHttpVersion(HttpVersion.HTTP_2);
 			}
+			httpMethodCombo.setText(normalizedMethod);
 		}
 
 		checkRequestContentStatus();
 	}
 
 	/**
-	 * Checks whether an HTTP method is offered in the method dropdown.
+	 * Checks whether an HTTP method is supported with any HTTP version (also the ones only supported with
+	 * HTTP/2, like PATCH).
 	 *
 	 * @param method the HTTP method (case-insensitive), may be null
 	 * @return true if the method is supported
 	 */
 	public static boolean isSupportedHttpMethod(final String method) {
+		return isSupportedHttpMethod(method, HttpVersion.HTTP_2);
+	}
+
+	/**
+	 * Checks whether an HTTP method is offered in the method dropdown for the given HTTP version.
+	 *
+	 * @param method the HTTP method (case-insensitive), may be null
+	 * @param httpVersion the requested HTTP version
+	 * @return true if the method is supported with this HTTP version
+	 */
+	public static boolean isSupportedHttpMethod(final String method, final HttpVersion httpVersion) {
 		if (method != null) {
-			for (final String httpMethod : HTTP_METHODS) {
+			for (final String httpMethod : getAvailableHttpMethods(httpVersion)) {
 				if (httpMethod.equalsIgnoreCase(method.trim())) {
 					return true;
 				}
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns the HTTP methods offered in the method dropdown for the given HTTP version.
+	 *
+	 * @param httpVersion the requested HTTP version
+	 * @return the HTTP methods in display order
+	 */
+	private static List<String> getAvailableHttpMethods(final HttpVersion httpVersion) {
+		if (httpVersion == HttpVersion.HTTP_2) {
+			final List<String> httpMethods = new ArrayList<>(HTTP_METHODS);
+			httpMethods.addAll(HTTP_2_ONLY_METHODS);
+			return httpMethods;
+		} else {
+			return HTTP_METHODS;
+		}
+	}
+
+	/**
+	 * Rebuilds the method dropdown items for the current HTTP version. If the selected method is not
+	 * available anymore (PATCH after switching back to HTTP/1.1), GET is selected instead.
+	 */
+	private void updateHttpMethodItems() {
+		if (httpMethodCombo == null) {
+			// Called by setHttpVersion() during createUI(), before the method dropdown exists
+			return;
+		}
+		final String currentMethod = httpMethodCombo.getText();
+		httpMethodCombo.setItems(getAvailableHttpMethods(httpVersion));
+		if (currentMethod != null && isSupportedHttpMethod(currentMethod, httpVersion)) {
+			httpMethodCombo.setText(currentMethod);
+		} else {
+			httpMethodCombo.setText(HTTP_METHODS.get(0));
+		}
+		checkRequestContentStatus();
 	}
 
 	/**
@@ -233,7 +291,8 @@ public class RequestComponent extends JPanel {
 	}
 
 	/**
-	 * Selects the HTTP version to request.
+	 * Selects the HTTP version to request and updates the methods offered in the method dropdown (PATCH only
+	 * with HTTP/2). If the selected method is not supported by the new version, GET is selected instead.
 	 *
 	 * @param httpVersion the HTTP version, null for HTTP/1.1
 	 * @throws IllegalArgumentException for HTTP/1.0, which cannot be requested
@@ -244,6 +303,7 @@ public class RequestComponent extends JPanel {
 		}
 		this.httpVersion = httpVersion == null ? HttpVersion.HTTP_1_1 : httpVersion;
 		httpVersionButton.setText(this.httpVersion.getProtocolName());
+		updateHttpMethodItems();
 	}
 
 	/**
